@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/local_storage.dart';
-import '../home/home_page.dart';
+import '../home/main_screen.dart';
 import 'auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -82,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomePage(
+          builder: (_) => MainScreen(
             client: _authService.client,
             userId: _usernameController.text.trim(),
           ),

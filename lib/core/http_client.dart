@@ -41,9 +41,12 @@ class SharedHttpClient {
     req.headers.contentType =
         ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
     if (noRedirect) req.followRedirects = false;
+    // 使用自定义编码，保留 * - . 等字符（参考浏览器行为）
+    String enc(String s) {
+      return Uri.encodeQueryComponent(s).replaceAll('%2A', '*').replaceAll('%2D', '-').replaceAll('%2E', '.');
+    }
     req.write(body.entries
-        .map((e) =>
-            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .map((e) => '${enc(e.key)}=${enc(e.value)}')
         .join('&'));
     return _send(req);
   }

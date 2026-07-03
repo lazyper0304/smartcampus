@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../course/course_page.dart';
 import '../grade/score_page.dart';
+import '../exam/exam_page.dart';
+import '../plan/plan_page.dart';
 import '../graduation/graduation_page.dart';
 import '../profile/profile_page.dart';
 
@@ -105,6 +107,42 @@ class HomePage extends StatelessWidget {
                       builder: (_) => ScorePage(
                         client: client,
                         userId: userId,
+                      ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildMenuCard(
+              context,
+              icon: Icons.event_note,
+              title: '考试安排',
+              subtitle: '查看期末考试时间地点',
+              color: const Color(0xFFE67E22),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => ExamPage(
+                        client: client,
+                      ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildMenuCard(
+              context,
+              icon: Icons.account_tree,
+              title: '培养方案',
+              subtitle: '查看个人培养计划与课程结构',
+              color: const Color(0xFF2980B9),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => PlanPage(
+                        client: client,
                       ),
                   ),
                 );
