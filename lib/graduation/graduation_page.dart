@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import 'graduation.dart';
 import 'graduation_service.dart';
+
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class GraduationPage extends StatefulWidget {
   final SharedHttpClient client;
@@ -35,13 +38,16 @@ class _GraduationPageState extends State<GraduationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('学业完成情况'),
-        centerTitle: true,
-        actions: [if (_result != null) IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+    return GlassPage(
+      statusBarStyle: GlassStatusBarStyle.auto,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('学业完成情况'),
+          centerTitle: true,
+          actions: [if (_result != null) IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -191,7 +197,7 @@ class _GraduationPageState extends State<GraduationPage> {
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(summary.studentName.isNotEmpty ? summary.studentName : '培养方案',
+              Text(summary.studentName.isNotEmpty ? summary.studentName : '学生',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
               Text(summary.planName, style: TextStyle(fontSize: 12, color: Colors.grey[600])),

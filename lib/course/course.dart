@@ -1,3 +1,29 @@
+/// 节次时间对照（从 API jc.do 获取）
+const Map<int, List<String>> periodTimeRanges = {
+  1: ['08:30', '09:15'],
+  2: ['09:20', '10:05'],
+  3: ['10:25', '11:10'],
+  4: ['11:15', '12:00'],
+  5: ['14:30', '15:15'],
+  6: ['15:20', '16:05'],
+  7: ['16:25', '17:10'],
+  8: ['17:15', '18:00'],
+  9: ['19:00', '19:45'],
+  10: ['19:50', '20:35'],
+  11: ['20:45', '21:30'],
+  12: ['22:05', '22:50'],
+};
+
+String formatPeriodTime(int period, {bool short = false}) {
+  final times = periodTimeRanges[period];
+  if (times == null) return period.toString();
+  if (short) {
+    return '${times[0]}';
+  }
+  return '${times[0]}-${times[1]}';
+}
+
+/// 课程模型
 class Course {
   /// 课程名称
   final String name;
@@ -32,9 +58,7 @@ class Course {
 
   /// 从 Wisedu API xskcb.do 返回的 JSON row 创建 Course
   factory Course.fromJson(Map<String, dynamic> json, {int colorIndex = 0}) {
-    // 周次：解析 SKZC 二进制字符串，如 "01111111111111111100" → 2-18周
-    // 或 "00101010101010101000" → 3,5,7,9,11,13,15,17周（单周）
-    // 或 "00000000110000000000" → 9-10周
+    // 周次：解析 SKZC 二进制字符串
     final skzc = json['SKZC']?.toString() ?? '';
     final weeks = <int>[];
 
@@ -45,7 +69,6 @@ class Course {
         }
       }
     } else {
-      // 回退到解析 ZCMC 文本格式，如 "2-18周"、"3-17周(单)"、"9-10周"
       final zcmc = json['ZCMC']?.toString() ?? '';
       for (final part in zcmc.split(',')) {
         final trimmed = part.trim().replaceAll('周', '');
@@ -88,7 +111,11 @@ class Course {
   /// 节次范围文本
   String get sectionRange {
     if (sections.isEmpty) return '';
-    return '${sections.first}-${sections.last}节';
+    final first = sections.first;
+    final last = sections.last;
+    final timeStr = formatPeriodTime(first);
+    if (first == last) return '$first节 ($timeStr)';
+    return '$first-$last节 ($timeStr - ${formatPeriodTime(last, short: true)})';
   }
 
   /// 周次显示文本
@@ -113,5 +140,184 @@ class Course {
       ranges.add(start == prev ? '$start' : '$start-$prev');
     }
     return '${ranges.join(',')}周';
+  }
+}
+
+/// 调课/停课信息
+class CourseChange {
+  /// 课程名称
+  final String courseName;
+
+  /// 授课教师
+  final String teacher;
+
+  /// true=停课, false=调课
+  final bool isSuspended;
+
+  /// 调课类型名称
+  final String changeType;
+
+  /// 原上课周次（二进制位图字符串）
+  final String originalWeekBitmap;
+
+  /// 新上课周次（二进制位图字符串）
+  final String newWeekBitmap;
+
+  /// 原上课星期
+  final int originalDay;
+
+  /// 新上课星期
+  final int newDay;
+
+  /// 原开始节次
+  final int originalStartPeriod;
+
+  /// 原结束节次
+  final int originalEndPeriod;
+
+  /// 新开始节次
+  final int newStartPeriod;
+
+  /// 新结束节次
+  final int newEndPeriod;
+
+  /// 原教室
+  final String originalRoom;
+
+  /// 新教室
+  final String newRoom;
+
+  /// 原教室地点代码
+  final String originalRoomCode;
+
+  /// 新教室地点代码
+  final String newRoomCode;
+
+  /// 原周次显示文本
+  final String originalWeekText;
+
+  /// 新周次显示文本
+  final String newWeekText;
+
+  CourseChange({
+    required this.courseName,
+    required this.teacher,
+    required this.isSuspended,
+    required this.changeType,
+    required this.originalWeekBitmap,
+    required this.newWeekBitmap,
+    required this.originalDay,
+    required this.newDay,
+    required this.originalStartPeriod,
+    required this.originalEndPeriod,
+    required this.newStartPeriod,
+    required this.newEndPeriod,
+    required this.originalRoom,
+    required this.newRoom,
+    required this.originalRoomCode,
+    required this.newRoomCode,
+    required this.originalWeekText,
+    required this.newWeekText,
+  });
+
+  factory CourseChange.fromJson(Map<String, dynamic> json) {
+    final tkdm = json['TKLXDM']?.toString() ?? '';
+    final isSus = tkdm == '03';
+
+    String bitmapLabel(String? bitmap) {
+      if (bitmap == null || bitmap.isEmpty) return '';
+      final weeks = <int>[];
+      for (int i = 0; i < bitmap.length; i++) {
+        if (bitmap[i] == '1') weeks.add(i + 1);
+      }
+      if (weeks.isEmpty) return '';
+      final ranges = <String>[];
+      int? s, p;
+      for (final w in weeks) {
+        if (s == null) { s = w; p = w; }
+        else if (w == p! + 1) { p = w; }
+        else { ranges.add(s == p ? '$s' : '$s-$p'); s = w; p = w; }
+      }
+      if (s != null) ranges.add(s == p ? '$s' : '$s-$p');
+      return '${ranges.join(',')}周';
+    }
+
+    return CourseChange(
+      courseName: json['KCM']?.toString() ?? '',
+      teacher: json['YSKJS']?.toString() ?? json['XSKJS']?.toString() ?? '',
+      isSuspended: isSus,
+      changeType: isSus ? '停课' : '调课',
+      originalWeekBitmap: json['SKZC']?.toString() ?? '',
+      newWeekBitmap: json['XSKZC']?.toString() ?? '',
+      originalDay: int.tryParse(json['SKXQ']?.toString() ?? '0') ?? 0,
+      newDay: int.tryParse(json['XSKXQ']?.toString() ?? '0') ?? 0,
+      originalStartPeriod: int.tryParse(json['KSJC']?.toString() ?? '0') ?? 0,
+      originalEndPeriod: int.tryParse(json['JSJC']?.toString() ?? '0') ?? 0,
+      newStartPeriod: int.tryParse(json['XKSJC']?.toString() ?? '0') ?? 0,
+      newEndPeriod: int.tryParse(json['XJSJC']?.toString() ?? '0') ?? 0,
+      originalRoom: json['JASMC']?.toString() ?? '',
+      newRoom: json['XJASMC']?.toString() ?? '',
+      originalRoomCode: json['JASDM']?.toString() ?? '',
+      newRoomCode: json['XJASDM']?.toString() ?? '',
+      originalWeekText: bitmapLabel(json['SKZC']?.toString()),
+      newWeekText: bitmapLabel(json['XSKZC']?.toString()),
+    );
+  }
+}
+
+/// 未安排课程（仅有课程基本信息，无具体时间地点）
+class UnarrangedCourse {
+  final String name;
+  final String teacher;
+  final double credits;
+  final int hours;
+  final String weekRange;
+
+  UnarrangedCourse({
+    required this.name,
+    required this.teacher,
+    this.credits = 0,
+    this.hours = 0,
+    this.weekRange = '',
+  });
+
+  factory UnarrangedCourse.fromJson(Map<String, dynamic> json) {
+    return UnarrangedCourse(
+      name: json['KCM']?.toString() ?? '',
+      teacher: json['SKJS']?.toString() ?? '',
+      credits: double.tryParse(json['XF']?.toString() ?? '0') ?? 0,
+      hours: int.tryParse(json['XS']?.toString() ?? '0') ?? 0,
+      weekRange: json['SKZC']?.toString() ?? '',
+    );
+  }
+}
+
+/// 学期信息
+class SemesterInfo {
+  final String wid;
+  final String dm; // e.g. "2025-2026-2"
+  final String mc; // e.g. "2025-2026学年 第2学期"
+  final String xndm; // e.g. "2025-2026"
+  final String xqdm; // e.g. "2"
+  final bool isActive;
+
+  SemesterInfo({
+    required this.wid,
+    required this.dm,
+    required this.mc,
+    required this.xndm,
+    required this.xqdm,
+    this.isActive = false,
+  });
+
+  factory SemesterInfo.fromJson(Map<String, dynamic> json) {
+    return SemesterInfo(
+      wid: json['WID']?.toString() ?? '',
+      dm: json['DM']?.toString() ?? '',
+      mc: json['MC']?.toString() ?? '',
+      xndm: json['XNDM']?.toString() ?? '',
+      xqdm: json['XQDM']?.toString() ?? '',
+      isActive: json['SFSY']?.toString() == '1',
+    );
   }
 }

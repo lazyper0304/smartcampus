@@ -43,7 +43,16 @@ dependencies:
   image: ^4.5.3
   # 临时文件路径
   path_provider: ^2.1.0
-
+  # 液态玻璃 UI 风格
+  liquid_glass_widgets: ^0.20.1
+  # 图片缓存
+  cached_network_image: ^3.4.1
+  # 打开外部链接
+  url_launcher: ^6.3.1
+  # 内置浏览器（模拟浏览器登录学工系统）
+  flutter_inappwebview: ^6.1.5
+  # GBK/GB2312 编码支持（部分学校接口使用）
+  gbk_codec: ^0.4.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

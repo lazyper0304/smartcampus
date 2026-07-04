@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import 'exam.dart';
 import 'exam_service.dart';
+
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class ExamPage extends StatefulWidget {
   final SharedHttpClient client;
@@ -34,13 +37,16 @@ class _ExamPageState extends State<ExamPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return GlassPage(
+      statusBarStyle: GlassStatusBarStyle.auto,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('考试安排'),
         centerTitle: true,
         actions: [if (_exams != null) IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
       body: _buildBody(),
+      ),
     );
   }
 
@@ -108,7 +114,7 @@ class _ExamPageState extends State<ExamPage> {
 
   Widget _statItem(IconData icon, String value, String label) {
     return Column(children: [
-      Icon(icon, size: 20, color: Colors.blue),
+      Icon(icon, size: 20, color: _yibinBlue),
       const SizedBox(height: 4),
       Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
@@ -120,10 +126,10 @@ class _ExamPageState extends State<ExamPage> {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4, left: 4),
       child: Row(children: [
-        Icon(Icons.calendar_today, size: 16, color: Colors.blue[700]),
+        Icon(Icons.calendar_today, size: 16, color: _yibinBlue.withValues(alpha: 0.8)),
         const SizedBox(width: 6),
         Text('$date $weekday',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue[800])),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _yibinBlue)),
         const SizedBox(width: 8),
         Text('共$count场', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ]),
@@ -142,15 +148,15 @@ class _ExamPageState extends State<ExamPage> {
             width: 70,
             padding: const EdgeInsets.symmetric(vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(children: [
-              Text(exam.timeRange.split('-').first, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
-              const SizedBox(height: 2),
-              Text('~${exam.timeRange.split('-').last}', style: TextStyle(fontSize: 11, color: Colors.blue[300])),
-              const SizedBox(height: 2),
-              Text(exam.weekday, style: TextStyle(fontSize: 11, color: Colors.blue[400])),
+            color: _yibinBlue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(children: [
+            Text(exam.timeRange.split('-').first, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _yibinBlue)),
+            const SizedBox(height: 2),
+            Text('~${exam.timeRange.split('-').last}', style: TextStyle(fontSize: 11, color: _yibinBlue.withValues(alpha: 0.5))),
+            const SizedBox(height: 2),
+            Text(exam.weekday, style: TextStyle(fontSize: 11, color: _yibinBlue.withValues(alpha: 0.6))),
             ]),
           ),
           const SizedBox(width: 12),

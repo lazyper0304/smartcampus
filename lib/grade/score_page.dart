@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import 'score.dart';
 import 'score_service.dart';
+
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class ScorePage extends StatefulWidget {
   final SharedHttpClient client;
@@ -51,8 +54,10 @@ class _ScorePageState extends State<ScorePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return GlassPage(
+      statusBarStyle: GlassStatusBarStyle.auto,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('成绩查询'),
         centerTitle: true,
         actions: [
@@ -63,6 +68,7 @@ class _ScorePageState extends State<ScorePage> {
         ],
       ),
       body: _buildBody(),
+      ),
     );
   }
 
@@ -146,7 +152,7 @@ class _ScorePageState extends State<ScorePage> {
           const SizedBox(height: 12),
           // 总览
           Card(
-            color: Colors.blue.shade50,
+            color: _yibinBlue.withValues(alpha: 0.06),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
             child: Padding(

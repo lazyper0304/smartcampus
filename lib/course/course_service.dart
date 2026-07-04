@@ -14,64 +14,19 @@ class CourseService {
     this.userId,
   });
 
-  Future<List<Course>> fetchCourses({int? week}) async {
-    final xnxqdm = _calcXnxqdm();
-    final host = Uri.parse(baseUrl).host;
+  String get _host => Uri.parse(baseUrl).host;
 
-    // 1. 角色选择（建立 ehall 模块级 session，否则任何 HTTPS API 都 403）
-    await _entranceFlow(host);
+  // ==================== 通用入口流程 ====================
 
-    // 2. 获取课表入口页，建立模块级 session
+  /// 执行入口流程（角色选择 + 模块 session），后续 API 调用不再重复执行
+  Future<void> ensureSession() async {
+    await _entranceFlow(_host);
     await client.get(
       Uri.parse('$baseUrl/jwapp/sys/wdkb/*default/index.do'),
-      headers: _entryHeaders(host),
+      headers: _entryHeaders(_host),
     );
-
-    // 3. 获取当前学期信息
-    _silentPost('/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do', host, {});
-
-    // 4. 获取学生信息，建立用户上下文
-    if (userId != null && userId!.isNotEmpty) {
-      _silentPost('/jwapp/sys/wdkb/modules/xskcb/cxxsjbxx.do', host,
-          {'XH': userId!});
-    }
-
-    // 5. 获取课表（form-urlencoded，匹配浏览器实际请求）
-    final params = <String, String>{'XNXQDM': xnxqdm};
-    if (week != null) params['SKZC'] = week.toString();
-
-    var resp = await client.postForm(
-      Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xskcb.do'),
-      body: params,
-      headers: _formHeaders(host),
-      noRedirect: true,
-    );
-
-    if (resp.statusCode == 403) {
-      resp = await client.postJson(
-        Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xskcb.do'),
-        body: params,
-        headers: _jsonHeaders(host),
-        noRedirect: true,
-      );
-    }
-
-    if (resp.statusCode == 302) {
-      throw Exception('会话已过期，请重新登录（HTTP 302）');
-    }
-    if (resp.statusCode == 403) {
-      final snippet = resp.body.length > 500 ? resp.body.substring(0, 500) : resp.body;
-      throw Exception('服务器拒绝访问（403）\n$snippet');
-    }
-    if (resp.statusCode != 200) {
-      throw Exception('获取课程数据失败：HTTP ${resp.statusCode}');
-    }
-
-    return _parseResponse(resp.body);
   }
 
-  /// 角色选择流程：调用 appMultiGroupEntranceList 建立模块级 session
-  /// 参考 ScoreService 实现。无此步骤时 HTTPS 的 ehall API 返回 403。
   Future<void> _entranceFlow(String host) async {
     try {
       final resp = await client.get(
@@ -101,25 +56,234 @@ class CourseService {
           }
         }
       }
-    } catch (_) {
-      // 角色选择失败不影响主流程
-    }
-  }
-
-  Future<void> _silentPost(String path, String host, Map<String, String> params) async {
-    try {
-      await client.postForm(Uri.parse('$baseUrl$path'),
-          body: params, headers: {
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Host': host,
-            'Origin': 'https://ehall.yibinu.edu.cn',
-            'Referer': 'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
-            'X-Requested-With': 'XMLHttpRequest',
-          });
     } catch (_) {}
   }
 
-  List<Course> _parseResponse(String body) {
+  // ==================== 获取课表（主接口） ====================
+
+  Future<List<Course>> fetchCourses({int? week, String? xnxqdm}) async {
+    xnxqdm ??= _calcXnxqdm();
+    final host = _host;
+    await ensureSession();
+
+    // 构建学期/学生上下文
+    await _silentPost('/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do', host, {});
+    if (userId != null && userId!.isNotEmpty) {
+      await _silentPost('/jwapp/sys/wdkb/modules/xskcb/cxxsjbxx.do', host,
+          {'XH': userId!});
+    }
+
+    final params = <String, String>{'XNXQDM': xnxqdm};
+    if (week != null) params['SKZC'] = week.toString();
+
+    var resp = await client.postForm(
+      Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xskcb.do'),
+      body: params,
+      headers: _formHeaders(host),
+      noRedirect: true,
+    );
+
+    if (resp.statusCode == 403) {
+      resp = await client.postJson(
+        Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xskcb.do'),
+        body: params,
+        headers: _jsonHeaders(host),
+        noRedirect: true,
+      );
+    }
+
+    if (resp.statusCode == 302) {
+      throw Exception('会话已过期，请重新登录（HTTP 302）');
+    }
+    if (resp.statusCode == 403) {
+      final snippet = resp.body.length > 500
+          ? resp.body.substring(0, 500)
+          : resp.body;
+      throw Exception('服务器拒绝访问（403）\n$snippet');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('获取课程数据失败：HTTP ${resp.statusCode}');
+    }
+
+    return _parseXskcbResponse(resp.body);
+  }
+
+  // ==================== 获取当前周次 ====================
+
+  /// 返回当前周次（通过 dqzc.do 查询）
+  Future<int> fetchCurrentWeek() async {
+    final host = _host;
+    try {
+      // 需要先获取学期信息获取 academic term ID
+      final resp = await _silentPost(
+        '/jwapp/sys/wdkb/modules/jshkcb/dqzc.do',
+        host,
+        {},
+      );
+      if (resp == null) return _calcCurrentWeek();
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'] as Map?;
+      if (datas == null) return _calcCurrentWeek();
+      final module = datas['dqzc'] as Map?;
+      if (module == null) return _calcCurrentWeek();
+      final rows = module['rows'] as List?;
+      if (rows == null || rows.isEmpty) return _calcCurrentWeek();
+      final row = rows[0] as Map<String, dynamic>;
+      final zc = int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
+      return zc;
+    } catch (_) {
+      return _calcCurrentWeek();
+    }
+  }
+
+  /// 从学期起始日期推算当前周次
+  int _calcCurrentWeek() {
+    // 春季学期大约3月初开学（第1周），估算
+    final now = DateTime.now();
+    final semesterStart = DateTime(now.year, 3, 1);
+    final diff = now.difference(semesterStart).inDays;
+    if (diff < 0) return 1;
+    return (diff ~/ 7) + 1;
+  }
+
+  // ==================== 获取学期列表 ====================
+
+  Future<List<SemesterInfo>> fetchSemesters() async {
+    final host = _host;
+    try {
+      final resp = await _silentPost(
+        '/jwapp/sys/wdkb/modules/jshkcb/xnxqcx.do',
+        host,
+        {},
+      );
+      if (resp == null) return [];
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'] as Map?;
+      if (datas == null) return [];
+      final module = datas['xnxqcx'] as Map?;
+      if (module == null) return [];
+      final rows = module['rows'] as List?;
+      if (rows == null) return [];
+      return rows
+          .map((r) => SemesterInfo.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ==================== 获取调课/停课信息 ====================
+
+  Future<List<CourseChange>> fetchCourseChanges({String? xnxqdm}) async {
+    xnxqdm ??= _calcXnxqdm();
+    final host = _host;
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xsdkkc.do'),
+        body: {'XNXQDM': xnxqdm},
+        headers: _formHeaders(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode != 200) return [];
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'] as Map?;
+      if (datas == null) return [];
+      final module = datas['xsdkkc'] as Map?;
+      if (module == null) return [];
+      final rows = module['rows'] as List?;
+      if (rows == null) return [];
+      return rows
+          .map((r) => CourseChange.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ==================== 获取未安排课程 ====================
+
+  Future<List<UnarrangedCourse>> fetchUnarrangedCourses({String? xnxqdm}) async {
+    xnxqdm ??= _calcXnxqdm();
+    final host = _host;
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/wdkb/modules/xskcb/xswpkc.do'),
+        body: {'XNXQDM': xnxqdm},
+        headers: _formHeaders(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode != 200) return [];
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'] as Map?;
+      if (datas == null) return [];
+      final module = datas['xswpkc'] as Map?;
+      if (module == null) return [];
+      final rows = module['rows'] as List?;
+      if (rows == null) return [];
+      return rows
+          .map((r) => UnarrangedCourse.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ==================== 获取节次时间 ====================
+
+  Future<Map<int, List<String>>> fetchPeriodTimes() async {
+    final host = _host;
+    try {
+      final resp = await _silentPost(
+        '/jwapp/sys/wdkb/modules/jshkcb/jc.do',
+        host,
+        {},
+      );
+      if (resp == null) return periodTimeRanges;
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'] as Map?;
+      if (datas == null) return periodTimeRanges;
+      final module = datas['jc'] as Map?;
+      if (module == null) return periodTimeRanges;
+      final rows = module['rows'] as List?;
+      if (rows == null) return periodTimeRanges;
+      final result = <int, List<String>>{};
+      for (final r in rows) {
+        final row = r as Map<String, dynamic>;
+        final dm = int.tryParse(row['DM']?.toString() ?? '0') ?? 0;
+        if (dm == 0) continue;
+        result[dm] = [
+          row['KSSJ']?.toString() ?? '',
+          row['JSSJ']?.toString() ?? '',
+        ];
+      }
+      return result;
+    } catch (_) {
+      return periodTimeRanges;
+    }
+  }
+
+  // ==================== 内部工具 ====================
+
+  Future<HttpResponse?> _silentPost(
+      String path, String host, Map<String, String> params) async {
+    try {
+      final resp = await client.postForm(Uri.parse('$baseUrl$path'),
+          body: params,
+          headers: {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Host': host,
+            'Origin': 'https://ehall.yibinu.edu.cn',
+            'Referer':
+                'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
+            'X-Requested-With': 'XMLHttpRequest',
+          });
+      return resp;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Course> _parseXskcbResponse(String body) {
     final json = jsonDecode(body) as Map<String, dynamic>;
     if (json['code']?.toString() != '0') {
       throw Exception('API 返回错误：${json['code']}');
@@ -132,7 +296,9 @@ class CourseService {
         if (rows is List && rows.isNotEmpty) {
           final courses = <Course>[];
           for (int i = 0; i < rows.length; i++) {
-            courses.add(Course.fromJson(rows[i] as Map<String, dynamic>, colorIndex: i));
+            courses.add(Course.fromJson(
+                rows[i] as Map<String, dynamic>,
+                colorIndex: i));
           }
           return courses;
         }
@@ -154,7 +320,8 @@ class CourseService {
         'Content-Type': 'application/json; charset=UTF-8',
         'Host': host,
         'Origin': 'https://ehall.yibinu.edu.cn',
-        'Referer': 'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
+        'Referer':
+            'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
         'X-Requested-With': 'XMLHttpRequest',
       };
 
@@ -162,7 +329,8 @@ class CourseService {
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Host': host,
         'Origin': 'https://ehall.yibinu.edu.cn',
-        'Referer': 'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
+        'Referer':
+            'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
         'X-Requested-With': 'XMLHttpRequest',
       };
 
@@ -175,16 +343,16 @@ class CourseService {
 }
 
 const List<int> courseColors = [
-  0xFF4A90D9,
-  0xFFE67E22,
-  0xFF2ECC71,
-  0xFFE74C3C,
-  0xFF9B59B6,
-  0xFF1ABC9C,
-  0xFFF39C12,
-  0xFF3498DB,
-  0xFFE91E63,
-  0xFF795548,
-  0xFF607D8B,
-  0xFF00BCD4,
+  0xFF191999, // 校徽蓝
+  0xFF1E1EB5,
+  0xFF2323D1,
+  0xFF2A2AE8,
+  0xFF3D3DF0,
+  0xFF5555F5,
+  0xFF6D6DFA,
+  0xFF8585FF,
+  0xFF9999FF,
+  0xFFADADFF,
+  0xFFC2C2FF,
+  0xFFD6D6FF,
 ];

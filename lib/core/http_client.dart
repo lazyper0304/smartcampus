@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
+import 'local_storage.dart';
+
 /// 基于 dart:io HttpClient 的共享 HTTP 客户端
 /// Cookie 按域名存储，HTTP/HTTPS 共享同域 cookie（与浏览器行为一致）。
 class SharedHttpClient {
@@ -9,9 +13,161 @@ class SharedHttpClient {
   /// { 'ehall.yibinu.edu.cn': { name: value } }
   final Map<String, Map<String, String>> _cookiesByDomain = {};
 
+  static const String _cookieStorageKey = 'saved_cookies';
+
   SharedHttpClient()
       : _client = HttpClient()
-          ..badCertificateCallback = ((_, _, _) => true);
+          ..badCertificateCallback = ((_, _, _) => true)
+          ..autoUncompress = false;
+
+  // ==================== Cookie 持久化 ====================
+
+  /// 保存所有 Cookie 到 LocalStorage（每域名存为一行 Cookie 字符串）
+  Future<void> saveCookies() async {
+    if (_cookiesByDomain.isEmpty) return;
+    final flat = <String, String>{};
+    for (final domain in _cookiesByDomain.entries) {
+      final joined = domain.value.entries
+          .map((e) => '${e.key}=${e.value}')
+          .join('; ');
+      flat[domain.key] = joined;
+    }
+    await LocalStorage.setString(_cookieStorageKey, jsonEncode(flat));
+    // 同时保存一份精简版：只保留 ehall 域的 Cookie
+    final ehallCookies = _cookiesByDomain['ehall.yibinu.edu.cn'];
+    if (ehallCookies != null && ehallCookies.isNotEmpty) {
+      await LocalStorage.setString('cookie_ehall', jsonEncode(ehallCookies));
+    }
+  }
+
+  /// 从 LocalStorage 加载 Cookie
+  Future<void> loadCookies() async {
+    _cookiesByDomain.clear();
+
+    // 优先加载精简版 ehall Cookie
+    final ehallRaw = await LocalStorage.getString('cookie_ehall');
+    if (ehallRaw != null && ehallRaw.isNotEmpty) {
+      try {
+        final ehallMap = jsonDecode(ehallRaw) as Map<String, dynamic>;
+        _cookiesByDomain['ehall.yibinu.edu.cn'] =
+            ehallMap.map((k, v) => MapEntry(k, v.toString()));
+      } catch (_) {}
+    }
+
+    // 再加载完整版（覆盖补充）
+    final saved = await LocalStorage.getString(_cookieStorageKey);
+    if (saved == null || saved.isEmpty) return;
+    try {
+      final decoded = jsonDecode(saved) as Map<String, dynamic>;
+      for (final entry in decoded.entries) {
+        if (entry.key == 'ehall.yibinu.edu.cn' &&
+            _cookiesByDomain.containsKey(entry.key)) {
+          // 已有精简版数据，合并补充
+          final existing = _cookiesByDomain[entry.key]!;
+          for (final cookie in (entry.value as String).split('; ')) {
+            final eqIdx = cookie.indexOf('=');
+            if (eqIdx < 0) continue;
+            final name = cookie.substring(0, eqIdx).trim();
+            if (!existing.containsKey(name)) {
+              existing[name] = cookie.substring(eqIdx + 1).trim();
+            }
+          }
+        } else {
+          final bucket = <String, String>{};
+          for (final cookie in (entry.value as String).split('; ')) {
+            final eqIdx = cookie.indexOf('=');
+            if (eqIdx < 0) continue;
+            bucket[cookie.substring(0, eqIdx).trim()] =
+                cookie.substring(eqIdx + 1).trim();
+          }
+          if (bucket.isNotEmpty) {
+            _cookiesByDomain[entry.key] = bucket;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 兜底：如果 ehall 域有来自父域的 Cookie（如 yibinu.edu.cn），合并
+    final yibinuCookies = _cookiesByDomain['yibinu.edu.cn'];
+    if (yibinuCookies != null && yibinuCookies.isNotEmpty) {
+      final ehall = _cookiesByDomain.putIfAbsent(
+          'ehall.yibinu.edu.cn', () => {});
+      ehall.addAll(yibinuCookies);
+    }
+  }
+
+  /// 清除所有已保存的 Cookie
+  Future<void> clearCookies() async {
+    _cookiesByDomain.clear();
+    await LocalStorage.remove(_cookieStorageKey);
+  }
+
+  /// 获取指定域名的 Cookie 字符串（供外部使用，如原始 Socket 请求）
+  String getCookiesForDomain(String host) {
+    final all = <String, String>{};
+    // 逐级向上匹配父级域名
+    final parts = host.split('.');
+    for (int i = parts.length - 1; i >= 0; i--) {
+      final domain = parts.skip(i).join('.');
+      final bucket = _cookiesByDomain[domain];
+      if (bucket != null) all.addAll(bucket);
+    }
+    return all.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  }
+
+  /// 获取所有 cookies（按域名分组），供注入 WebView 等场景使用
+  Map<String, Map<String, String>> getAllCookies() {
+    final copy = <String, Map<String, String>>{};
+    for (final entry in _cookiesByDomain.entries) {
+      copy[entry.key] = Map.from(entry.value);
+    }
+    return copy;
+  }
+
+  // ==================== 会话验证 ====================
+
+  /// 验证会话是否有效（调用学期 API 检查返回是否为有效 JSON）
+  Future<bool> verifySession() async {
+    try {
+      final host = 'ehall.yibinu.edu.cn';
+      final req = await _client.postUrl(
+        Uri.parse('https://$host'
+            '/jwapp/sys/wdkb/modules/jshkcb/dqxnxq.do'),
+      );
+      _setup(req, req.uri, {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Origin': 'https://$host',
+        'Referer':
+            'https://$host/jwapp/sys/wdkb/*default/index.do',
+        'X-Requested-With': 'XMLHttpRequest',
+      });
+      req.followRedirects = false;
+      final resp = await req.close().timeout(const Duration(seconds: 15));
+
+      // 302 = 被重定向到 CAS 登录 → 会话已过期
+      if (resp.statusCode == 302) return false;
+
+      final body = await resp.transform(utf8.decoder).join();
+
+      // 验证是否为有效 JSON
+      final json = jsonDecode(body) as Map?;
+      if (json == null) return false;
+      if (json['code'] != '0') return false;
+
+      // 检查是否有学期数据
+      final datas = json['datas'] as Map?;
+      if (datas == null) return false;
+      final module = datas['dqxnxq'] as Map?;
+      if (module == null) return false;
+      final rows = module['rows'] as List?;
+      return rows != null && rows.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ==================== HTTP 方法 ====================
 
   /// GET
   Future<HttpResponse> get(Uri uri,
@@ -41,13 +197,14 @@ class SharedHttpClient {
     req.headers.contentType =
         ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
     if (noRedirect) req.followRedirects = false;
-    // 使用自定义编码，保留 * - . 等字符（参考浏览器行为）
     String enc(String s) {
-      return Uri.encodeQueryComponent(s).replaceAll('%2A', '*').replaceAll('%2D', '-').replaceAll('%2E', '.');
+      return Uri.encodeQueryComponent(s)
+          .replaceAll('%2A', '*')
+          .replaceAll('%2D', '-')
+          .replaceAll('%2E', '.');
     }
-    req.write(body.entries
-        .map((e) => '${enc(e.key)}=${enc(e.value)}')
-        .join('&'));
+    req.write(
+        body.entries.map((e) => '${enc(e.key)}=${enc(e.value)}').join('&'));
     return _send(req);
   }
 
@@ -65,17 +222,31 @@ class SharedHttpClient {
     return _send(req);
   }
 
+  // ==================== 内部方法 ====================
+
   void _setup(
       HttpClientRequest req, Uri uri, Map<String, String>? extraHeaders) {
     req.headers.set('User-Agent',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    // 声明支持的压缩格式
+    req.headers.set('Accept-Encoding', 'gzip, deflate');
 
-    // 按域名发送 cookie（HTTP/HTTPS 共享）
-    final bucket = _cookiesByDomain[uri.host];
-    if (bucket != null && bucket.isNotEmpty) {
+    // 按域名发送 cookie，同时检查父级域名（如 yibinu.edu.cn 也匹配 ehall.yibinu.edu.cn）
+    final allCookies = <String, String>{};
+    final host = uri.host;
+    // 从完整域名逐级向上检查
+    final parts = host.split('.');
+    for (int i = parts.length - 1; i >= 0; i--) {
+      final domain = parts.skip(i).join('.');
+      final bucket = _cookiesByDomain[domain];
+      if (bucket != null) {
+        allCookies.addAll(bucket);
+      }
+    }
+    if (allCookies.isNotEmpty) {
       req.headers.set('Cookie',
-          bucket.entries.map((e) => '${e.key}=${e.value}').join('; '));
+          allCookies.entries.map((e) => '${e.key}=${e.value}').join('; '));
     }
 
     if (extraHeaders != null) {
@@ -84,28 +255,57 @@ class SharedHttpClient {
   }
 
   Future<HttpResponse> _send(HttpClientRequest req) async {
-    final resp = await req.close().timeout(const Duration(seconds: 30));
-    final requestUri = req.uri;
-
-    for (final c in resp.cookies) {
-      final domain = c.domain ?? requestUri.host;
-      _cookiesByDomain.putIfAbsent(domain, () => {});
-      _cookiesByDomain[domain]![c.name] = c.value;
-    }
-
-    // 手动解析 Set-Cookie 头（兜底）
+    late HttpResponse result;
     try {
-      resp.headers.forEach((name, values) {
-        if (name.toLowerCase() == 'set-cookie') {
-          for (final val in values) {
-            _parseSetCookieManual(val, requestUri.host);
-          }
-        }
-      });
-    } catch (_) {}
+      // 读取原始字节，手动解压
+      final resp = await req.close().timeout(const Duration(seconds: 30));
+      final requestUri = req.uri;
 
-    final body = await resp.transform(utf8.decoder).join();
-    return HttpResponse(body, resp.statusCode, resp.headers);
+      for (final c in resp.cookies) {
+        final domain = c.domain ?? requestUri.host;
+        _cookiesByDomain.putIfAbsent(domain, () => {});
+        _cookiesByDomain[domain]![c.name] = c.value;
+      }
+
+      // 手动解析 Set-Cookie 头（兜底）
+      try {
+        resp.headers.forEach((name, values) {
+          if (name.toLowerCase() == 'set-cookie') {
+            for (final val in values) {
+              _parseSetCookieManual(val, requestUri.host);
+            }
+          }
+        });
+      } catch (_) {}
+
+      // 读取原始字节，手动解压
+      final bytes = await resp
+          .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
+      final contentEncoding =
+          resp.headers.value('content-encoding')?.toLowerCase() ?? '';
+      debugPrint('HTTP _send: ${resp.statusCode} ${requestUri.path} '
+          'encoding="$contentEncoding" bodyLen=${bytes.length}');
+
+      List<int> decoded;
+      if (contentEncoding.contains('gzip')) {
+        decoded = gzip.decode(bytes);
+      } else if (contentEncoding.contains('deflate')) {
+        decoded = zlib.decode(bytes);
+      } else {
+        // 无编码: 直接用原始字节
+        decoded = bytes;
+      }
+
+      final body = utf8.decode(decoded, allowMalformed: true);
+      result = HttpResponse(body, resp.statusCode, resp.headers);
+    } on Exception catch (e) {
+      if (e is HttpException) {
+        result = HttpResponse('', 1001, null);
+      } else {
+        result = HttpResponse('', 0, null);
+      }
+    }
+    return result;
   }
 
   Future<List<int>> _sendBytes(HttpClientRequest req) async {
@@ -158,13 +358,14 @@ class SharedHttpClient {
 class HttpResponse {
   final String body;
   final int statusCode;
-  final HttpHeaders headers;
+  final HttpHeaders? headers;
 
   HttpResponse(this.body, this.statusCode, this.headers);
 
   String? header(String name) {
+    if (headers == null) return null;
     try {
-      return headers.value(name);
+      return headers!.value(name);
     } catch (_) {
       return null;
     }

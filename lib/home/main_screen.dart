@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import '../course/course_page.dart';
 import '../exam/exam_page.dart';
 import '../grade/score_page.dart';
 import '../graduation/graduation_page.dart';
-import '../plan/plan_page.dart';
-import '../profile/profile_page.dart';
+import '../calendar/calendar_page.dart';
+import '../news/news_list_page.dart';
+import '../news/column_list_page.dart';
+import '../xuegong/xuegong_page.dart';
+import '../xuegong/zhsz_page.dart';
+import '../dianfei/dianfei_page.dart';
+import '../settings/settings_page.dart';
+import 'home_dashboard.dart';
 
-/// 主页面 - 底部导航栏
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
+
+bool _isDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
 class MainScreen extends StatefulWidget {
   final SharedHttpClient client;
   final String userId;
@@ -28,237 +39,296 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          // Tab 0 - 首页（课程表）
-          CourseTablePage(
-            client: widget.client,
-            userId: widget.userId,
-          ),
-          // Tab 1 - 应用
-          _AppsPage(
-            client: widget.client,
-            userId: widget.userId,
-          ),
-        ],
+    return GlassScaffold(
+      background: Container(
+        color: _isDark(context) ? const Color(0xFF1A1A2E) : const Color(0xFFF0F4FF),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: '首页',
+      statusBarStyle: GlassStatusBarStyle.auto,
+      contentAwareBrightness: true,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.12, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            ),
+          );
+        },
+        child: [
+          HomeDashboard(
+            key: const ValueKey('home'),
+            client: widget.client,
+            userId: widget.userId,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.apps),
-            label: '应用',
+          _AppsPage(
+            key: const ValueKey('apps'),
+            client: widget.client,
+            userId: widget.userId,
           ),
-        ],
+          SettingsPage(key: const ValueKey('settings'), client: widget.client),
+        ][_currentIndex],
+      ),
+      bottomBar: Theme(
+        data: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: _yibinBlue,
+            primary: _yibinBlue,
+          ),
+        ),
+        child: GlassTabBar.bottom(
+          selectedIndex: _currentIndex,
+          onTabSelected: (i) => setState(() => _currentIndex = i),
+          tabs: [
+            GlassTab(
+              icon: Icon(Icons.home_rounded),
+              activeIcon: Icon(Icons.home_rounded, color: _yibinBlue),
+              label: '首页',
+            ),
+            GlassTab(
+              icon: Icon(Icons.apps_rounded),
+              activeIcon: Icon(Icons.apps_rounded, color: _yibinBlue),
+              label: '应用',
+            ),
+            GlassTab(
+              icon: Icon(Icons.settings_rounded),
+              activeIcon: Icon(Icons.settings_rounded, color: _yibinBlue),
+              label: '设置',
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 应用页 - 功能入口网格
 class _AppsPage extends StatelessWidget {
   final SharedHttpClient client;
   final String userId;
 
   const _AppsPage({
+    super.key,
     required this.client,
     required this.userId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('宜宾学院智慧校园'),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.person),
-          tooltip: '个人中心',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ProfilePage(
-                  client: client,
-                  userId: userId,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                Icons.school,
-                size: 40,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '宜宾学院',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '智慧校园',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.1,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+              // ── 资讯 ──
+              _buildSectionHeader(context, Icons.rss_feed_rounded, '资讯'),
+              const SizedBox(height: 8),
+              GridView.count(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.85,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _appCard(
-                    context,
-                    icon: Icons.assessment,
-                    title: '成绩查询',
-                    color: const Color(0xFF27AE60),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => ScorePage(
-                                  client: client,
-                                  userId: userId,
-                                )),
-                      );
-                    },
-                  ),
-                  _appCard(
-                    context,
-                    icon: Icons.event_note,
-                    title: '考试安排',
-                    color: const Color(0xFFE67E22),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => ExamPage(
-                                  client: client,
-                                )),
-                      );
-                    },
-                  ),
-                  _appCard(
-                    context,
-                    icon: Icons.account_tree,
-                    title: '培养方案',
-                    color: const Color(0xFF2980B9),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => PlanPage(
-                                  client: client,
-                                )),
-                      );
-                    },
-                  ),
-                  _appCard(
-                    context,
-                    icon: Icons.auto_stories,
-                    title: '学业完成',
-                    color: const Color(0xFF8E44AD),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => GraduationPage(
-                                  client: client,
-                                )),
-                      );
-                    },
-                  ),
-                  _appCard(
-                    context,
-                    icon: Icons.person,
-                    title: '个人中心',
-                    color: const Color(0xFF1A73E8),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => ProfilePage(
-                                  client: client,
-                                  userId: userId,
-                                )),
-                      );
-                    },
-                  ),
+                  _buildAppCard(Icons.newspaper_rounded, '校园新闻', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NewsListPage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.people_rounded, '师生风采', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ColumnListPage(
+                                title: '师生风采',
+                                columnId: '1331',
+                                firstPageUrl: 'https://www.yibinu.edu.cn/ssfc.htm',
+                              )),
+                    );
+                  }),
+                  _buildAppCard(Icons.science_rounded, '科研动态', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ColumnListPage(
+                                title: '科研动态',
+                                columnId: '1341',
+                                firstPageUrl: 'https://www.yibinu.edu.cn/kydt.htm',
+                              )),
+                    );
+                  }),
+                  _buildAppCard(Icons.campaign_rounded, '通知公告', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ColumnListPage(
+                                title: '通知公告',
+                                columnId: '1361',
+                                firstPageUrl: 'https://www.yibinu.edu.cn/tzgg.htm',
+                              )),
+                    );
+                  }),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 28),
+              // ── 教务 ──
+              _buildSectionHeader(context, Icons.school_rounded, '教务'),
+              const SizedBox(height: 8),
+              GridView.count(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.85,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildAppCard(Icons.calendar_month_rounded, '课程表', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => CourseTablePage(
+                                client: client,
+                                userId: userId,
+                              )),
+                    );
+                  }),
+                  _buildAppCard(Icons.assessment_rounded, '成绩查询', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ScorePage(
+                                client: client,
+                                userId: userId,
+                              )),
+                    );
+                  }),
+                  _buildAppCard(Icons.event_note_rounded, '考试安排', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ExamPage(client: client)),
+                    );
+                  }),
+                  _buildAppCard(Icons.auto_stories_rounded, '学业完成', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => GraduationPage(client: client)),
+                    );
+                  }),
+                  _buildAppCard(
+                      Icons.calendar_view_month_rounded, '校历服务', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CalendarPage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.school_rounded, '综合素质', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              ZhszPage(client: client)),
+                    );
+                  }),
+                  _buildAppCard(Icons.electrical_services_rounded, '电费查询', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const DianfeiPage()),
+                    );
+                  }),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+
+  Widget _buildSectionHeader(BuildContext context, IconData icon, String title) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: _yibinBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: _yibinBlue, size: 16),
         ),
-      ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: _yibinBlue,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _appCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+  Widget _buildAppCard(IconData icon, String title, VoidCallback onTap) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 24 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: color, size: 28),
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _yibinBlue.withValues(alpha: 0.1)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _yibinBlue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: _yibinBlue, size: 22),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

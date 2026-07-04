@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/local_storage.dart';
 import '../home/main_screen.dart';
+import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
+
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,7 +16,8 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -21,20 +27,41 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _rememberPassword = false;
 
+  late final AnimationController _animCtrl;
+  AnimationController? _flowCtrl;
+  late final Animation<double> _fadeIn;
+  late final Animation<Offset> _slideUp;
+
   @override
   void initState() {
     super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _flowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat(reverse: true);
+    _fadeIn = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
+
     _loadSavedCredentials();
+    _animCtrl.forward();
   }
 
   @override
   void dispose() {
+    _animCtrl.dispose();
+    _flowCtrl?.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// 加载本地保存的账号密码
   Future<void> _loadSavedCredentials() async {
     final savedUsername = await LocalStorage.getString('username') ?? '';
     final savedPassword = await LocalStorage.getString('password') ?? '';
@@ -47,7 +74,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// 保存或清除账号密码
   Future<void> _saveCredentials() async {
     if (_rememberPassword) {
       await LocalStorage.setString('username', _usernameController.text.trim());
@@ -62,7 +88,6 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
     setState(() => _isLoading = true);
 
     final result = await _authService.login(
@@ -71,223 +96,239 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     if (!mounted) return;
-
     setState(() => _isLoading = false);
 
     if (result.success) {
-      // 保存登录信息
+      // 保存登录凭据和会话 Cookie
       await _saveCredentials();
+      await _authService.client.saveCookies();
+      await LocalStorage.setString('saved_username', _usernameController.text.trim());
+
+      // 后台提取学工系统学生信息
+      StudentInfoManager.fetchAndCache(_authService.client);
 
       if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => MainScreen(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => MainScreen(
             client: _authService.client,
             userId: _usernameController.text.trim(),
           ),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.92, end: 1.0).animate(
+                  CurvedAnimation(
+                      parent: animation, curve: Curves.easeOutCubic),
+                ),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 400),
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message)),
+        SnackBar(
+          content: Text(result.message),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A73E8), Color(0xFF0D47A1)],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      Icons.school,
-                      size: 48,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    '宜宾学院',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '智慧校园登录',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          TextFormField(
-                            controller: _usernameController,
-                            keyboardType: TextInputType.text,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: '学号/工号',
-                              prefixIcon: Icon(Icons.person_outline),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return '请输入学号或工号';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _handleLogin(),
-                            decoration: InputDecoration(
-                              labelText: '密码',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
-                              border: const OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return '请输入密码';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              SizedBox(
-                                height: 40,
-                                child: Checkbox(
-                                  value: _rememberPassword,
-                                  onChanged: (v) {
-                                    setState(() => _rememberPassword = v ?? false);
-                                  },
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() =>
-                                      _rememberPassword = !_rememberPassword);
-                                },
-                                child: Text(
-                                  '记住密码',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[700],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _handleLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text(
-                                      '登 录',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Text(
-                              '默认使用宜宾学院统一认证',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+    return GlassScaffold(
+      background: AnimatedBuilder(
+        animation: _flowCtrl!,
+        builder: (context, _) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.lerp(
+                    const Color(0xFF0D47A1),
+                    const Color(0xFF1565C0),
+                    _flowCtrl!.value,
+                  )!,
+                  Color.lerp(
+                    const Color(0xFF002171),
+                    const Color(0xFF0D47A1),
+                    _flowCtrl!.value,
+                  )!,
+                  Color.lerp(
+                    const Color(0xFF1A237E),
+                    const Color(0xFF002171),
+                    _flowCtrl!.value,
+                  )!,
                 ],
               ),
             ),
+          );
+        },
+      ),
+      statusBarStyle: GlassStatusBarStyle.light,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: SlideTransition(
+                position: _slideUp,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 24),
+                    const Text(
+                      '宜院宾果',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    _buildLoginCard(colorScheme),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(ColorScheme colorScheme) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              controller: _usernameController,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: '学号/工号',
+                prefixIcon: Icon(Icons.person_outline_rounded),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? '请输入学号或工号' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _handleLogin(),
+              decoration: InputDecoration(
+                labelText: '密码',
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                suffixIcon: IconButton(
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _obscurePassword
+                        ? const Icon(Icons.visibility_off_rounded, key: ValueKey('off'))
+                        : const Icon(Icons.visibility_rounded, key: ValueKey('on')),
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? '请输入密码' : null,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                SizedBox(
+                  height: 44,
+                  child: Checkbox(
+                    value: _rememberPassword,
+                    onChanged: (v) =>
+                        setState(() => _rememberPassword = v ?? false),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () =>
+                      setState(() => _rememberPassword = !_rememberPassword),
+                  child: Text('记住密码',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _handleLogin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _yibinBlue,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: _yibinBlue.withValues(alpha: 0.6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Row(
+                          key: ValueKey('login'),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.login_rounded, size: 20),
+                            SizedBox(width: 8),
+                            Text('登  录',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 2,
+                                )),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                '使用统一认证登录',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ),
+          ],
+        ),
         ),
       ),
     );

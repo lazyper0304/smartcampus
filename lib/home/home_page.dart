@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import '../course/course_page.dart';
 import '../grade/score_page.dart';
 import '../exam/exam_page.dart';
-import '../plan/plan_page.dart';
 import '../graduation/graduation_page.dart';
-import '../profile/profile_page.dart';
+import '../calendar/calendar_page.dart';
+import '../news/news_list_page.dart';
+import '../settings/settings_page.dart';
+
+const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class HomePage extends StatelessWidget {
   final SharedHttpClient client;
@@ -20,151 +24,105 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('宜宾学院智慧校园'),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.person),
-          tooltip: '个人中心',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ProfilePage(
-                  client: client,
-                  userId: userId,
-                ),
-              ),
-            );
-          },
+    return GlassPage(
+      statusBarStyle: GlassStatusBarStyle.auto,
+      child: Scaffold(
+        appBar: GlassAppBar(
+          title: const Text('宜院宾果'),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
           children: [
-            const SizedBox(height: 24),
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                Icons.school,
-                size: 40,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '宜宾学院',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '智慧校园',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 8),
             _buildMenuCard(
               context,
-              icon: Icons.calendar_month,
+              icon: Icons.calendar_month_rounded,
               title: '课程表',
               subtitle: '查看本学期课程安排',
-              color: const Color(0xFF4A90D9),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => CourseTablePage(
-                        client: client,
-                        userId: userId,
-                      ),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => CourseTablePage(
+                          client: client,
+                          userId: userId,
+                        )),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             _buildMenuCard(
               context,
-              icon: Icons.assessment,
+              icon: Icons.assessment_rounded,
               title: '成绩查询',
               subtitle: '查看各学期课程成绩',
-              color: const Color(0xFF27AE60),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => ScorePage(
-                        client: client,
-                        userId: userId,
-                      ),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => ScorePage(
+                          client: client,
+                          userId: userId,
+                        )),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             _buildMenuCard(
               context,
-              icon: Icons.event_note,
+              icon: Icons.event_note_rounded,
               title: '考试安排',
               subtitle: '查看期末考试时间地点',
-              color: const Color(0xFFE67E22),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => ExamPage(
-                        client: client,
-                      ),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => ExamPage(
+                          client: client,
+                        )),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             _buildMenuCard(
               context,
-              icon: Icons.account_tree,
-              title: '培养方案',
-              subtitle: '查看个人培养计划与课程结构',
-              color: const Color(0xFF2980B9),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => PlanPage(
-                        client: client,
-                      ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildMenuCard(
-              context,
-              icon: Icons.auto_stories,
+              icon: Icons.auto_stories_rounded,
               title: '学业完成',
               subtitle: '查看毕业要求完成进度',
-              color: const Color(0xFF8E44AD),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => GraduationPage(
-                        client: client,
-                      ),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => GraduationPage(
+                          client: client,
+                        )),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildMenuCard(
+              context,
+              icon: Icons.newspaper_rounded,
+              title: '校园新闻',
+              subtitle: '查看最新新闻动态',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NewsListPage()),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildMenuCard(
+              context,
+              icon: Icons.calendar_view_month_rounded,
+              title: '校历服务',
+              subtitle: '查看学年校历与放假安排',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CalendarPage()),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildMenuCard(
+              context,
+              icon: Icons.settings_rounded,
+              title: '设置',
+              subtitle: '退出登录与应用信息',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
             ),
           ],
         ),
@@ -177,53 +135,63 @@ class HomePage extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
-    required Color color,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: GestureDetector(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _yibinBlue.withValues(alpha: 0.1)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _yibinBlue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: _yibinBlue, size: 26),
                 ),
-                child: Icon(icon, color: color, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          )),
+                      const SizedBox(height: 3),
+                      Text(subtitle,
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey[500])),
+                    ],
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
+                Icon(Icons.chevron_right_rounded,
+                    color: _yibinBlue.withValues(alpha: 0.3), size: 22),
+              ],
+            ),
           ),
         ),
       ),
