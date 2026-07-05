@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'calendar.dart';
 import 'calendar_service.dart';
+import '../news/webview_page.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -479,18 +480,27 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
     );
   }
 
-  /// 底部操作栏：下载PDF
+  /// 底部操作栏：在线预览 / 下载PDF
   Widget _buildBottomBar() {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
+            // 在线预览
+            Expanded(
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('在线预览', style: TextStyle(fontSize: 13)),
+                onPressed: () => _openPreview(),
+              ),
+            ),
+            const SizedBox(width: 12),
             // 复制链接
             Expanded(
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.copy),
-                label: const Text('复制链接'),
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('复制链接', style: TextStyle(fontSize: 13)),
                 onPressed: () => _copyLink(),
               ),
             ),
@@ -518,6 +528,19 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
       const SnackBar(
         content: Text('PDF 链接已复制到剪贴板'),
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _openPreview() {
+    if (_detail == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WebViewPage(
+          url: _detail!.pdfUrl,
+          title: '校历预览',
+        ),
       ),
     );
   }

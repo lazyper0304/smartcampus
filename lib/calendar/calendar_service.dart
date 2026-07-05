@@ -130,26 +130,37 @@ class CalendarService {
   String? _extractPdfUrl(String html) {
     const marker = 'showVsbpdfIframe(';
     final idx = html.indexOf(marker);
-    if (idx < 0) return null;
-
-    final after = html.substring(idx + marker.length);
-    final trimmed = after.trimLeft();
-    if (trimmed.isEmpty) return null;
-    final quote = trimmed[0];
-    if (quote != "'" && quote != '"') return null;
-
-    final endQuote = trimmed.indexOf(quote, 1);
-    if (endQuote < 0) return null;
-
-    var pdfPath = trimmed.substring(1, endQuote);
-    if (!pdfPath.startsWith('http')) {
-      if (pdfPath.startsWith('/')) {
-        pdfPath = '$_baseUrl$pdfPath';
-      } else {
-        pdfPath = '$_baseUrl/$pdfPath';
+    if (idx >= 0) {
+      final after = html.substring(idx + marker.length);
+      final trimmed = after.trimLeft();
+      if (trimmed.isNotEmpty) {
+        final quote = trimmed[0];
+        if (quote == "'" || quote == '"') {
+          final endQuote = trimmed.indexOf(quote, 1);
+          if (endQuote >= 0) {
+            var pdfPath = trimmed.substring(1, endQuote);
+            return _resolveUrl(pdfPath);
+          }
+        }
       }
     }
-    return pdfPath;
+
+    // 兜底：从 <iframe src="...pdf"> 提取
+    final iframeMatch = RegExp(
+      r'<iframe[^>]*src="([^"]+\.pdf[^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (iframeMatch != null) {
+      return _resolveUrl(iframeMatch.group(1)!);
+    }
+
+    return null;
+  }
+
+  String _resolveUrl(String path) {
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('/')) return '$_baseUrl$path';
+    return '$_baseUrl/$path';
   }
 
   String? _extractPreviewImageUrl(String html) {
