@@ -108,6 +108,39 @@ class ShuttlePage extends StatelessWidget {
   }
 
   Widget _buildScheduleCard() {
+    final toLingang = _trips
+        .where((t) => t.direction == _ShuttleDirection.toLingang)
+        .toList();
+    final fromLingang = _trips
+        .where((t) => t.direction == _ShuttleDirection.fromLingang)
+        .toList();
+
+    // 按时间分段配对：上午/下午/晚上
+    final morningTo = toLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h < 12;
+    }).toList();
+    final morningFrom = fromLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h < 12;
+    }).toList();
+    final afternoonTo = toLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h >= 12 && h < 19;
+    }).toList();
+    final afternoonFrom = fromLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h >= 12 && h < 19;
+    }).toList();
+    final eveningTo = toLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h >= 19;
+    }).toList();
+    final eveningFrom = fromLingang.where((t) {
+      final h = int.tryParse(t.time.split(':')[0]) ?? 0;
+      return h >= 19;
+    }).toList();
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -136,30 +169,62 @@ class ShuttlePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            // A区→临港
-            _buildDirectionHeader(
-                'A区 → 临港校区', Icons.directions_bus_rounded, _yibinBlue),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: _trips
-                  .where((t) => t.direction == _ShuttleDirection.toLingang)
-                  .map((t) => _timeChip(t.time, _yibinBlue))
-                  .toList(),
+            // 表头
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: _yibinBlue.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text('时段',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _yibinBlue)),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text('A区 → 临港',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _yibinBlue)),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text('临港 → A区',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _yibinOrange)),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            // 临港→A区
-            _buildDirectionHeader(
-                '临港校区 → A区', Icons.directions_bus_rounded, _yibinOrange),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: _trips
-                  .where((t) => t.direction == _ShuttleDirection.fromLingang)
-                  .map((t) => _timeChip(t.time, _yibinOrange))
-                  .toList(),
+            const SizedBox(height: 8),
+            // 上午
+            _buildTimeRow('上午', morningTo, morningFrom),
+            const Divider(height: 1, indent: 12, endIndent: 12),
+            // 下午
+            _buildTimeRow('下午', afternoonTo, afternoonFrom),
+            const Divider(height: 1, indent: 12, endIndent: 12),
+            // 晚上
+            _buildTimeRow('晚上', eveningTo, eveningFrom),
+            const SizedBox(height: 8),
+            // 图例
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _legendDot(_yibinBlue, 'A区→临港'),
+                const SizedBox(width: 16),
+                _legendDot(_yibinOrange, '临港→A区'),
+              ],
             ),
           ],
         ),
@@ -167,31 +232,71 @@ class ShuttlePage extends StatelessWidget {
     );
   }
 
-  Widget _buildDirectionHeader(String text, IconData icon, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        Text(text,
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: color)),
-      ],
+  Widget _buildTimeRow(
+      String label, List<_ShuttleTrip> toList, List<_ShuttleTrip> fromList) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600])),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: _timeColumn(toList, _yibinBlue),
+          ),
+          Expanded(
+            flex: 2,
+            child: _timeColumn(fromList, _yibinOrange),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _timeChip(String time, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Text(time,
-          style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: color)),
+  Widget _timeColumn(List<_ShuttleTrip> trips, Color color) {
+    if (trips.isEmpty) {
+      return const SizedBox(height: 24);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: trips.map((t) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Text(t.time,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color)),
+      )).toList(),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+      ],
     );
   }
 
@@ -312,6 +417,18 @@ class ShuttlePage extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildDirectionHeader(String text, IconData icon, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+        Text(text,
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: color)),
       ],
     );
   }
