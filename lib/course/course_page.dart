@@ -31,6 +31,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
   int _maxWeek = 1;
   int _todayWeek = 1;
   int _todayDay = 0; // 今天是星期几（1-7）
+  DateTime _firstMonday = DateTime.now(); // 学期第一周周一
 
   // ---- 视图状态 ----
   bool _isLoading = true;
@@ -61,18 +62,40 @@ class _CourseTablePageState extends State<CourseTablePage> {
     });
 
     try {
-      // 并行获取课表数据
+      // 先获取学期列表，得到当前学期代码
+      final semesters = await _service.fetchSemesters();
+
+      // 确定当前学期（基于今天日期计算当前应处的学期代码）
+      String? activeSemester;
+      if (semesters.isNotEmpty) {
+        final now = DateTime.now();
+        final currentDm = now.month >= 2 && now.month <= 7
+            ? '${now.year - 1}-${now.year}-2'
+            : now.month >= 8
+                ? '${now.year}-${now.year + 1}-1'
+                : '${now.year - 1}-${now.year}-1';
+        // 优先匹配计算出的当前学期
+        final matched = semesters.where((s) => s.dm == currentDm).firstOrNull;
+        if (matched != null) {
+          activeSemester = matched.dm;
+        } else {
+          // 回退：isActive 标记，再回退到列表第一个
+          final active = semesters.where((s) => s.isActive).firstOrNull;
+          activeSemester = active?.dm ?? semesters.first.dm;
+        }
+      }
+
+      // 并行获取课表 + 当前周（传入学期代码以获取准确日期）
       final results = await Future.wait([
-        _service.fetchCourses(),
-        _service.fetchCurrentWeek(),
-        _service.fetchSemesters(),
+        _service.fetchCourses(xnxqdm: activeSemester),
+        _service.fetchCurrentWeek(xnxqdm: activeSemester),
       ]);
 
       if (!mounted) return;
 
       final courses = results[0] as List<Course>;
-      final currentWeek = results[1] as int;
-      final semesters = results[2] as List<SemesterInfo>;
+      final weekInfo = results[1] as CurrentWeekInfo;
+      final currentWeek = weekInfo.week;
 
       // 计算最大周次
       int maxW = 1;
@@ -82,20 +105,14 @@ class _CourseTablePageState extends State<CourseTablePage> {
         }
       }
 
-      // 确定默认学期
-      String? defaultSem;
-      if (semesters.isNotEmpty) {
-        final active = semesters.where((s) => s.isActive).firstOrNull;
-        defaultSem = active?.dm ?? semesters.first.dm;
-      }
-
       setState(() {
         _courses = courses;
         _currentWeek = currentWeek;
         _todayWeek = currentWeek;
+        _firstMonday = weekInfo.firstMonday;
         _maxWeek = maxW;
         _semesters = semesters;
-        _selectedSemester = defaultSem;
+        _selectedSemester = activeSemester;
         _isLoading = false;
       });
     } catch (e) {
@@ -145,8 +162,14 @@ class _CourseTablePageState extends State<CourseTablePage> {
     });
 
     try {
-      final courses = await _service.fetchCourses(xnxqdm: xnxqdm);
+      final results = await Future.wait([
+        _service.fetchCourses(xnxqdm: xnxqdm),
+        _service.fetchCurrentWeek(xnxqdm: xnxqdm, forceRefresh: true),
+      ]);
       if (!mounted) return;
+
+      final courses = results[0] as List<Course>;
+      final weekInfo = results[1] as CurrentWeekInfo;
 
       // 重新计算最大周次
       int maxW = 1;
@@ -160,6 +183,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
         _courses = courses;
         _maxWeek = maxW;
         _currentWeek = 1;
+        _firstMonday = weekInfo.firstMonday;
         _isLoadingSemester = false;
       });
     } catch (e) {
@@ -418,9 +442,15 @@ class _CourseTablePageState extends State<CourseTablePage> {
   // ==================== 周课表视图 ====================
 
   Widget _buildWeeklyView() {
-    // 当前周显示的课程
     final weekCourses =
         _courses!.where((c) => c.weeks.contains(_currentWeek)).toList();
+    return _buildWeekContent(weekCourses);
+  }
+
+  // ---- 滑动切换周次 ----
+  double? _swipeStartX;
+
+  Widget _buildWeekContent(List<Course> weekCourses) {
 
     // 计算最大节次
     int maxSection = 12;
@@ -430,20 +460,34 @@ class _CourseTablePageState extends State<CourseTablePage> {
       }
     }
 
-    return AnimatedSwitcher(
+    return Listener(
+      onPointerDown: (event) {
+        _swipeStartX = event.position.dx;
+      },
+      onPointerUp: (event) {
+        if (_swipeStartX == null) return;
+        final dx = event.position.dx - _swipeStartX!;
+        _swipeStartX = null;
+        if (dx.abs() < 50) return;
+        if (dx < 0 && _currentWeek < _maxWeek) {
+          setState(() => _currentWeek++);
+        } else if (dx > 0 && _currentWeek > 1) {
+          setState(() => _currentWeek--);
+        }
+      },
+      child: AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: LayoutBuilder(
         key: ValueKey('week_$_currentWeek'),
       builder: (context, constraints) {
         final dayWidth = (constraints.maxWidth - 44) / 7;
-        final rowHeight = 60.0;
+        const rowHeight = 120.0;
 
         return SingleChildScrollView(
           scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          child: ClipRect(
             child: SizedBox(
-              width: 44 + dayWidth * 7,
+            width: 44 + dayWidth * 7,
               child: Column(
                 children: [
                   // 表头：星期 + 日期
@@ -463,8 +507,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
                         final isWeekend = i >= 5;
                         final date = _getDateForWeekday(day, _currentWeek);
 
-                        return SizedBox(
-                          width: dayWidth,
+                        return Expanded(
+                          child: SizedBox(
                           height: 42,
                           child: Container(
                             decoration: BoxDecoration(
@@ -507,7 +551,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                               ],
                             ),
                           ),
-                        );
+                        ));
                       }),
                     ],
                   ),
@@ -551,10 +595,14 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                     c.sections.contains(period))
                                 .toList();
 
-                            return SizedBox(
-                              width: dayWidth,
+                            return Expanded(
+                              child: SizedBox(
                               height: rowHeight,
-                              child: Container(
+                              child: OverflowBox(
+                                alignment: Alignment.topCenter,
+                                minHeight: rowHeight,
+                                maxHeight: double.infinity,
+                                child: Container(
                                 decoration: BoxDecoration(
                                   color: (_todayWeek == _currentWeek &&
                                           day == _todayDay)
@@ -572,7 +620,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                     : _buildCourseCard(
                                         coursesInCell.first, dayWidth),
                               ),
-                            );
+                            ),
+                            ));
                           }),
                         ],
                       ),
@@ -585,22 +634,15 @@ class _CourseTablePageState extends State<CourseTablePage> {
         );
       },
       ),
-    );
-  }
+    ),
+  );
+}
 
-  /// 根据周次和星期计算日期字符串
+  /// 根据周次和星期计算日期字符串（基于 API 返回的学期起始日期）
   String? _getDateForWeekday(int weekday, int week) {
     try {
-      // 从 API 返回可知 2026-03-06 是第1周周六（XQJ=6）
-      // 2026-07-04 是第18周周六
-      // 所以第1周周一是 2026-02-28... 不对，让我重新算
-      // 实际上 dqzc.do 返回的是具体日期，这里是做近似计算
-      // 更准确的是使用学期第一周的周一日期
-      // 从 cxxljc 知第1周周六=2026-03-06，所以第1周周一=2026-02-28
-      // 使用更通用的方法：从第1周周一开始算
-      final firstMonday = DateTime(2026, 2, 28); // 第1周周一
       final targetDate =
-          firstMonday.add(Duration(days: (week - 1) * 7 + (weekday - 1)));
+          _firstMonday.add(Duration(days: (week - 1) * 7 + (weekday - 1)));
       return '${targetDate.month}/${targetDate.day}';
     } catch (_) {
       return null;
@@ -612,7 +654,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
     return Container(
       width: width,
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(3),
@@ -625,21 +667,19 @@ class _CourseTablePageState extends State<CourseTablePage> {
           Text(
             course.name,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.bold,
               color: color,
               height: 1.2,
             ),
-            maxLines: 2,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
           if (course.position.isNotEmpty)
             Text(
               course.position,
-              style:
-                  TextStyle(fontSize: 8, color: color.withValues(alpha: 0.8)),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 9, color: color.withValues(alpha: 0.8)),
             ),
         ],
       ),

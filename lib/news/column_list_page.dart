@@ -5,6 +5,7 @@ import '../core/data_cache.dart';
 import 'news.dart';
 import 'column_service.dart';
 import 'news_detail_page.dart';
+import 'webview_page.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
@@ -273,6 +274,21 @@ class _ColumnListPageState extends State<ColumnListPage> {
   }
 
   Future<void> _openDetail(NewsItem item) async {
+    // 外部链接（非 yibinu.edu.cn）→ 用 WebView 打开
+    final urlHost = Uri.tryParse(item.url)?.host ?? '';
+    if (urlHost.isNotEmpty && !urlHost.contains('yibinu.edu.cn')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WebViewPage(
+            url: item.url,
+            title: '${widget.title}详情',
+          ),
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,

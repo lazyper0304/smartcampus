@@ -86,6 +86,61 @@ class ColumnService {
         ));
       }
 
+      // 兜底：如果 info/ 模式未匹配到，尝试通用链接匹配
+      // （适用于媒体关注、融媒广角等外部链接栏目）
+      if (items.isEmpty) {
+        final genericPattern = RegExp(
+          r'<a\s+[^>]*href="(https?://[^"]+)"[^>]*title="([^"]*)"[^>]*>',
+          dotAll: true,
+        );
+        for (final m in genericPattern.allMatches(body)) {
+          final href = m.group(1)!;
+          final title = m.group(2)!.trim();
+          if (title.isEmpty) continue;
+          // 排除导航菜单项（无日期且不包含新闻特征词）
+          if (title.length <= 15 &&
+              RegExp(r'^(首页|旧版|留学|继续|科研|学术|招生|研究生|就业|智慧|图书|网络|信息|学校|院系|机构|师资|人才|合作|交流|校友|专题|服务|平台|系统|管理|应用|关于|联系|English)\b')
+                  .hasMatch(title)) {
+            continue;
+          }
+          if (seen.contains(href)) {
+            continue;
+          }
+          seen.add(href);
+
+          // 提取附近的日期
+          final context = body.substring(
+            (m.start - 200).clamp(0, body.length),
+            (m.end + 100).clamp(0, body.length),
+          );
+          String date = _extractDate(context);
+
+          // 没有检测到日期 → 跳过（导航菜单通常无日期）
+          if (date.isEmpty && !title.contains('\n')) {
+            continue;
+          }
+
+          // 如果标题包含换行和日期（如 "标题\n2026-06-25"），分离
+          if (title.contains('\n')) {
+            final parts = title.split('\n');
+            final cleanTitle = parts.first.trim();
+            final dateMatch = RegExp(r'(\d{4}[-年]\d{1,2}[-月]\d{1,2})').firstMatch(title);
+            items.add(NewsItem(
+              title: cleanTitle,
+              url: href,
+              publishDate: dateMatch != null
+                  ? dateMatch.group(1)!
+                      .replaceAll('年', '-').replaceAll('月', '-')
+                  : date,
+            ));
+          } else {
+            // 有日期才添加
+            if (date.isEmpty) continue;
+            items.add(NewsItem(title: title, url: href, publishDate: date));
+          }
+        }
+      }
+
       // 提取「下页」链接
       String? nextPageUrl;
       final nextMatch = RegExp(

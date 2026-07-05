@@ -321,3 +321,11 @@ class SemesterInfo {
     );
   }
 }
+
+/// 当前周及学期起始日期信息
+class CurrentWeekInfo {
+  final int week;
+  final DateTime firstMonday;
+
+  CurrentWeekInfo({required this.week, required this.firstMonday});
+}

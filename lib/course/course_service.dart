@@ -118,36 +118,99 @@ class CourseService {
 
   // ==================== 获取当前周次 ====================
 
-  /// 返回当前周次（通过 dqzc.do 查询）
-  Future<int> fetchCurrentWeek({bool forceRefresh = false}) async {
+  /// 从 xnxqdm (如 "2025-2026-2") 解析 XN 和 XQ
+  List<String> _parseXnxq(String xnxqdm) {
+    final parts = xnxqdm.split('-');
+    if (parts.length >= 3) {
+      return ['${parts[0]}-${parts[1]}', parts[2]];
+    }
+    return ['', ''];
+  }
+
+  /// 获取当前学期的校历信息（总周次 + 学期起始日期 + 各周日期）
+  Future<Map<String, dynamic>> fetchSemesterCalendar(
+      String xnxqdm, {bool forceRefresh = false}) async {
+    const cacheKey = 'course_calendar';
+    if (!forceRefresh) {
+      final cached = DataCache().get<Map<String, dynamic>>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    final xnq = _parseXnxq(xnxqdm);
+    try {
+      final resp = await _silentPost(
+        '/jwapp/sys/wdkb/modules/xskcb/cxxljc.do',
+        host,
+        {'XN': xnq[0], 'XQ': xnq[1]},
+      );
+      if (resp != null) {
+        final json = jsonDecode(resp.body) as Map<String, dynamic>;
+        final datas = json['datas'] as Map?;
+        final module = datas?['cxxljc'] as Map?;
+        final rows = module?['rows'] as List?;
+        if (rows != null && rows.isNotEmpty) {
+          final result = rows[0] as Map<String, dynamic>;
+          DataCache().set(cacheKey, result);
+          return result;
+        }
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  /// 返回当前周次和学期第一周周一日期
+  Future<CurrentWeekInfo> fetchCurrentWeek({String? xnxqdm, bool forceRefresh = false}) async {
     const cacheKey = 'course_current_week';
     if (!forceRefresh) {
-      final cached = DataCache().get<int>(cacheKey);
+      final cached = DataCache().get<CurrentWeekInfo>(cacheKey);
       if (cached != null) return cached;
     }
     final host = _host;
     try {
-      // 需要先获取学期信息获取 academic term ID
+      // 构造 dqzc.do 参数（JS 源码：需要 XN + XQ + RQ）
+      final today = DateTime.now();
+      final params = <String, String>{
+        'RQ': '${today.year}-${today.month}-${today.day}',
+      };
+      if (xnxqdm != null && xnxqdm.isNotEmpty) {
+        final xnq = _parseXnxq(xnxqdm);
+        params['XN'] = xnq[0];
+        params['XQ'] = xnq[1];
+      }
+
       final resp = await _silentPost(
         '/jwapp/sys/wdkb/modules/jshkcb/dqzc.do',
         host,
-        {},
+        params,
       );
-      if (resp == null) return _calcCurrentWeek();
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
-      final datas = json['datas'] as Map?;
-      if (datas == null) return _calcCurrentWeek();
-      final module = datas['dqzc'] as Map?;
-      if (module == null) return _calcCurrentWeek();
-      final rows = module['rows'] as List?;
-      if (rows == null || rows.isEmpty) return _calcCurrentWeek();
-      final row = rows[0] as Map<String, dynamic>;
-      final zc = int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
-      DataCache().set(cacheKey, zc);
-      return zc;
-    } catch (_) {
-      return _calcCurrentWeek();
-    }
+      if (resp != null) {
+        final json = jsonDecode(resp.body) as Map<String, dynamic>;
+        final datas = json['datas'] as Map?;
+        final module = datas?['dqzc'] as Map?;
+        final rows = module?['rows'] as List?;
+        if (rows != null && rows.isNotEmpty) {
+          final row = rows[0] as Map<String, dynamic>;
+          final zc =
+              int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
+
+          // 动态推算第1周周一
+          // 公式：firstMonday = 今天 - (当前周-1)*7 - (今天星期-1)
+          final todayWeekday = today.weekday; // 1=Mon..7=Sun
+          final firstMonday = today.subtract(Duration(
+            days: (zc - 1) * 7 + (todayWeekday - 1),
+          ));
+
+          final info = CurrentWeekInfo(week: zc, firstMonday: firstMonday);
+          DataCache().set(cacheKey, info);
+          return info;
+        }
+      }
+    } catch (_) {}
+    // 回退
+    return CurrentWeekInfo(
+      week: _calcCurrentWeek(),
+      firstMonday: DateTime(DateTime.now().year, 3, 1),
+    );
   }
 
   /// 从学期起始日期推算当前周次

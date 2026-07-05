@@ -313,6 +313,30 @@ class _AppsPage extends StatelessWidget {
                               )),
                     );
                   }),
+                  _buildAppCard(Icons.public_rounded, '媒体关注', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ColumnListPage(
+                                title: '媒体关注',
+                                columnId: 'mtgz',
+                                firstPageUrl:
+                                    'https://www.yibinu.edu.cn/mtgz.htm',
+                              )),
+                    );
+                  }),
+                  _buildAppCard(Icons.videocam_rounded, '融媒广角', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ColumnListPage(
+                                title: '融媒广角',
+                                columnId: 'rmgj',
+                                firstPageUrl:
+                                    'https://www.yibinu.edu.cn/rmgj.htm',
+                              )),
+                    );
+                  }),
                 ],
               ),
             ],

@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [1.9.0] - 2026-07-05
+
+### ✨ 新增
+
+- **资讯栏目新增两个来源**：
+  - **媒体关注**（`columnId: mtgz`）：`https://www.yibinu.edu.cn/mtgz.htm`
+  - **融媒广角**（`columnId: rmgj`）：`https://www.yibinu.edu.cn/rmgj.htm`
+  - 通用外部链接匹配：自动检测无 `info/` 模式的页面，通过 `<a title>` + 日期提取
+- **通用 WebView 页面**（`lib/news/webview_page.dart`）：外部链接自动用 App 内嵌浏览器打开
+- **校历 API 集成**（`fetchSemesterCalendar`）：调用 `cxxljc.do` 获取学期起始日期
+
+### 🐛 Bug 修复
+
+- 课程表日期/星期错乱：`dqzc.do` 增加 `XN`/`XQ`/`RQ` 参数，`_getDateForWeekday` 改为动态推算
+- 课程表默认加载最新学期而非当前学期：根据当前月份智能匹配学期代码
+- 课程表底部/右侧溢出：改用 `Expanded` + `OverflowBox` 处理
+- 媒体关注/融媒广角列表混入导航菜单项：增加关键词过滤 + 日期检测
+- 媒体关注/融媒广角详情加载失败：外部链接自动走 WebView
+
+### 🎨 UI 优化
+
+- 成绩查询界面：删除个人信息栏，统一蓝色主题卡片风格
+- 学业完成情况：统一蓝色主题卡片风格
+- 底部导航栏通透度优化（`LiquidGlassSettings` 自定义）
+- 课程表行高调整至 120px，课名/教室完整显示
+- 课程表支持左右滑动切换周次
+
 ## [1.8.0] - 2026-07-05
 
 ### ✨ 新增
