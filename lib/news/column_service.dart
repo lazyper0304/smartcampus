@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../core/data_cache.dart';
 import 'news.dart';
 
 /// 通用栏目服务，支持校园新闻/师生风采/科研动态/通知公告等
@@ -15,8 +16,13 @@ class ColumnService {
         _firstPageUrl = firstPageUrl ?? '$_baseUrl/zhxw.htm';
 
   /// 解析一页条目，返回条目列表和下一页 URL
-  Future<ColumnPageResult> fetchPage({String? url}) async {
+  Future<ColumnPageResult> fetchPage({String? url, bool forceRefresh = false}) async {
     final targetUrl = url ?? _firstPageUrl;
+    final cacheKey = 'column_page_${_columnId}_$targetUrl';
+    if (!forceRefresh) {
+      final cached = DataCache().get<ColumnPageResult>(cacheKey);
+      if (cached != null) return cached;
+    }
     final client = HttpClient()..badCertificateCallback = ((_, _, _) => true);
     try {
       final req = await client.getUrl(Uri.parse(targetUrl));
@@ -90,7 +96,9 @@ class ColumnService {
         nextPageUrl = _resolveUrl(nextMatch.group(1)!, targetUrl);
       }
 
-      return ColumnPageResult(items: items, nextPageUrl: nextPageUrl);
+      final result = ColumnPageResult(items: items, nextPageUrl: nextPageUrl);
+      DataCache().set(cacheKey, result);
+      return result;
     } finally {
       client.close(force: true);
     }
@@ -114,7 +122,12 @@ class ColumnService {
   }
 
   /// 获取详情
-  Future<NewsDetail> fetchDetail(String url) async {
+  Future<NewsDetail> fetchDetail(String url, {bool forceRefresh = false}) async {
+    final cacheKey = 'column_detail_${_columnId}_$url';
+    if (!forceRefresh) {
+      final cached = DataCache().get<NewsDetail>(cacheKey);
+      if (cached != null) return cached;
+    }
     final client = HttpClient()..badCertificateCallback = ((_, _, _) => true);
     try {
       final req = await client.getUrl(Uri.parse(url));
@@ -262,13 +275,15 @@ class ColumnService {
         }
       }
 
-      return NewsDetail(
+      final detail = NewsDetail(
         title: title,
         publishDate: publishDate,
         source: source,
         blocks: blocks,
         attachments: attachments,
       );
+      DataCache().set(cacheKey, detail);
+      return detail;
     } finally {
       client.close(force: true);
     }

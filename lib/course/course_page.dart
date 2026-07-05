@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'course.dart';
 import 'course_service.dart';
 
@@ -191,7 +192,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
         if (!_isLoading && _courses != null)
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadAll,
+            onPressed: () { DataCache().invalidateAll(); _loadAll(); },
             tooltip: '刷新',
           ),
       ],
@@ -300,7 +301,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _loadAll,
+                onPressed: () { DataCache().invalidateAll(); _loadAll(); },
                 icon: const Icon(Icons.refresh),
                 label: const Text('重试'),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import '../course/course.dart';
 import '../course/course_service.dart';
 import '../course/course_page.dart';
@@ -97,7 +98,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       child: Scaffold(
         body: SafeArea(
           child: RefreshIndicator(
-            onRefresh: _loadData,
+            onRefresh: () { DataCache().invalidateAll(); return _loadData(); },
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
@@ -306,7 +307,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
-                    child: Text('最新新闻',
+                    child: Text('校园新闻',
                         style: TextStyle(
                             fontSize: 17, fontWeight: FontWeight.bold)),
                   ),

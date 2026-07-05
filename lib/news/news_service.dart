@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../core/data_cache.dart';
 import 'news.dart';
 
 class NewsService {
@@ -13,8 +14,13 @@ class NewsService {
   NewsService({http.Client? client}) : _client = client ?? http.Client();
 
   /// 解析一页新闻，返回条目列表和下一页 URL（null 表示无更多）
-  Future<NewsPageResult> fetchNewsPage({String? url}) async {
+  Future<NewsPageResult> fetchNewsPage({String? url, bool forceRefresh = false}) async {
     final targetUrl = url ?? _firstPageUrl;
+    final cacheKey = 'news_page_$targetUrl';
+    if (!forceRefresh) {
+      final cached = DataCache().get<NewsPageResult>(cacheKey);
+      if (cached != null) return cached;
+    }
     final resp = await _client.get(Uri.parse(targetUrl));
     if (resp.statusCode != 200) {
       throw Exception('获取新闻失败：HTTP ${resp.statusCode}');
@@ -56,7 +62,9 @@ class NewsService {
       nextPageUrl = _resolveUrl(nextMatch.group(1)!, targetUrl);
     }
 
-    return NewsPageResult(items: items, nextPageUrl: nextPageUrl);
+    final result = NewsPageResult(items: items, nextPageUrl: nextPageUrl);
+    DataCache().set(cacheKey, result);
+    return result;
   }
 
   /// 将相对路径解析为绝对 URL
@@ -71,7 +79,12 @@ class NewsService {
   }
 
   /// 获取新闻详情
-  Future<NewsDetail> fetchNewsDetail(String url) async {
+  Future<NewsDetail> fetchNewsDetail(String url, {bool forceRefresh = false}) async {
+    final cacheKey = 'news_detail_$url';
+    if (!forceRefresh) {
+      final cached = DataCache().get<NewsDetail>(cacheKey);
+      if (cached != null) return cached;
+    }
     final resp = await _client.get(Uri.parse(url));
     if (resp.statusCode != 200) {
       throw Exception('获取新闻详情失败：HTTP ${resp.statusCode}');
@@ -213,13 +226,15 @@ class NewsService {
       }
     }
 
-    return NewsDetail(
+    final detail = NewsDetail(
       title: title,
       publishDate: publishDate,
       source: source,
       blocks: blocks,
       attachments: attachments,
     );
+    DataCache().set(cacheKey, detail);
+    return detail;
   }
 
   void dispose() {

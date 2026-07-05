@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/data_cache.dart';
 import 'news.dart';
 import 'column_service.dart';
 import 'news_detail_page.dart';
@@ -145,7 +146,7 @@ class _ColumnListPageState extends State<ColumnListPage> {
               const SizedBox(height: 16),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _loadFirstPage, child: const Text('重试')),
+              ElevatedButton(onPressed: () { DataCache().invalidateAll(); _loadFirstPage(); }, child: const Text('重试')),
             ],
           ),
         ),
@@ -155,7 +156,7 @@ class _ColumnListPageState extends State<ColumnListPage> {
       return const Center(child: Text('暂无内容'));
     }
     return RefreshIndicator(
-      onRefresh: _loadFirstPage,
+      onRefresh: () { DataCache().invalidateAll(); return _loadFirstPage(); },
       child: ListView.builder(
         controller: _scrollCtrl,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),

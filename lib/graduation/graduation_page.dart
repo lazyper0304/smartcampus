@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'graduation.dart';
 import 'graduation_service.dart';
 
@@ -44,7 +45,7 @@ class _GraduationPageState extends State<GraduationPage> {
         appBar: AppBar(
           title: const Text('学业完成情况'),
           centerTitle: true,
-          actions: [if (_result != null) IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+          actions: [if (_result != null) IconButton(icon: const Icon(Icons.refresh), onPressed: () { DataCache().invalidateAll(); _load(); })],
         ),
         body: _buildBody(),
       ),
@@ -63,14 +64,14 @@ class _GraduationPageState extends State<GraduationPage> {
           const SizedBox(height: 8),
           Text(_error!, textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          ElevatedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('重试')),
+          ElevatedButton.icon(onPressed: () { DataCache().invalidateAll(); _load(); }, icon: const Icon(Icons.refresh), label: const Text('重试')),
         ]),
       ));
     }
     if (_result == null) return const Center(child: Text('暂无数据'));
 
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () { DataCache().invalidateAll(); return _load(); },
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [

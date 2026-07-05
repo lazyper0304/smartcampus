@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'score.dart';
 import 'score_service.dart';
 
@@ -63,7 +64,7 @@ class _ScorePageState extends State<ScorePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadScores,
+            onPressed: () { DataCache().invalidateAll(); _loadScores(); },
           ),
         ],
       ),
@@ -92,7 +93,7 @@ class _ScorePageState extends State<ScorePage> {
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _loadScores,
+                onPressed: () { DataCache().invalidateAll(); _loadScores(); },
                 icon: const Icon(Icons.refresh),
                 label: const Text('重试'),
               ),
@@ -127,7 +128,7 @@ class _ScorePageState extends State<ScorePage> {
         : '0.00';
 
     return RefreshIndicator(
-      onRefresh: _loadScores,
+      onRefresh: () { DataCache().invalidateAll(); return _loadScores(); },
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [

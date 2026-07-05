@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'score.dart';
 
 class ScoreService {
@@ -12,7 +13,12 @@ class ScoreService {
     this.baseUrl = 'https://ehall.yibinu.edu.cn',
   });
 
-  Future<ScoreResult> fetchScores(StudentInfo? existingInfo) async {
+  Future<ScoreResult> fetchScores(StudentInfo? existingInfo, {bool forceRefresh = false}) async {
+    const cacheKey = 'score_result';
+    if (!forceRefresh) {
+      final cached = DataCache().get<ScoreResult>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = Uri.parse(baseUrl).host;
     StudentInfo? info = existingInfo;
 
@@ -93,7 +99,9 @@ class ScoreService {
         scores.add(Score.fromJson(row as Map<String, dynamic>));
       }
     }
-    return ScoreResult(info: info ?? StudentInfo.empty(), scores: scores);
+    final result = ScoreResult(info: info ?? StudentInfo.empty(), scores: scores);
+    DataCache().set(cacheKey, result);
+    return result;
   }
 
   Map<String, String> _headers(String host) => {

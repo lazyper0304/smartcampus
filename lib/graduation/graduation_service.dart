@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'graduation.dart';
 
 /// 学业完成情况查询服务
@@ -19,7 +20,12 @@ class GraduationService {
   });
 
   /// 获取学业完成情况（含总览 + 课程组列表）
-  Future<GraduationResult> fetchResult() async {
+  Future<GraduationResult> fetchResult({bool forceRefresh = false}) async {
+    const cacheKey = 'graduation_result';
+    if (!forceRefresh) {
+      final cached = DataCache().get<GraduationResult>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = Uri.parse(baseUrl).host;
 
     // 1. 角色选择（建立 ehall HTTPS 模块 session）
@@ -124,7 +130,9 @@ class GraduationService {
       studentName: _studentName,
     );
 
-    return GraduationResult(summary: summary, rootCategories: rootCategories);
+    final result = GraduationResult(summary: summary, rootCategories: rootCategories);
+    DataCache().set(cacheKey, result);
+    return result;
   }
 
   /// 将 flat list 构建为层级树（递归）

@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
+import '../core/data_cache.dart';
 import 'student_info_manager.dart';
 
 /// 综合素质测评数据
@@ -59,7 +60,12 @@ class ZhszService {
 
   ZhszService(this._client);
 
-  Future<List<ZhszRecord>> fetchRecords() async {
+  Future<List<ZhszRecord>> fetchRecords({bool forceRefresh = false}) async {
+    const cacheKey = 'zhsz_records';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<ZhszRecord>>(cacheKey);
+      if (cached != null) return cached;
+    }
     // 1. 注入 SSO Cookie 到系统 WebView 存储
     await _injectCookies();
 
@@ -141,14 +147,18 @@ class ZhszService {
           final records = jsonData
               .map((e) => ZhszRecord.fromJson(e as Map<String, dynamic>))
               .toList();
+          DataCache().set(cacheKey, records);
           completer.complete(records);
         } catch (_) {
           // 尝试作为整体 JSON 解析
           final obj = jsonDecode(result) as Map<String, dynamic>?;
           if (obj != null && obj.containsKey('data')) {
             final list = obj['data'] as List<dynamic>;
-            completer.complete(
-                list.map((e) => ZhszRecord.fromJson(e as Map<String, dynamic>)).toList());
+            final records = list
+                .map((e) => ZhszRecord.fromJson(e as Map<String, dynamic>))
+                .toList();
+            DataCache().set(cacheKey, records);
+            completer.complete(records);
           } else {
             completer.completeError(Exception('数据格式异常'));
           }

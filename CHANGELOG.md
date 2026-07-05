@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## [1.8.0] - 2026-07-05
+
+### ✨ 新增
+
+- **教材查询模块**（`lib/jiaocai/`）：
+  - 通过 eHall frReport2 报表接口获取教材订购数据
+  - 自动会话管理：entrance flow → BBWID → BBKEY → sessionID → page_content
+  - 支持 GBK 编码解码（`gbk_codec` 包）
+  - 个人信息卡片（学号/专业/班级）+ 分学期教材明细展示
+- **数据缓存层**（`lib/core/data_cache.dart`）：
+  - 内存缓存单例，TTL=1天
+  - 为考试安排、成绩、课程表、学业完成、综合素质、电费、新闻 7 个模块添加缓存
+
+### 🎨 UI 优化
+
+- 应用页分类顺序调整：教务 → 服务 → 资讯
+- 底部导航栏通透度优化（自定义 LiquidGlassSettings）
+- 首页新闻卡片标题改为"校园新闻"
+- 卡片标题字体调整防溢出
+
+### 🐛 Bug 修复
+
+- FineReport 报表 GBK 编码乱码问题修复
+- POST 表单 302 重定向手动跟随
+- 教材查询表头行被误解析为数据行
+- 修复 frReport2 报表会话建立流程，支持完整的 BBKEY → sessionID 链
+
+## [1.7.0] - 2026-07-04
+
+### ✨ 新增
+
+- **资讯栏目新增三个来源**：
+  - **学校要闻**（`columnId: 1311`）：爬取 `https://www.yibinu.edu.cn/xxyw.htm`
+  - **宜院大讲堂**（`columnId: 1351`）：爬取 `https://www.yibinu.edu.cn/yydjt.htm`
+  - **学术看板**（`columnId: 1611`）：爬取 `https://www.yibinu.edu.cn/xskb.htm`
+  - 应用「资讯」网格新增三个入口卡片，复用通用 `ColumnListPage` + `ColumnService`
+
 ## [1.6.0] - 2026-07-04
 
 ### ✨ 新增

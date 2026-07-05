@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'zhsz_api_service.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -48,7 +49,7 @@ class _ZhszPageState extends State<ZhszPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh_rounded, size: 20),
-              onPressed: _fetch,
+              onPressed: () { DataCache().invalidateAll(); _fetch(); },
               tooltip: '刷新',
             ),
           ],
@@ -78,7 +79,7 @@ class _ZhszPageState extends State<ZhszPage> {
               ElevatedButton.icon(
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('重试'),
-                onPressed: _fetch,
+                onPressed: () { DataCache().invalidateAll(); _fetch(); },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _yibinBlue,
                   foregroundColor: Colors.white,

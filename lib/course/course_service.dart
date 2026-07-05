@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'course.dart';
 
 class CourseService {
@@ -61,8 +62,13 @@ class CourseService {
 
   // ==================== 获取课表（主接口） ====================
 
-  Future<List<Course>> fetchCourses({int? week, String? xnxqdm}) async {
+  Future<List<Course>> fetchCourses({int? week, String? xnxqdm, bool forceRefresh = false}) async {
     xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'course_list_${xnxqdm}_${week ?? "all"}';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<Course>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     await ensureSession();
 
@@ -105,13 +111,20 @@ class CourseService {
       throw Exception('获取课程数据失败：HTTP ${resp.statusCode}');
     }
 
-    return _parseXskcbResponse(resp.body);
+    final result = _parseXskcbResponse(resp.body);
+    DataCache().set(cacheKey, result);
+    return result;
   }
 
   // ==================== 获取当前周次 ====================
 
   /// 返回当前周次（通过 dqzc.do 查询）
-  Future<int> fetchCurrentWeek() async {
+  Future<int> fetchCurrentWeek({bool forceRefresh = false}) async {
+    const cacheKey = 'course_current_week';
+    if (!forceRefresh) {
+      final cached = DataCache().get<int>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     try {
       // 需要先获取学期信息获取 academic term ID
@@ -130,6 +143,7 @@ class CourseService {
       if (rows == null || rows.isEmpty) return _calcCurrentWeek();
       final row = rows[0] as Map<String, dynamic>;
       final zc = int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
+      DataCache().set(cacheKey, zc);
       return zc;
     } catch (_) {
       return _calcCurrentWeek();
@@ -148,7 +162,12 @@ class CourseService {
 
   // ==================== 获取学期列表 ====================
 
-  Future<List<SemesterInfo>> fetchSemesters() async {
+  Future<List<SemesterInfo>> fetchSemesters({bool forceRefresh = false}) async {
+    const cacheKey = 'course_semesters';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<SemesterInfo>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     try {
       final resp = await _silentPost(
@@ -164,9 +183,11 @@ class CourseService {
       if (module == null) return [];
       final rows = module['rows'] as List?;
       if (rows == null) return [];
-      return rows
+      final result = rows
           .map((r) => SemesterInfo.fromJson(r as Map<String, dynamic>))
           .toList();
+      DataCache().set(cacheKey, result);
+      return result;
     } catch (_) {
       return [];
     }
@@ -174,8 +195,13 @@ class CourseService {
 
   // ==================== 获取调课/停课信息 ====================
 
-  Future<List<CourseChange>> fetchCourseChanges({String? xnxqdm}) async {
+  Future<List<CourseChange>> fetchCourseChanges({String? xnxqdm, bool forceRefresh = false}) async {
     xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'course_changes_$xnxqdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<CourseChange>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     try {
       final resp = await client.postForm(
@@ -192,9 +218,11 @@ class CourseService {
       if (module == null) return [];
       final rows = module['rows'] as List?;
       if (rows == null) return [];
-      return rows
+      final result = rows
           .map((r) => CourseChange.fromJson(r as Map<String, dynamic>))
           .toList();
+      DataCache().set(cacheKey, result);
+      return result;
     } catch (_) {
       return [];
     }
@@ -202,8 +230,13 @@ class CourseService {
 
   // ==================== 获取未安排课程 ====================
 
-  Future<List<UnarrangedCourse>> fetchUnarrangedCourses({String? xnxqdm}) async {
+  Future<List<UnarrangedCourse>> fetchUnarrangedCourses({String? xnxqdm, bool forceRefresh = false}) async {
     xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'course_unarranged_$xnxqdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<UnarrangedCourse>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     try {
       final resp = await client.postForm(
@@ -220,9 +253,11 @@ class CourseService {
       if (module == null) return [];
       final rows = module['rows'] as List?;
       if (rows == null) return [];
-      return rows
+      final result = rows
           .map((r) => UnarrangedCourse.fromJson(r as Map<String, dynamic>))
           .toList();
+      DataCache().set(cacheKey, result);
+      return result;
     } catch (_) {
       return [];
     }
@@ -230,7 +265,12 @@ class CourseService {
 
   // ==================== 获取节次时间 ====================
 
-  Future<Map<int, List<String>>> fetchPeriodTimes() async {
+  Future<Map<int, List<String>>> fetchPeriodTimes({bool forceRefresh = false}) async {
+    const cacheKey = 'course_period_times';
+    if (!forceRefresh) {
+      final cached = DataCache().get<Map<int, List<String>>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = _host;
     try {
       final resp = await _silentPost(
@@ -256,6 +296,7 @@ class CourseService {
           row['JSSJ']?.toString() ?? '',
         ];
       }
+      DataCache().set(cacheKey, result);
       return result;
     } catch (_) {
       return periodTimeRanges;

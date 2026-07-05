@@ -178,7 +178,14 @@ class SharedHttpClient {
     return _send(req);
   }
 
-  /// GET 原始字节
+  /// GET 原始字节（含响应头）
+Future<RawResponse> getRaw(Uri uri,
+    {Map<String, String>? headers, bool noRedirect = false}) async {
+  final req = await _client.getUrl(uri);
+  _setup(req, uri, headers);
+  if (noRedirect) req.followRedirects = false;
+  return _sendRaw(req);
+}
   Future<List<int>> getBytes(Uri uri,
       {Map<String, String>? headers, bool noRedirect = false}) async {
     final req = await _client.getUrl(uri);
@@ -352,6 +359,70 @@ class SharedHttpClient {
 
   void dispose() {
     _client.close(force: true);
+  }
+
+  /// 发送请求并返回原始字节（用于 charset 检测等场景）
+  Future<RawResponse> _sendRaw(HttpClientRequest req) async {
+    late final RawResponse result;
+    try {
+      final resp = await req.close().timeout(const Duration(seconds: 30));
+      final requestUri = req.uri;
+
+      for (final c in resp.cookies) {
+        final domain = c.domain ?? requestUri.host;
+        _cookiesByDomain.putIfAbsent(domain, () => {});
+        _cookiesByDomain[domain]![c.name] = c.value;
+      }
+      try {
+        resp.headers.forEach((name, values) {
+          if (name.toLowerCase() == 'set-cookie') {
+            for (final val in values) {
+              _parseSetCookieManual(val, requestUri.host);
+            }
+          }
+        });
+      } catch (_) {}
+
+      final bytes = await resp
+          .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
+      final contentEncoding =
+          resp.headers.value('content-encoding')?.toLowerCase() ?? '';
+
+      List<int> decoded;
+      if (contentEncoding.contains('gzip')) {
+        decoded = gzip.decode(bytes);
+      } else if (contentEncoding.contains('deflate')) {
+        decoded = zlib.decode(bytes);
+      } else {
+        decoded = bytes;
+      }
+
+      result = RawResponse(decoded, resp.statusCode, resp.headers);
+    } on Exception catch (e) {
+      if (e is HttpException) {
+        result = RawResponse(<int>[], 1001, null);
+      } else {
+        result = RawResponse(<int>[], 0, null);
+      }
+    }
+    return result;
+  }
+}
+
+class RawResponse {
+  final List<int> bodyBytes;
+  final int statusCode;
+  final HttpHeaders? headers;
+
+  RawResponse(this.bodyBytes, this.statusCode, this.headers);
+
+  String? header(String name) {
+    if (headers == null) return null;
+    try {
+      return headers!.value(name);
+    } catch (_) {
+      return null;
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../core/http_client.dart';
+import '../core/data_cache.dart';
 import 'exam.dart';
 
 /// 考试安排查询服务
@@ -13,7 +14,12 @@ class ExamService {
     this.baseUrl = 'https://ehall.yibinu.edu.cn',
   });
 
-  Future<List<Exam>> fetchExams() async {
+  Future<List<Exam>> fetchExams({bool forceRefresh = false}) async {
+    const cacheKey = 'exam_list';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<Exam>>(cacheKey);
+      if (cached != null) return cached;
+    }
     final host = Uri.parse(baseUrl).host;
 
     // 1. 角色选择（使用考试模块的 appId）
@@ -74,7 +80,9 @@ class ExamService {
       throw Exception('获取考试安排失败：HTTP ${resp.statusCode}');
     }
 
-    return _parseResponse(resp.body);
+    final result = _parseResponse(resp.body);
+    DataCache().set(cacheKey, result);
+    return result;
   }
 
   List<Exam> _parseResponse(String body) {
