@@ -13,6 +13,7 @@ import '../news/column_list_page.dart';
 import '../xuegong/xuegong_page.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
+import '../shuttle/shuttle_page.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 
@@ -225,6 +226,14 @@ class _AppsPage extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) =>
                               const DianfeiPage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.directions_bus_rounded, '校车时间', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const ShuttlePage()),
                     );
                   }),
                 ],
