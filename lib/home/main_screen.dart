@@ -15,6 +15,7 @@ import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
 import '../employ/employ_page.dart';
+import '../network/network_service_page.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 
@@ -243,6 +244,14 @@ class _AppsPage extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) =>
                               const EmployPage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.lan_rounded, '网络服务', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const NetworkServicePage()),
                     );
                   }),
                 ],
