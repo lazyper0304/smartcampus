@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../news/webview_page.dart';
 
@@ -110,17 +109,12 @@ class UnitsPage extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          if (unit.url.startsWith('http')) {
-            launchUrl(Uri.parse(unit.url),
-                mode: LaunchMode.externalApplication);
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      WebViewPage(url: unit.url, title: unit.name)),
-            );
-          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    WebViewPage(url: unit.url, title: unit.name)),
+          );
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
