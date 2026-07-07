@@ -15,6 +15,7 @@ import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
 import '../units/units_page.dart';
+import '../departments/departments_page.dart';
 import '../employ/employ_page.dart';
 import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
@@ -216,6 +217,14 @@ class _AppsPage extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) =>
                               const UnitsPage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.domain_rounded, '职能部门', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const DepartmentsPage()),
                     );
                   }),
                 ],
