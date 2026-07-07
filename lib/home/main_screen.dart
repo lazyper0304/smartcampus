@@ -16,6 +16,7 @@ import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
 import '../employ/employ_page.dart';
 import '../network/network_service_page.dart';
+import '../safety/safety_page.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 
@@ -252,6 +253,14 @@ class _AppsPage extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) =>
                               const NetworkServicePage()),
+                    );
+                  }),
+                  _buildAppCard(Icons.shield_rounded, '校园安全', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const SafetyPage()),
                     );
                   }),
                 ],
