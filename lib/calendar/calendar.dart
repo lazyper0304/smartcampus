@@ -24,7 +24,7 @@ class CalendarEntry {
   });
 }
 
-/// 校历详情（包含 PDF 链接）
+/// 校历详情（包含 PDF 链接和本地文件路径）
 class CalendarDetail {
   /// 校历条目基本信息
   final CalendarEntry entry;
@@ -35,10 +35,14 @@ class CalendarDetail {
   /// 预览图片 URL（可能为空）
   final String? previewImageUrl;
 
+  /// 已下载的 PDF 本地文件路径（可能为空）
+  final String? pdfFilePath;
+
   CalendarDetail({
     required this.entry,
     required this.pdfUrl,
     this.previewImageUrl,
+    this.pdfFilePath,
   });
 }
 

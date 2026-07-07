@@ -59,10 +59,46 @@ class _DianfeiPageState extends State<DianfeiPage> {
       _meterCtrl.text = saved;
       _firstTime = false;
       _meterId = saved;
+      // 恢复缓存的剩余电量等数据
+      _loadCachedSummary();
       WidgetsBinding.instance.addPostFrameCallback((_) => _query());
     } else {
       setState(() => _firstTime = true);
     }
+  }
+
+  /// 从本地缓存恢复剩余电量、月度汇总等数据
+  void _loadCachedSummary() {
+    store.LocalStorage.getString('dianfei_shengyu').then((shengyu) async {
+      if (shengyu == null) return;
+      final leiji = await store.LocalStorage.getString('dianfei_leiji');
+      final zhuangtai = await store.LocalStorage.getString('dianfei_zhuangtai');
+      final price = await store.LocalStorage.getString('dianfei_price');
+      final monthKwh = await store.LocalStorage.getString('dianfei_monthKwh');
+      final monthMoney = await store.LocalStorage.getString('dianfei_monthMoney');
+      final monthStr = await store.LocalStorage.getString('dianfei_monthStr');
+      if (!mounted) return;
+      setState(() {
+        _shengyu = double.tryParse(shengyu) ?? 0;
+        _leiji = double.tryParse(leiji ?? '0') ?? 0;
+        _zhuangtai = zhuangtai ?? '';
+        _price = double.tryParse(price ?? '0.55') ?? 0.55;
+        _monthKwh = double.tryParse(monthKwh ?? '0') ?? 0;
+        _monthMoney = double.tryParse(monthMoney ?? '0') ?? 0;
+        _monthStr = monthStr ?? '';
+      });
+    });
+  }
+
+  /// 缓存剩余电量、月度汇总等数据到本地
+  Future<void> _saveCachedSummary() async {
+    await store.LocalStorage.setString('dianfei_shengyu', _shengyu.toString());
+    await store.LocalStorage.setString('dianfei_leiji', _leiji.toString());
+    await store.LocalStorage.setString('dianfei_zhuangtai', _zhuangtai);
+    await store.LocalStorage.setString('dianfei_price', _price.toString());
+    await store.LocalStorage.setString('dianfei_monthKwh', _monthKwh.toString());
+    await store.LocalStorage.setString('dianfei_monthMoney', _monthMoney.toString());
+    await store.LocalStorage.setString('dianfei_monthStr', _monthStr);
   }
 
   Future<void> _query() async {
@@ -74,6 +110,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
 
     try {
       final data = await _fetchApi(meterId);
+      _saveCachedSummary(); // 缓存剩余电量等数据
       setState(() {
         _allDays = data;
         _firstTime = false;

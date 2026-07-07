@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -105,7 +106,7 @@ class CalendarService {
     return entries;
   }
 
-  /// 获取校历详情（PDF 链接）
+  /// 获取校历详情（PDF 链接 + 下载文件）
   Future<CalendarDetail> fetchCalendarDetail(CalendarEntry entry) async {
     final resp = await _client.get(Uri.parse(entry.url));
     if (resp.statusCode != 200) {
@@ -120,10 +121,27 @@ class CalendarService {
 
     final previewUrl = _extractPreviewImageUrl(body);
 
+    // 下载 PDF 文件到临时目录（带 Referer 头）
+    String? pdfFilePath;
+    try {
+      final pdfResp = await _client.get(
+        Uri.parse(pdfUrl),
+        headers: {'Referer': entry.url},
+      );
+      if (pdfResp.statusCode == 200 && pdfResp.bodyBytes.isNotEmpty) {
+        final dir = await _getTempDir();
+        final fileName = 'calendar_${entry.academicYear.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')}.pdf';
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(pdfResp.bodyBytes);
+        pdfFilePath = file.path;
+      }
+    } catch (_) {}
+
     return CalendarDetail(
       entry: entry,
       pdfUrl: pdfUrl,
       previewImageUrl: previewUrl,
+      pdfFilePath: pdfFilePath,
     );
   }
 
@@ -145,9 +163,9 @@ class CalendarService {
       }
     }
 
-    // 兜底：从 <iframe src="...pdf"> 提取
+    // 兜底：从 <iframe src="...pdf"> 或 virtual_attach_file 提取
     final iframeMatch = RegExp(
-      r'<iframe[^>]*src="([^"]+\.pdf[^"]*)"',
+      r'''<iframe[^>]*src="([^"]*virtual_attach_file[^"]*)"''',
       caseSensitive: false,
     ).firstMatch(html);
     if (iframeMatch != null) {
@@ -183,6 +201,10 @@ class CalendarService {
     if (url.isEmpty) return null;
 
     return url.startsWith('http') ? url : '$_baseUrl$url';
+  }
+
+  Future<Directory> _getTempDir() async {
+    return Directory.systemTemp;
   }
 
   void dispose() {

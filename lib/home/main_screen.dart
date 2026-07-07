@@ -221,39 +221,55 @@ class _AppsPageState extends State<_AppsPage> {
           // 分类标签
           _buildTabBar(),
           const SizedBox(height: 20),
-          // 应用网格
-          if (apps.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 40),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.search_off_rounded,
-                        size: 48, color: Colors.grey[300]),
-                    const SizedBox(height: 12),
-                    Text(
-                      _searchText.isNotEmpty ? '未找到 "$_searchText"' : '暂无最近使用',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: apps.length,
-              itemBuilder: (context, index) => _buildAppCard(apps[index]),
-            ),
+          // 应用网格（带渐入渐出切换）
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            child: _buildContent(apps),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildContent(List<AppEntry> apps) {
+    if (apps.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.search_off_rounded,
+                  size: 48, color: Colors.grey[300]),
+              const SizedBox(height: 12),
+              Text(
+                _searchText.isNotEmpty ? '未找到 "$_searchText"' : '暂无最近使用',
+                style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return GridView.builder(
+      key: ValueKey('tab_$_tabIndex'),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: apps.length,
+      itemBuilder: (context, index) => _buildAppCard(apps[index]),
     );
   }
 
@@ -328,7 +344,6 @@ class _AppsPageState extends State<_AppsPage> {
   }
 
   Widget _buildAppCard(AppEntry entry) {
-    final isRecent = _recents.contains(entry.name);
     return GestureDetector(
       onTap: () {
         _recordUsage(entry.name);
@@ -348,18 +363,17 @@ class _AppsPageState extends State<_AppsPage> {
             ),
           );
         },
-        child: Card(
+          child: Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(color: _yibinBlue.withValues(alpha: 0.1)),
           ),
-          child: Stack(
-            children: [
-              Padding(
+          child: Padding(
                 padding: const EdgeInsets.all(8),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: 40,
@@ -381,21 +395,6 @@ class _AppsPageState extends State<_AppsPage> {
                   ],
                 ),
               ),
-              if (isRecent)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
         ),
       ),
     );

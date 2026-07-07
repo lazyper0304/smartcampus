@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 
 import 'calendar.dart';
 import 'calendar_service.dart';
-import '../news/webview_page.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -434,27 +434,33 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
               ),
             )
           else
-            // 无预览图片时显示占位
-            Container(
-              height: 200,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.picture_as_pdf,
-                        size: 64, color: Colors.grey),
-                    SizedBox(height: 8),
-                    Text('暂无预览图片',
-                        style: TextStyle(color: Colors.grey)),
-                  ],
-                ),
-              ),
-            ),
+            // 无预览图片时用 PDFView 渲染本地文件
+            _detail!.pdfFilePath != null
+                ? SizedBox(
+                    height: 500,
+                    child: PDFView(
+                      filePath: _detail!.pdfFilePath!,
+                      enableSwipe: true,
+                      swipeHorizontal: false,
+                      autoSpacing: true,
+                      pageFling: true,
+                      onError: (e) => Center(
+                        child: Text('PDF 加载失败: $e'),
+                      ),
+                    ),
+                  )
+                : Container(
+                    height: 200,
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: Text('PDF 文件加载中…',
+                          style: TextStyle(color: Colors.grey)),
+                    ),
+                  ),
 
           const SizedBox(height: 16),
         ],
@@ -480,27 +486,18 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
     );
   }
 
-  /// 底部操作栏：在线预览 / 下载PDF
+  /// 底部操作栏：下载PDF
   Widget _buildBottomBar() {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // 在线预览
-            Expanded(
-              child: FilledButton.tonalIcon(
-                icon: const Icon(Icons.open_in_browser, size: 18),
-                label: const Text('在线预览', style: TextStyle(fontSize: 13)),
-                onPressed: () => _openPreview(),
-              ),
-            ),
-            const SizedBox(width: 12),
             // 复制链接
             Expanded(
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.copy, size: 18),
-                label: const Text('复制链接', style: TextStyle(fontSize: 13)),
+                icon: const Icon(Icons.copy),
+                label: const Text('复制链接'),
                 onPressed: () => _copyLink(),
               ),
             ),
@@ -528,19 +525,6 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
       const SnackBar(
         content: Text('PDF 链接已复制到剪贴板'),
         duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _openPreview() {
-    if (_detail == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WebViewPage(
-          url: _detail!.pdfUrl,
-          title: '校历预览',
-        ),
       ),
     );
   }
