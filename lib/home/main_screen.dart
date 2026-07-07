@@ -14,6 +14,7 @@ import '../xuegong/xuegong_page.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
+import '../units/units_page.dart';
 import '../employ/employ_page.dart';
 import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
@@ -207,6 +208,14 @@ class _AppsPage extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) =>
                               JiaocaiPage(client: client, userId: userId)),
+                    );
+                  }),
+                  _buildAppCard(Icons.account_tree_rounded, '教学单位', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const UnitsPage()),
                     );
                   }),
                 ],
