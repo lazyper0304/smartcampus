@@ -3,6 +3,7 @@ name: Build SmartCampus
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
@@ -11,6 +12,8 @@ jobs:
   android:
     name: 📱 Build Android APK
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,6 +29,10 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Read version
+        id: version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+
       - name: Verify Flutter
         run: flutter doctor -v
 
@@ -37,7 +44,7 @@ jobs:
           BUILD_FILE="$PUB_CACHE/hosted/pub.dev/flutter_inappwebview_android-1.1.3/android/build.gradle"
           if [ -f "$BUILD_FILE" ]; then
             sed -i "s/getDefaultProguardFile('proguard-android.txt')/getDefaultProguardFile('proguard-android-optimize.txt')/g" "$BUILD_FILE"
-            sed -i 's/getDefaultProguardFile("proguard-android.txt")/getDefaultProguardFile("proguard-android-optimize.txt")/g' "$BUILD_FILE"
+            sed -i 's/getDefaultProguardFile("proguard-android.txt")/getDefaultProguardFile("proguard-android-optimize.txt")/g" "$BUILD_FILE"
             echo "Patched proguard reference in $BUILD_FILE"
           else
             echo "Warning: $BUILD_FILE not found"
@@ -66,6 +73,11 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+
       - name: Verify Flutter
         run: flutter doctor -v
 
@@ -82,3 +94,56 @@ jobs:
           path: build/windows/x64/runner/Release/
           compression-level: 6
           if-no-files-found: error
+
+  release:
+    name: 🚀 Publish Release
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Android APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apks
+          path: release/android
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: release/windows
+
+      - name: Rename artifacts
+        shell: bash
+        run: |
+          VERSION="${{ needs.android.outputs.version }}"
+          # Rename APKs with readable names
+          for f in release/android/*.apk; do
+            abi=$(echo "$f" | sed -n 's/.*-\(arm64-v8a\|armeabi-v7a\|x86_64\).*/\1/p')
+            if [ -n "$abi" ]; then
+              mv "$f" "release/android/宜院宾果-v${VERSION}-${abi}.apk"
+            fi
+          done
+          # Zip windows build
+          cd release/windows
+          7z a -tzip "../宜院宾果-v${VERSION}-windows.zip" ./*
+          cd ../..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/android/*.apk
+            release/*.zip
+          name: 宜院宾果 v${{ needs.android.outputs.version }}
+          body: |
+            ## 宜院宾果 v${{ needs.android.outputs.version }}
+
+            ### 📦 下载说明
+            - **Android APK**：按 CPU 架构分为三个文件，通用选择 arm64-v8a
+            - **Windows**：ZIP 压缩包，解压后运行 宜院宾果.exe
+          draft: false
+          prerelease: false

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.smartcampus" "\0"
-            VALUE "FileDescription", "smartcampus" "\0"
+            VALUE "CompanyName", "宜院宾果" "\0"
+            VALUE "FileDescription", "宜院宾果" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "smartcampus" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.smartcampus. All rights reserved." "\0"
-            VALUE "OriginalFilename", "smartcampus.exe" "\0"
-            VALUE "ProductName", "smartcampus" "\0"
+            VALUE "InternalName", "宜院宾果" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 宜院宾果" "\0"
+            VALUE "OriginalFilename", "宜院宾果.exe" "\0"
+            VALUE "ProductName", "宜院宾果" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
