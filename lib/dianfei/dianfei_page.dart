@@ -40,6 +40,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
   double _leiji = 0;          // 累计用电
   String _zhuangtai = '';     // 当前状态（合闸/分闸）
   double _price = 0.55;       // 电价
+  String _wechatUserOpenid = ''; // 微信 OpenID（从 URL 提取）
   String _wechatUserId = '';  // 微信用户ID（充值用）
   bool _recharging = false;
 
@@ -55,11 +56,13 @@ class _DianfeiPageState extends State<DianfeiPage> {
           : _allDays;
 
   Future<void> _initLoad() async {
-    final saved = await store.LocalStorage.getString('dianfei_meterId');
-    if (saved != null && saved.isNotEmpty) {
-      _meterCtrl.text = saved;
+    final savedUrl = await store.LocalStorage.getString('dianfei_url');
+    if (savedUrl != null && savedUrl.isNotEmpty) {
+      _meterCtrl.text = savedUrl;
       _firstTime = false;
-      _meterId = saved;
+      _meterId = await store.LocalStorage.getString('dianfei_meterId') ?? '';
+      _wechatUserOpenid =
+          await store.LocalStorage.getString('dianfei_wechatUserOpenid') ?? '';
       // 恢复缓存的剩余电量等数据
       _loadCachedSummary();
       WidgetsBinding.instance.addPostFrameCallback((_) => _query());
@@ -103,15 +106,37 @@ class _DianfeiPageState extends State<DianfeiPage> {
   }
 
   Future<void> _query() async {
-    final meterId = _meterCtrl.text.trim();
-    if (meterId.isEmpty) { _showSnack('请输入电表号'); return; }
+    final raw = _meterCtrl.text.trim();
+    if (raw.isEmpty) { _showSnack('请输入查询链接'); return; }
 
-    setState(() { _loading = true; _error = ''; _allDays = []; _monthKwh = 0; _monthMoney = 0; _monthStr = ''; _shengyu = 0; _leiji = 0; _zhuangtai = ''; _wechatUserId = ''; _meterId = meterId; });
+    // 从 URL 中提取 wechatUserOpenid 和 meterId
+    final openIdMatch = RegExp(r'[?&]wechatUserOpenid=([^&]+)').firstMatch(raw);
+    final meterIdMatch = RegExp(r'[?&]meterId=(\d+)').firstMatch(raw);
+
+    if (openIdMatch == null || meterIdMatch == null) {
+      _showSnack('链接格式错误，请检查是否包含 wechatUserOpenid 和 meterId');
+      return;
+    }
+
+    final meterId = meterIdMatch.group(1)!;
+    final wechatUserOpenid = Uri.decodeComponent(openIdMatch.group(1)!);
+
+    setState(() {
+      _loading = true; _error = ''; _allDays = [];
+      _monthKwh = 0; _monthMoney = 0; _monthStr = '';
+      _shengyu = 0; _leiji = 0; _zhuangtai = '';
+      _wechatUserId = '';
+      _meterId = meterId;
+      _wechatUserOpenid = wechatUserOpenid;
+    });
+
+    await store.LocalStorage.setString('dianfei_url', raw);
     await store.LocalStorage.setString('dianfei_meterId', meterId);
+    await store.LocalStorage.setString('dianfei_wechatUserOpenid', wechatUserOpenid);
 
     try {
       final data = await _fetchApi(meterId);
-      _saveCachedSummary(); // 缓存剩余电量等数据
+      _saveCachedSummary();
       setState(() {
         _allDays = data;
         _firstTime = false;
@@ -129,7 +154,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
     final completer = Completer<List<_DayData>>();
     final url = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
         '#/pages/meterlist/meterqueryChart'
-        '?wechatUserOpenid=oBY1y5qCDUCD1muCFD8lblZIOXr8&meterId=$meterId';
+        '?wechatUserOpenid=$_wechatUserOpenid&meterId=$meterId';
 
     bool started = false;
 
@@ -312,6 +337,8 @@ class _DianfeiPageState extends State<DianfeiPage> {
     if (confirm != true) return;
 
     await store.LocalStorage.remove('dianfei_meterId');
+    await store.LocalStorage.remove('dianfei_url');
+    await store.LocalStorage.remove('dianfei_wechatUserOpenid');
     if (!mounted) return;
     setState(() {
       _firstTime = true;
@@ -323,6 +350,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
       _leiji = 0;
       _zhuangtai = '';
       _wechatUserId = '';
+      _wechatUserOpenid = '';
       _meterId = '';
       _meterCtrl.clear();
     });
@@ -363,13 +391,20 @@ class _DianfeiPageState extends State<DianfeiPage> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const SizedBox(height: 60),
+        const SizedBox(height: 40),
         Center(child: Icon(Icons.electrical_services_rounded, size: 64, color: _yibinBlue.withValues(alpha: 0.3))),
         const SizedBox(height: 16),
         const Center(child: Text('绑定电表', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
         const SizedBox(height: 8),
-        Center(child: Text('输入电表号查询用电量', style: TextStyle(fontSize: 14, color: isDark ? Colors.white60 : Colors.grey[600]))),
-        const SizedBox(height: 32),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            '首次使用请在小程序中打开电费查询页面，\n复制链接粘贴到下方输入框中',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.grey[600], height: 1.5),
+          ),
+        ),
+        const SizedBox(height: 24),
         Card(
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
@@ -377,8 +412,13 @@ class _DianfeiPageState extends State<DianfeiPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: TextField(
               controller: _meterCtrl,
-              decoration: const InputDecoration(labelText: '电表号', hintText: '如：451', border: InputBorder.none),
-              keyboardType: TextInputType.number, autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '查询链接',
+                hintText: '粘贴完整的电费查询链接…',
+                border: InputBorder.none,
+              ),
+              maxLines: null,
+              autofocus: true,
             ),
           ),
         ),
@@ -838,7 +878,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
 
       final payUrl = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
           '#/pages/meterlist/meterpayconfirm'
-          '?paymentId=$paymentId&wechatUserOpenid=oBY1y5qCDUCD1muCFD8lblZIOXr8&meterId=$_meterId';
+          '?paymentId=$paymentId&wechatUserOpenid=$_wechatUserOpenid&meterId=$_meterId';
 
       if (!mounted) return;
       _showRechargeResult(payUrl, amount);
@@ -952,7 +992,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
     final completer = Completer<String?>();
     final url = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
         '#/pages/meterlist/meterpay'
-        '?wechatUserOpenid=oBY1y5qCDUCD1muCFD8lblZIOXr8&meterId=$_meterId';
+        '?wechatUserOpenid=$_wechatUserOpenid&meterId=$_meterId';
 
     bool started = false;
 
