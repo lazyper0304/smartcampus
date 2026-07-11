@@ -32,3 +32,8 @@ ios/Pods/
 ios/.symlinks/
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
+
+# Node.js (used for icon conversion)
+node_modules/
+package.json
+package-lock.json
