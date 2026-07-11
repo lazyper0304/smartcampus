@@ -38,13 +38,13 @@ dependencies:
   encrypt: ^5.0.3
   html: ^0.15.5
   # 验证码 OCR 识别
-  google_mlkit_text_recognition: ^0.13.0
+  google_mlkit_text_recognition: ^0.16.0
   # 图像二值化预处理
   image: ^4.5.3
   # 临时文件路径
   path_provider: ^2.1.0
   # 液态玻璃 UI 风格
-  liquid_glass_widgets: ^0.20.1
+  liquid_glass_widgets: ^0.21.3
   # 图片缓存
   cached_network_image: ^3.4.1
   # 打开外部链接
