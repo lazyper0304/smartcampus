@@ -46,7 +46,7 @@ jobs:
             echo "storePassword=smartcampus" > "android/key.properties"
             echo "keyPassword=smartcampus" >> "android/key.properties"
             echo "keyAlias=release" >> "android/key.properties"
-            echo "storeFile=release-keystore.jks" >> "android/key.properties"
+            echo "storeFile=../release-keystore.jks" >> "android/key.properties"
             echo "Signing key restored"
           fi
 
