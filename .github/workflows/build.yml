@@ -32,6 +32,14 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Fix proguard for flutter_inappwebview
+        run: |
+          PROGUARD_DIR="$ANDROID_HOME/tools/proguard"
+          if [ -f "$PROGUARD_DIR/proguard-android-optimize.txt" ] && [ ! -f "$PROGUARD_DIR/proguard-android.txt" ]; then
+            ln -sf "$PROGUARD_DIR/proguard-android-optimize.txt" "$PROGUARD_DIR/proguard-android.txt"
+            echo "Created proguard-android.txt symlink"
+          fi
+
       - name: Build APK (release)
         run: flutter build apk --release --split-per-abi
 
