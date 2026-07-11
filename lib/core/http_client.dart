@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +15,8 @@ class SharedHttpClient {
   final Map<String, Map<String, String>> _cookiesByDomain = {};
 
   static const String _cookieStorageKey = 'saved_cookies';
+  Timer? _saveDebounceTimer;
+  static const Duration _saveDelay = Duration(seconds: 3);
 
   SharedHttpClient()
       : _client = HttpClient()
@@ -99,7 +102,16 @@ class SharedHttpClient {
   /// 清除所有已保存的 Cookie
   Future<void> clearCookies() async {
     _cookiesByDomain.clear();
+    _saveDebounceTimer?.cancel();
     await LocalStorage.remove(_cookieStorageKey);
+  }
+
+  /// 防抖自动保存 Cookie（不阻塞调用者）
+  void _scheduleSave() {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = Timer(_saveDelay, () {
+      saveCookies().catchError((_) {});
+    });
   }
 
   /// 获取指定域名的 Cookie 字符串（供外部使用，如原始 Socket 请求）
@@ -287,14 +299,13 @@ Future<RawResponse> getRaw(Uri uri,
           }
         });
       } catch (_) {}
+      _scheduleSave();
 
       // 读取原始字节，手动解压
       final bytes = await resp
           .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
       final contentEncoding =
           resp.headers.value('content-encoding')?.toLowerCase() ?? '';
-      debugPrint('HTTP _send: ${resp.statusCode} ${requestUri.path} '
-          'encoding="$contentEncoding" bodyLen=${bytes.length}');
 
       List<int> decoded;
       if (contentEncoding.contains('gzip')) {
@@ -335,6 +346,7 @@ Future<RawResponse> getRaw(Uri uri,
         }
       });
     } catch (_) {}
+    _scheduleSave();
     final chunks = <int>[];
     await for (final chunk in resp) {
       chunks.addAll(chunk);
@@ -361,6 +373,8 @@ Future<RawResponse> getRaw(Uri uri,
   }
 
   void dispose() {
+    _saveDebounceTimer?.cancel();
+    saveCookies().catchError((_) {});
     _client.close(force: true);
   }
 
@@ -385,6 +399,7 @@ Future<RawResponse> getRaw(Uri uri,
           }
         });
       } catch (_) {}
+      _scheduleSave();
 
       final bytes = await resp
           .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
