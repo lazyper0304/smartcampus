@@ -59,6 +59,8 @@ dependencies:
   smooth_dropdown: ^1.0.0
   # 物理优先、基于 cue 时间线的动画引擎
   cue: ^0.3.1
+  # SVG 图标渲染
+  flutter_svg: ^2.0.17
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,6 +71,17 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # 应用图标生成
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  windows:
+    generate: true
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#0b1a94"
+  adaptive_icon_foreground: "assets/icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -80,6 +93,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/LOGO.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
