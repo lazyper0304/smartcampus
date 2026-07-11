@@ -34,7 +34,8 @@ add_definitions(-DUNICODE -D_UNICODE)
 
 # Suppress MSVC experimental/coroutine deprecation error (flutter_inappwebview)
 if(MSVC)
-  add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNING)
+  add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNING
+    -D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 endif()
 
 # Compilation settings that should be applied to most targets.
