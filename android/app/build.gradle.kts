@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -8,7 +10,7 @@ plugins {
 fun loadSigningConfig(): Map<String, String>? {
     val propsFile = rootProject.file("key.properties")
     if (!propsFile.exists()) return null
-    val props = java.util.Properties()
+    val props = Properties()
     props.load(propsFile.inputStream())
     val storeFile = props["storeFile"] as? String ?: return null
     return mapOf(
