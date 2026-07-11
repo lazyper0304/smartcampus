@@ -109,6 +109,8 @@ jobs:
     needs: [android, windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,19 +142,25 @@ jobs:
           cd release/windows
           7z a -tzip "../宜院宾果-v${VERSION}-windows.zip" ./*
           cd ../..
+          ls -la release/
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/android/*.apk
-            release/*.zip
-          name: 宜院宾果 v${{ needs.android.outputs.version }}
-          body: |
-            ## 宜院宾果 v${{ needs.android.outputs.version }}
+        run: |
+          VERSION="${{ needs.android.outputs.version }}"
+          TAG="${GITHUB_REF_NAME}"
+          # Create release notes file
+          cat > release-notes.md <<- NOTEEND
+          ## 宜院宾果 v${VERSION}
 
-            ### 📦 下载说明
-            - **Android APK**：按 CPU 架构分为三个文件，通用选择 arm64-v8a
-            - **Windows**：ZIP 压缩包，解压后运行 宜院宾果.exe
-          draft: false
-          prerelease: false
+          ### 📦 下载说明
+          - **Android APK**：按 CPU 架构分为三个文件，通用选择 arm64-v8a
+          - **Windows**：ZIP 压缩包，解压后运行 宜院宾果.exe
+          NOTEEND
+          # Delete existing release if any (e.g. from a previous failed run)
+          gh release view "$TAG" --json id 2>/dev/null && gh release delete "$TAG" -y || true
+          # Create release and upload assets
+          gh release create "$TAG" \
+            --title "宜院宾果 v${VERSION}" \
+            --notes-file release-notes.md \
+            release/android/*.apk \
+            release/*.zip
