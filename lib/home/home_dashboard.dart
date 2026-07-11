@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
@@ -10,6 +11,7 @@ import '../news/news.dart';
 import '../news/news_service.dart';
 import '../news/news_detail_page.dart';
 import '../news/news_list_page.dart';
+import '../core/navigation.dart';
 
 class HomeDashboard extends StatefulWidget {
   final SharedHttpClient client;
@@ -114,19 +116,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildTodayCoursesCard(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -194,17 +186,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       icon: const Icon(Icons.open_in_new, size: 16),
                       label: const Text('查看完整课表',
                           style: TextStyle(fontSize: 13)),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CourseTablePage(
-                              client: widget.client,
-                              userId: widget.userId,
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: () => pushPage(
+                        context,
+                        CourseTablePage(
+                          client: widget.client,
+                          userId: widget.userId,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -269,19 +257,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildNewsCard(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -312,13 +290,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             fontSize: 17, fontWeight: FontWeight.bold)),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const NewsListPage()),
-                      );
-                    },
+                    onTap: () => pushPage(context, const NewsListPage()),
                     child: Text('查看全部 ›',
                         style: TextStyle(
                             fontSize: 13, color: Colors.grey[500])),
@@ -435,12 +407,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       if (!mounted) return;
       Navigator.of(context).pop();
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => NewsDetailPage(detail: detail),
-        ),
-      );
+      pushPage(context, NewsDetailPage(detail: detail));
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();

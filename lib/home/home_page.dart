@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
@@ -9,6 +10,7 @@ import '../graduation/graduation_page.dart';
 import '../calendar/calendar_page.dart';
 import '../news/news_list_page.dart';
 import '../settings/settings_page.dart';
+import '../core/navigation.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
@@ -39,14 +41,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.calendar_month_rounded,
               title: '课程表',
               subtitle: '查看本学期课程安排',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => CourseTablePage(
-                          client: client,
-                          userId: userId,
-                        )),
-              ),
+              onTap: () => pushPage(context, CourseTablePage(client: client, userId: userId)),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -54,14 +49,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.assessment_rounded,
               title: '成绩查询',
               subtitle: '查看各学期课程成绩',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ScorePage(
-                          client: client,
-                          userId: userId,
-                        )),
-              ),
+              onTap: () => pushPage(context, ScorePage(client: client, userId: userId)),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -69,13 +57,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.event_note_rounded,
               title: '考试安排',
               subtitle: '查看期末考试时间地点',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ExamPage(
-                          client: client,
-                        )),
-              ),
+              onTap: () => pushPage(context, ExamPage(client: client)),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -83,13 +65,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.auto_stories_rounded,
               title: '学业完成',
               subtitle: '查看毕业要求完成进度',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => GraduationPage(
-                          client: client,
-                        )),
-              ),
+              onTap: () => pushPage(context, GraduationPage(client: client)),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -97,10 +73,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.newspaper_rounded,
               title: '校园新闻',
               subtitle: '查看最新新闻动态',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NewsListPage()),
-              ),
+              onTap: () => pushPage(context, const NewsListPage()),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -108,10 +81,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.calendar_view_month_rounded,
               title: '校历服务',
               subtitle: '查看学年校历与放假安排',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CalendarPage()),
-              ),
+              onTap: () => pushPage(context, const CalendarPage()),
             ),
             const SizedBox(height: 14),
             _buildMenuCard(
@@ -119,10 +89,7 @@ class HomePage extends StatelessWidget {
               icon: Icons.settings_rounded,
               title: '设置',
               subtitle: '退出登录与应用信息',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              ),
+              onTap: () => pushPage(context, const SettingsPage()),
             ),
           ],
         ),
@@ -137,19 +104,9 @@ class HomePage extends StatelessWidget {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: GestureDetector(
         onTap: onTap,
         child: Card(

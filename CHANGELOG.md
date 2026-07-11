@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## [1.9.3] - 2026-07-11
+
+### 🎨 UI 优化
+
+- **全局动画引擎统一使用 cue**：移除所有 `TweenAnimationBuilder`、`AnimatedBuilder`、`AnimationController`、`AnimatedSwitcher`、`AnimatedContainer` 旧动画，全面改用 `cue` 包的 `Cue.onMount`、`Cue.onChange`、`Cue.onToggle`、`Actor`、`TweenActor` 驱动，覆盖 14 个页面共 30+ 处动画实例。
+  - 列表卡片：`Cue.onMount` + `Actor`（`delay` 控制交错入场）
+  - Tab 切换：`Cue.onChange`（`fromCurrentValue: true`）
+  - 标签选中：`Cue.onToggle` + `Actor.decorate`
+  - 启动页呼吸灯：`CueController.repeat(reverse: true)` + `ListenableBuilder`
+  - 登录页入场：`Cue.onMount`（`.fadeIn() + .slideY()`）
+  - 登录页背景流动：`CueController.repeat(reverse: true)` + `ListenableBuilder`
+  - 电费充值选中：`TweenActor` 自定义属性动画
+
+### 🐛 Bug 修复
+
+- **学期课表下拉菜单溢出**：`SmoothSelect` 缺少 `menuMaxHeight` 限制，下拉选项列表无限展开超出屏幕底部。添加 `menuMaxHeight: 300`，超出高度自动滚动。
+
+## [1.9.2] - 2026-07-11
+
+### 🎨 UI 优化
+
+- **全局转场动画改用 cue 引擎**：所有页面导航切换（push/replace/clear）统一使用 `cue` 包物理弹簧动画驱动，slideX + fadeIn 联合入场；移除重复的 `_SlideTransition` 自定义类。
+- **导航工具集中化**：新增 `lib/core/navigation.dart`（`pushPage`/`replacePage`/`pushAndClear`），替代分散在各页面的 `Navigator.push + MaterialPageRoute` 调用。
+
+## [1.9.1] - 2026-07-11
+
+### 🎨 UI 优化
+
+- **学期选择器改用 SmoothSelect**：课表页学期下拉菜单替换为 `smooth_dropdown` 的 `SmoothSelect`，支持弹性动画高亮、键盘无障碍导航，适配品牌色 `yibinBlue`
+- **成绩页学期卡片折叠**：各学期成绩分组改用 `SmoothExpansionTile`，首个学期默认展开，其余折叠，减少信息噪音，点击标题可平滑展开/收起
+- **主题解耦**：新增 `lib/core/smooth_styles.dart` 集中管理 `SmoothPalette`/`SmoothStyle`/`SmoothHighlight` 品牌配置，便于后续页面复用
+
 ## [1.9.0] - 2026-07-05
 
 ### ✨ 新增

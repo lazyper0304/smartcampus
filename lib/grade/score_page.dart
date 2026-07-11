@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/smooth_styles.dart';
 import 'score.dart';
 import 'score_service.dart';
 
@@ -117,9 +120,9 @@ class _ScorePageState extends State<ScorePage> {
           // 总览卡片
           _buildOverviewCard(totalCredits, scores.length, avgGpa),
           const SizedBox(height: 18),
-          // 各学期
-          for (final entry in grouped.entries) ...[
-            _buildSemesterCard(entry.key, entry.value),
+          // 各学期（首个学期默认展开）
+          for (final entry in grouped.entries.toList().asMap().entries) ...[
+            _buildSemesterCard(entry.value.key, entry.value.value, initiallyExpanded: false),
             const SizedBox(height: 14),
           ],
         ],
@@ -128,19 +131,9 @@ class _ScorePageState extends State<ScorePage> {
   }
 
   Widget _buildOverviewCard(double totalCredits, int courseCount, String avgGpa) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -185,95 +178,88 @@ class _ScorePageState extends State<ScorePage> {
     );
   }
 
-  Widget _buildSemesterCard(String semester, List<Score> scores) {
+  Widget _buildSemesterCard(String semester, List<Score> scores, {bool initiallyExpanded = false}) {
     double termCredits = 0;
+    double weightedGpa = 0;
     for (final s in scores) {
       termCredits += s.credit;
+      weightedGpa += s.credit * s.gpa;
     }
+    final termAvgGpa = termCredits > 0 ? (weightedGpa / termCredits).toStringAsFixed(2) : '0.00';
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
+    final semesterName = scores.isNotEmpty ? scores.first.semesterDisplay : semester;
+
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _yibinBlue,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        );
-      },
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 学期标题
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _yibinBlue,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  semesterName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          scores.isNotEmpty
-                              ? scores.first.semesterDisplay
-                              : semester,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${scores.length}门课程 · ${termCredits.toStringAsFixed(1)}学分',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${scores.length}门课程 · ${termCredits.toStringAsFixed(1)}学分  · 平均绩点 $termAvgGpa',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            // 表头
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Row(
-                children: [
-                  _headerText('课程', 3.5),
-                  _headerText('类别', 1.2),
-                  _headerText('学分', 0.8),
-                  _headerText('成绩', 0.8),
-                  _headerText('绩点', 0.8),
-                ],
-              ),
+          ),
+        ],
+      ),
+    );
+
+    return SmoothExpansionTile(
+      initiallyExpanded: initiallyExpanded,
+      style: yibinBlueStyle,
+      headerBuilder: (context, expand, controller) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => controller.toggle(),
+        child: header,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          // 表头
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
+              children: [
+                _headerText('课程', 3.5),
+                _headerText('类别', 1.2),
+                _headerText('学分', 0.8),
+                _headerText('成绩', 0.8),
+                _headerText('绩点', 0.8),
+              ],
             ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            // 成绩行
-            for (int i = 0; i < scores.length; i++)
-              _buildScoreRow(scores[i], i),
-          ],
-        ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          // 成绩行
+          for (int i = 0; i < scores.length; i++)
+            _buildScoreRow(scores[i], i),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }

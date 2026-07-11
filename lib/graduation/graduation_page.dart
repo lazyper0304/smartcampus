@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/smooth_styles.dart';
 import 'graduation.dart';
 import 'graduation_service.dart';
 
@@ -19,11 +22,13 @@ class _GraduationPageState extends State<GraduationPage> {
   GraduationResult? _result;
   bool _isLoading = true;
   String? _error;
-  final Set<String> _expandedIds = {};
+  late final GraduationService _service;
+  final _courseCache = <String, List<CourseDetail>>{};
 
   @override
   void initState() {
     super.initState();
+    _service = GraduationService(client: widget.client);
     _load();
   }
 
@@ -33,8 +38,7 @@ class _GraduationPageState extends State<GraduationPage> {
       _error = null;
     });
     try {
-      final service = GraduationService(client: widget.client);
-      final result = await service.fetchResult();
+      final result = await _service.fetchResult(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _result = result;
@@ -46,6 +50,20 @@ class _GraduationPageState extends State<GraduationPage> {
         _error = e.toString().replaceFirst('Exception: ', '');
         _isLoading = false;
       });
+    }
+  }
+
+  /// 获取指定课程组的课程明细
+  Future<void> _loadCourseDetails(String kzh) async {
+    if (_courseCache.containsKey(kzh)) return;
+    try {
+      final courses = await _service.fetchCategoryCourses(kzh);
+      if (!mounted) return;
+      setState(() => _courseCache[kzh] = courses);
+    } catch (e) {
+      debugPrint('加载课程明细失败 [$kzh]: $e');
+      if (!mounted) return;
+      setState(() => _courseCache[kzh] = []);
     }
   }
 
@@ -106,19 +124,9 @@ class _GraduationPageState extends State<GraduationPage> {
   Widget _buildSummaryCard(GraduationSummary summary) {
     final progress = summary.progress;
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -210,183 +218,272 @@ class _GraduationPageState extends State<GraduationPage> {
   }
 
   List<Widget> _buildTree(List<GraduationCategory> roots) {
-    final widgets = <Widget>[];
-    for (final root in roots) {
-      widgets.addAll(_buildTreeRecursive(root, 0));
-    }
-    return widgets;
+    return roots.map((r) => _buildTreeRecursive(r, 0)).toList();
   }
 
-  List<Widget> _buildTreeRecursive(GraduationCategory node, int depth) {
-    final widgets = <Widget>[];
-    final isExpanded = _expandedIds.contains(node.controlId);
+  Widget _buildTreeRecursive(GraduationCategory node, int depth) {
     final hasChildren = node.hasChildren;
+    final progress = node.progress;
+    final isRoot = depth == 0;
+    final ctrlId = node.controlId;
 
-    widgets.add(_buildCategoryCard(
-      node,
-      indent: depth,
-      isRoot: depth == 0,
-      isExpanded: isExpanded,
-      onTap: hasChildren
-          ? () => setState(() {
-                if (isExpanded) {
-                  _expandedIds.remove(node.controlId);
-                } else {
-                  _expandedIds.add(node.controlId);
-                }
-              })
-          : null,
-    ));
-
-    if (isExpanded && hasChildren) {
-      for (final child in node.children) {
-        widgets.addAll(_buildTreeRecursive(child, depth + 1));
-      }
+    // 构建子节点
+    final List<Widget> childrenWidgets;
+    if (hasChildren) {
+      childrenWidgets = node.children.map(
+        (child) => _buildTreeRecursive(child, depth + 1),
+      ).toList();
+    } else {
+      final courses = _courseCache[ctrlId];
+      childrenWidgets = [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: courses == null
+              ? const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : courses.isEmpty
+                  ? const Center(
+                      child: Text('暂无课程明细',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                    )
+                  : _buildCourseDetailTable(courses),
+        ),
+      ];
     }
-    return widgets;
-  }
 
-  Widget _buildCategoryCard(GraduationCategory item,
-      {int indent = 0,
-      bool isRoot = false,
-      bool isExpanded = false,
-      VoidCallback? onTap}) {
-    final progress = item.progress;
-    final statusColor = progress >= 1.0
-        ? Colors.green[700]
-        : progress >= 0.7
-            ? Colors.orange[700]
-            : Colors.red[600];
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: _buildCategoryContent(node, isRoot, false),
+    );
 
     return Padding(
-      padding: EdgeInsets.only(left: (12.0 * indent).toDouble()),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 10),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+      padding: EdgeInsets.fromLTRB(
+        (12.0 * depth).toDouble() + 4,
+        0,
+        4,
+        10,
+      ),
+      child: SmoothExpansionTile(
+        initiallyExpanded: false,
+        style: yibinBlueStyle,
+        headerBuilder: (context, expand, controller) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (!hasChildren) _loadCourseDetails(ctrlId);
+            controller.toggle();
+          },
+          child: header,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: statusColor!,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              if (item.hasChildren)
-                                Icon(
-                                  isExpanded
-                                      ? Icons.expand_more_rounded
-                                      : Icons.chevron_right_rounded,
-                                  size: 20,
-                                  color: Colors.grey[400],
-                                ),
-                              if (!item.hasChildren)
-                                const SizedBox(width: 20),
-                              Expanded(
-                                child: Text(
-                                  item.name,
-                                  style: TextStyle(
-                                    fontSize: isRoot ? 15 : 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ...childrenWidgets,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryContent(
+    GraduationCategory item,
+    bool isRoot,
+    bool isExpanded,
+  ) {
+    final progress = item.progress;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 4,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _yibinBlue,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (item.hasChildren)
+                        Icon(
+                          isExpanded
+                              ? Icons.expand_more_rounded
+                              : Icons.chevron_right_rounded,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ),
+                      if (!item.hasChildren)
+                        const SizedBox(width: 20),
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: TextStyle(
+                            fontSize: isRoot ? 15 : 14,
+                            fontWeight: FontWeight.w700,
                           ),
-                          if (item.categoryType.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(item.categoryType,
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey[500])),
-                          ],
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: Colors.grey[200],
-                              valueColor: AlwaysStoppedAnimation(
-                                  statusColor.withValues(alpha: 0.8)),
-                              minHeight: 6,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.check_circle_outline,
-                                  size: 14, color: Colors.grey[500]),
-                              const SizedBox(width: 4),
-                              Text(item.progressText,
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[600])),
-                              const SizedBox(width: 16),
-                              Icon(Icons.menu_book_rounded,
-                                  size: 14, color: Colors.grey[500]),
-                              const SizedBox(width: 4),
-                              Text('${item.completedCount}门',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[600])),
-                              const Spacer(),
-                              if (item.optionalCourseCount != null)
-                                Text(
-                                  '可选${item.optionalCourseCount}门',
-                                  style: TextStyle(
-                                      fontSize: 11, color: Colors.grey[400]),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                // 状态标签
-                if (isRoot)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        progress >= 1.0 ? '已完成' : '进行中',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
                         ),
                       ),
+                    ],
+                  ),
+                  if (item.categoryType.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(item.categoryType,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey[500])),
+                  ],
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.grey[200],
+                      valueColor: AlwaysStoppedAnimation(
+                          _yibinBlue.withValues(alpha: 0.8)),
+                      minHeight: 6,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          size: 14, color: Colors.grey[500]),
+                      const SizedBox(width: 4),
+                      Text(item.progressText,
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[600])),
+                      const SizedBox(width: 16),
+                      Icon(Icons.menu_book_rounded,
+                          size: 14, color: Colors.grey[500]),
+                      const SizedBox(width: 4),
+                      Text('${item.completedCount}门',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[600])),
+                      const Spacer(),
+                      if (item.optionalCourseCount != null)
+                        Text(
+                          '可选${item.optionalCourseCount}门',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey[400]),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        // 状态标签（仅根节点）
+        if (isRoot)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: _yibinBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                progress >= 1.0 ? '已完成' : '进行中',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _yibinBlue,
+                ),
+              ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildCourseDetailTable(List<CourseDetail> courses) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        // 表头
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+          child: Row(
+            children: [
+              _headerText('课程', 3),
+              _headerText('学分', 0.8),
+              _headerText('成绩', 0.7),
+              _headerText('学期', 1.5),
+            ],
+          ),
         ),
+        ...courses.map((c) => _buildCourseRow(c)),
+      ],
+    );
+  }
+
+  Widget _headerText(String text, double flex) {
+    return Expanded(
+      flex: (flex * 10).toInt(),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500])),
+    );
+  }
+
+  Widget _buildCourseRow(CourseDetail course) {
+    final scoreText = course.score?.toString() ?? '-';
+    final scoreColor = course.score != null
+        ? (course.score! >= 60 ? Colors.green[700] : Colors.red[600])
+        : Colors.grey[400];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 30,
+            child: Text(course.name,
+                style: const TextStyle(fontSize: 13),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ),
+          Expanded(
+            flex: 8,
+            child: Text(course.credit.toStringAsFixed(1),
+                style: const TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            flex: 7,
+            child: Text(scoreText,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scoreColor)),
+          ),
+          Expanded(
+            flex: 15,
+            child: Text(
+                course.semesterDisplay.isNotEmpty
+                    ? course.semesterDisplay
+                    : '未修读',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey[500])),
+          ),
+        ],
       ),
     );
   }

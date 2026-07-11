@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/data_cache.dart';
@@ -195,20 +196,12 @@ class _EmployPageState extends State<EmployPage> {
   }
 
   Widget _buildCard(EmployJob job, int index) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 250 + (index % 10) * 30),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Card(
+    return Cue.onMount(
+      motion: .smooth(),
+      child: Actor(
+        delay: Duration(milliseconds: (index % 10) * 30),
+        acts: [.fadeIn(), .slideY(from: 0.08)],
+        child: Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -285,8 +278,9 @@ class _EmployPageState extends State<EmployPage> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _metaRow(IconData icon, String text) {
     return Row(

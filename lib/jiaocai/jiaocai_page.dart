@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/smooth_styles.dart';
 import 'jiaocai.dart';
 import 'jiaocai_service.dart';
 
@@ -120,19 +123,9 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
   }
 
   Widget _buildInfoCard(TextbookOrder info) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
+    return Cue.onMount(
+      motion: .smooth(),
+      acts: [.fadeIn(), .slideY(from: 0.08)],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -195,77 +188,71 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
   }
 
   Widget _buildOrderCard(TextbookOrder order, int index) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 250 + (index % 10) * 30),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 16 * (1 - value)),
-            child: child,
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _yibinBlue,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        );
-      },
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  order.semester,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${order.quantity}册 · ¥${order.totalPrice.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Cue.onMount(
+      motion: .smooth(),
+      child: Actor(
+        delay: Duration(milliseconds: (index % 10) * 30),
+        acts: [.fadeIn(), .slideY(from: 0.08)],
+        child: SmoothExpansionTile(
+          initiallyExpanded: false,
+          style: yibinBlueStyle,
+          headerBuilder: (context, expand, controller) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => controller.toggle(),
+            child: header,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 学期标题行
-              Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _yibinBlue,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          order.semester,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${order.quantity}册 · ¥${order.totalPrice.toStringAsFixed(1)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // 教材明细
-              if (order.books.isNotEmpty) ...[
-                Text('订购教材',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                ...order.books.map((book) => _buildBookItem(book)),
-              ],
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              const SizedBox(height: 8),
+              Text('订购教材',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ...order.books.map((book) => _buildBookItem(book)),
+              const SizedBox(height: 8),
             ],
           ),
         ),

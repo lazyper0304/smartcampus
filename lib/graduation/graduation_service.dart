@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/local_storage.dart';
 import 'graduation.dart';
 
 /// 学业完成情况查询服务
@@ -52,7 +55,7 @@ class GraduationService {
     );
 
     // 5. 获取学期参数先查培养方案概要（cxxsscfa.do）
-    final xnxqdm = _calcXnxqdm();
+    var xnxqdm = _calcXnxqdm();
     final pyfaResp = await client.postForm(
       Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/cxxsscfa.do'),
       body: {'XNXQDM': xnxqdm},
@@ -68,6 +71,7 @@ class GraduationService {
     var pyfadm = '';
     var sclbdm = '';
     var bynjdm = '';
+    var studentId = '';
     final datas = pyfaJson['datas'];
     if (datas is Map) {
       final cxxsscfa = datas['cxxsscfa'];
@@ -81,6 +85,8 @@ class GraduationService {
           _totalCredits = double.tryParse(row['YQXF']?.toString() ?? '0') ?? 0;
           _earnedCredits = double.tryParse(row['WCXF']?.toString() ?? '0') ?? 0;
           _pyfaName = row['PYFAMC']?.toString() ?? '';
+          _studentId = row['XH']?.toString() ?? '';
+          _studentName = row['XM']?.toString() ?? '';
         }
       }
     }
@@ -130,7 +136,20 @@ class GraduationService {
       studentName: _studentName,
     );
 
-    final result = GraduationResult(summary: summary, rootCategories: rootCategories);
+    _pyfadm = pyfadm;
+    _sclbdm = sclbdm;
+    _bynjdm = bynjdm;
+    _xnxqdm = xnxqdm;
+
+    final result = GraduationResult(
+      summary: summary,
+      rootCategories: rootCategories,
+      pyfadm: pyfadm,
+      sclbdm: sclbdm,
+      bynjdm: bynjdm,
+      xnxqdm: xnxqdm,
+      studentId: _studentId,
+    );
     DataCache().set(cacheKey, result);
     return result;
   }
@@ -173,6 +192,79 @@ class GraduationService {
   double _totalCredits = 0;
   double _earnedCredits = 0;
   String _studentName = '';
+  String _pyfadm = '';
+  String _sclbdm = '';
+  String _bynjdm = '';
+  String _xnxqdm = '';
+  String _studentId = '';
+
+  /// 获取指定课程组的课程明细
+  Future<List<CourseDetail>> fetchCategoryCourses(
+    String kzh, {
+    int pageSize = 99,
+    int pageNumber = 1,
+  }) async {
+    final host = Uri.parse(baseUrl).host;
+
+    // 先访问入口页刷新会话
+    await client.get(
+      Uri.parse('$baseUrl/jwapp/sys/xywccx/*default/index.do'),
+      headers: _entryHeaders(host),
+    );
+
+    // 如果 _studentId 为空，从 LocalStorage 兜底读取
+    var xh = _studentId;
+    if (xh.isEmpty) {
+      xh = await LocalStorage.getString('saved_username') ?? '';
+    }
+    debugPrint('fetchCategoryCourses XH=[$xh] KZH=[$kzh] XNXQDM=[$_xnxqdm] PYFADM=[$_pyfadm]');
+    final resp = await client.postForm(
+      Uri.parse(
+          '$baseUrl/jwapp/sys/xywccx/modules/xywccx/cxscfakzkchxkqkx.do'),
+      body: {
+        'SCLBDM': _sclbdm.isNotEmpty ? _sclbdm : '04',
+        'SCLBDM1': _sclbdm.isNotEmpty ? _sclbdm : '04',
+        'BYNJDM': _bynjdm.isNotEmpty ? _bynjdm : '-',
+        'XH': xh,
+        'XNXQDM': _xnxqdm,
+        '*order': '+SFTG',
+        'KZH': kzh,
+        'PYFADM': _pyfadm,
+        'pageSize': pageSize.toString(),
+        'pageNumber': pageNumber.toString(),
+      },
+      headers: _formHeaders(host),
+      noRedirect: true,
+    );
+
+    debugPrint('fetchCategoryCourses[$kzh] status=${resp.statusCode}');
+
+    if (resp.statusCode != 200) {
+      throw Exception(
+          '获取课程明细失败：HTTP ${resp.statusCode} body=${resp.body.length > 200 ? resp.body.substring(0, 200) : resp.body}');
+    }
+
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (json['code']?.toString() != '0') {
+      throw Exception(
+          '获取课程明细失败：code=${json['code']} msg=${json['msg'] ?? ''}');
+    }
+
+    final datas = json['datas'];
+    if (datas is Map) {
+      final module = datas['cxscfakzkchxkqkx'];
+      if (module is Map) {
+        final rows = module['rows'];
+        if (rows is List && rows.isNotEmpty) {
+          return rows
+              .map((r) =>
+                  CourseDetail.fromJson(r as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    }
+    return [];
+  }
 
   /// 角色选择
   Future<void> _entranceFlow(String host) async {

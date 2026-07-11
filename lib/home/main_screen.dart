@@ -1,11 +1,16 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/data_cache.dart';
 import '../core/http_client.dart';
+import '../core/local_storage.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
+import '../core/navigation.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
@@ -37,25 +42,11 @@ class _MainScreenState extends State<MainScreen> {
       ),
       statusBarStyle: GlassStatusBarStyle.auto,
       contentAwareBrightness: true,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.12, 0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
-              child: child,
-            ),
-          );
-        },
+      body: Cue.onChange(
+        value: _currentIndex,
+        motion: .smooth(),
+        fromCurrentValue: true,
+        acts: [.fadeIn(), .slideX(from: 0.12)],
         child: [
           HomeDashboard(
             key: const ValueKey('home'),
@@ -151,11 +142,11 @@ class _AppsPageState extends State<_AppsPage> {
     });
   }
 
-  void _loadRecents() {
-    // 从缓存读取最近使用
-    final cached = DataCache().get<List<String>>('app_recents');
-    if (cached != null) {
-      _recents = cached;
+  Future<void> _loadRecents() async {
+    final cached = await LocalStorage.getString('app_recents');
+    if (cached != null && cached.isNotEmpty && mounted) {
+      final list = (jsonDecode(cached) as List).cast<String>();
+      setState(() => _recents = list);
     }
   }
 
@@ -163,7 +154,7 @@ class _AppsPageState extends State<_AppsPage> {
     _recents.remove(name);
     _recents.insert(0, name);
     if (_recents.length > 6) _recents = _recents.sublist(0, 6);
-    DataCache().set('app_recents', _recents);
+    LocalStorage.setString('app_recents', jsonEncode(_recents));
   }
 
   List<AppEntry> get _filteredApps {
@@ -221,17 +212,12 @@ class _AppsPageState extends State<_AppsPage> {
           // 分类标签
           _buildTabBar(),
           const SizedBox(height: 20),
-          // 应用网格（带渐入渐出切换）
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
+          // 应用网格（带渐入切换）
+          Cue.onChange(
+            value: _tabIndex,
+            motion: .smooth(),
+            fromCurrentValue: true,
+            acts: [.fadeIn()],
             child: _buildContent(apps),
           ),
         ],
@@ -310,31 +296,44 @@ class _AppsPageState extends State<_AppsPage> {
           final selected = i == _tabIndex;
           return GestureDetector(
             onTap: () => setState(() => _tabIndex = i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: selected ? _yibinBlue : Colors.grey.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _tabIcons[i],
-                    size: 16,
-                    color: selected ? Colors.white : Colors.grey[500],
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _tabLabels[i],
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? Colors.white : Colors.grey[600],
+            child: SizedBox(
+              height: 36,
+              child: Cue.onToggle(
+                toggled: selected,
+                motion: .snappy(),
+                child: Actor(
+                  acts: [
+                    .decorate(
+                      color: .tween(
+                        Colors.grey.withValues(alpha: 0.06),
+                        _yibinBlue,
+                      ),
+                      borderRadius: .fixed(.circular(18)),
+                    ),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _tabIcons[i],
+                          size: 16,
+                          color: selected ? Colors.white : Colors.grey[500],
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _tabLabels[i],
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: selected ? Colors.white : Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -348,22 +347,12 @@ class _AppsPageState extends State<_AppsPage> {
       onTap: () {
         _recordUsage(entry.name);
         final page = entry.pageBuilder(context, widget.client, widget.userId);
-        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+        pushPage(context, page);
       },
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value,
-            child: Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: child,
-            ),
-          );
-        },
-          child: Card(
+      child: Cue.onMount(
+        motion: .smooth(),
+        acts: [.fadeIn(), .slideY(from: 0.08)],
+        child: Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),

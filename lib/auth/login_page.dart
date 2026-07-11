@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/local_storage.dart';
+import '../core/navigation.dart';
 import '../home/main_screen.dart';
 import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
@@ -27,36 +29,21 @@ class _LoginPageState extends State<LoginPage>
   bool _isLoading = false;
   bool _rememberPassword = false;
 
-  late final AnimationController _animCtrl;
-  AnimationController? _flowCtrl;
-  late final Animation<double> _fadeIn;
-  late final Animation<Offset> _slideUp;
+  late final CueController _flowCtrl;
 
   @override
   void initState() {
     super.initState();
-    _animCtrl = AnimationController(
+    _flowCtrl = CueController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _flowCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 6),
+      motion: .linear(const Duration(seconds: 6)),
     )..repeat(reverse: true);
-    _fadeIn = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _slideUp = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
-
     _loadSavedCredentials();
-    _animCtrl.forward();
   }
 
   @override
   void dispose() {
-    _animCtrl.dispose();
-    _flowCtrl?.dispose();
+    _flowCtrl.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -109,28 +96,10 @@ class _LoginPageState extends State<LoginPage>
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => MainScreen(
-            client: _authService.client,
-            userId: _usernameController.text.trim(),
-          ),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 0.92, end: 1.0).animate(
-                  CurvedAnimation(
-                      parent: animation, curve: Curves.easeOutCubic),
-                ),
-                child: child,
-              ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
-      );
+      replacePage(context, MainScreen(
+        client: _authService.client,
+        userId: _usernameController.text.trim(),
+      ), acts: const [Act.fadeIn(), Act.scale(from: 0.92)]);
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -147,9 +116,10 @@ class _LoginPageState extends State<LoginPage>
     final colorScheme = Theme.of(context).colorScheme;
 
     return GlassScaffold(
-      background: AnimatedBuilder(
-        animation: _flowCtrl!,
+      background: ListenableBuilder(
+        listenable: _flowCtrl,
         builder: (context, _) {
+          final flow = _flowCtrl.value;
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -159,17 +129,17 @@ class _LoginPageState extends State<LoginPage>
                   Color.lerp(
                     const Color(0xFF0D47A1),
                     const Color(0xFF1565C0),
-                    _flowCtrl!.value,
+                    flow,
                   )!,
                   Color.lerp(
                     const Color(0xFF002171),
                     const Color(0xFF0D47A1),
-                    _flowCtrl!.value,
+                    flow,
                   )!,
                   Color.lerp(
                     const Color(0xFF1A237E),
                     const Color(0xFF002171),
-                    _flowCtrl!.value,
+                    flow,
                   )!,
                 ],
               ),
@@ -182,28 +152,26 @@ class _LoginPageState extends State<LoginPage>
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: FadeTransition(
-              opacity: _fadeIn,
-              child: SlideTransition(
-                position: _slideUp,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 24),
-                    const Text(
-                      '宜院宾果',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 2,
-                      ),
+            child: Cue.onMount(
+              motion: .smooth(),
+              acts: [.fadeIn(), .slideY(from: 0.15)],
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 24),
+                  const Text(
+                    '宜院宾果',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 2,
                     ),
-                    const SizedBox(height: 48),
-                    _buildLoginCard(colorScheme),
-                    const SizedBox(height: 32),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 48),
+                  _buildLoginCard(colorScheme),
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
           ),
@@ -246,11 +214,13 @@ class _LoginPageState extends State<LoginPage>
                 labelText: '密码',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
+                  icon: Cue.onChange(
+                    value: _obscurePassword,
+                    motion: .snappy(),
+                    acts: [.fadeIn()],
                     child: _obscurePassword
-                        ? const Icon(Icons.visibility_off_rounded, key: ValueKey('off'))
-                        : const Icon(Icons.visibility_rounded, key: ValueKey('on')),
+                        ? const Icon(Icons.visibility_off_rounded)
+                        : const Icon(Icons.visibility_rounded),
                   ),
                   onPressed: () =>
                       setState(() => _obscurePassword = !_obscurePassword),
@@ -292,8 +262,10 @@ class _LoginPageState extends State<LoginPage>
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
+                child: Cue.onChange(
+                  value: _isLoading,
+                  motion: .snappy(),
+                  acts: [.fadeIn(), .scale(from: 0.9)],
                   child: _isLoading
                       ? const SizedBox(
                           width: 22,

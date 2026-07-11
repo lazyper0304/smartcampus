@@ -120,9 +120,76 @@ class GraduationSummary {
 class GraduationResult {
   final GraduationSummary summary;
   final List<GraduationCategory> rootCategories;
+  final String pyfadm;
+  final String sclbdm;
+  final String bynjdm;
+  final String xnxqdm;
+  final String studentId;
+  final String kzh;
 
   const GraduationResult({
     required this.summary,
     required this.rootCategories,
+    this.pyfadm = '',
+    this.sclbdm = '',
+    this.bynjdm = '',
+    this.xnxqdm = '',
+    this.studentId = '',
+    this.kzh = '',
   });
+}
+
+/// 课程明细（学业完成详情 API 返回）
+class CourseDetail {
+  /// 课程名称
+  final String name;
+
+  /// 学分
+  final double credit;
+
+  /// 成绩
+  final int? score;
+
+  /// 学时
+  final String hours;
+
+  /// 课程性质（必修/选修）
+  final String courseType;
+
+  /// 是否通过
+  final String passStatus;
+
+  /// 学期显示
+  final String semesterDisplay;
+
+  /// 课程代码
+  final String courseCode;
+
+  const CourseDetail({
+    required this.name,
+    required this.credit,
+    this.score,
+    this.hours = '',
+    this.courseType = '',
+    this.passStatus = '',
+    this.semesterDisplay = '',
+    this.courseCode = '',
+  });
+
+  factory CourseDetail.fromJson(Map<String, dynamic> json) {
+    return CourseDetail(
+      name: json['KCM']?.toString() ?? '',
+      credit: (json['XF'] is num
+          ? (json['XF'] as num).toDouble()
+          : double.tryParse(json['XF']?.toString() ?? '') ?? 0.0),
+      score: json['CJ'] is num
+          ? (json['CJ'] as num).toInt()
+          : int.tryParse(json['CJ']?.toString() ?? ''),
+      hours: json['XS']?.toString() ?? '',
+      courseType: json['KCXZDM_DISPLAY']?.toString() ?? '',
+      passStatus: json['SFTG_DISPLAY']?.toString() ?? '',
+      semesterDisplay: json['XNXQDM_DISPLAY']?.toString() ?? '',
+      courseCode: json['KCH']?.toString() ?? '',
+    );
+  }
 }

@@ -206,12 +206,15 @@ Future<RawResponse> getRaw(Uri uri,
     if (noRedirect) req.followRedirects = false;
     String enc(String s) {
       return Uri.encodeQueryComponent(s)
+          .replaceAll('+', '%2B')
           .replaceAll('%2A', '*')
           .replaceAll('%2D', '-')
           .replaceAll('%2E', '.');
     }
-    req.write(
-        body.entries.map((e) => '${enc(e.key)}=${enc(e.value)}').join('&'));
+    final bodyStr =
+        body.entries.map((e) => '${enc(e.key)}=${enc(e.value)}').join('&');
+    debugPrint('postForm body=[$bodyStr] uri=[${req.uri}]');
+    req.write(bodyStr);
     return _send(req);
   }
 

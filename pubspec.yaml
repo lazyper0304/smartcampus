@@ -55,6 +55,10 @@ dependencies:
   flutter_pdfview: ^1.3.2
   # GBK/GB2312 编码支持（部分学校接口使用）
   gbk_codec: ^0.4.0
+  # 平滑动画下拉/选择/折叠组件（渲染层动画）
+  smooth_dropdown: ^1.0.0
+  # 物理优先、基于 cue 时间线的动画引擎
+  cue: ^0.3.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

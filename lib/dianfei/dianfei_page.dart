@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -559,14 +560,11 @@ class _DianfeiPageState extends State<DianfeiPage> {
         ),
         const SizedBox(height: 12),
         // 可切换内容（带动画）
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (child, animation) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
-          },
+        Cue.onChange(
+          value: _viewMode,
+          motion: .smooth(),
+          fromCurrentValue: true,
+          acts: [.fadeIn()],
           child: Column(
             key: ValueKey('view_$_viewMode'),
             children: [
@@ -693,7 +691,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
         }),
       ],   // Column children
     ),     // Column
-  ),       // AnimatedSwitcher
+  ),       // Cue.onChange
 ],
     );
   }
@@ -745,32 +743,53 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       final isSelected = selectedAmount == amt;
                       return GestureDetector(
                         onTap: () => setSheetState(() => selectedAmount = amt.toDouble()),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: (MediaQuery.of(ctx).size.width - 72) / 3,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? _yibinBlue.withValues(alpha: 0.15)
-                                : _yibinBlue.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? _yibinBlue : _yibinBlue.withValues(alpha: 0.2),
-                              width: isSelected ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Text('¥$amt', style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w700,
-                                color: isSelected ? _yibinBlue : _yibinBlue.withValues(alpha: 0.7),
-                              )),
-                              if (isSelected)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Icon(Icons.check_circle, size: 16, color: _yibinBlue),
+                        child: Cue.onToggle(
+                          toggled: isSelected,
+                          motion: .snappy(),
+                          child: TweenActor<double>(
+                            from: 0.0,
+                            to: 1.0,
+                            motion: .snappy(),
+                            builder: (context, animation) {
+                              final t = animation.value;
+                              return Container(
+                                width: (MediaQuery.of(ctx).size.width - 72) / 3,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: Color.lerp(
+                                    _yibinBlue.withValues(alpha: 0.06),
+                                    _yibinBlue.withValues(alpha: 0.15),
+                                    t,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Color.lerp(
+                                      _yibinBlue.withValues(alpha: 0.2),
+                                      _yibinBlue,
+                                      t,
+                                    )!,
+                                    width: 1.0 + t,
+                                  ),
                                 ),
-                            ],
+                                child: Column(
+                                  children: [
+                                    Text('¥$amt', style: TextStyle(
+                                      fontSize: 20, fontWeight: FontWeight.w700,
+                                      color: Color.lerp(
+                                        _yibinBlue.withValues(alpha: 0.7),
+                                        _yibinBlue,
+                                        t,
+                                      ),
+                                    )),
+                                    if (isSelected)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Icon(Icons.check_circle, size: 16, color: _yibinBlue),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
                       );

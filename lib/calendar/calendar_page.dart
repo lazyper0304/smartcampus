@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 
@@ -118,20 +119,13 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildAnimatedCard(int index) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 300 + index * 50),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: _buildCalendarCard(_entries![index]),
+    return Cue.onMount(
+      motion: .smooth(),
+      child: Actor(
+        delay: Duration(milliseconds: index * 50),
+        acts: [.fadeIn(), .slideY(from: 0.08)],
+        child: _buildCalendarCard(_entries![index]),
+      ),
     );
   }
 

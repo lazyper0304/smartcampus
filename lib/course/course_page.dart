@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/smooth_styles.dart';
 import 'course.dart';
 import 'course_service.dart';
 
@@ -407,7 +410,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
       ),
       child: Row(
         children: [
-          const Text('学期: ', style: TextStyle(fontSize: 13)),
+          const Padding(
+            padding: EdgeInsets.only(left: 4, right: 8),
+            child: Text('学期', style: TextStyle(fontSize: 13, color: Color(0x99191999))),
+          ),
           if (_isLoadingSemester)
             const SizedBox(
               width: 16,
@@ -416,16 +422,16 @@ class _CourseTablePageState extends State<CourseTablePage> {
             )
           else
             Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
+              child: SmoothSelect<String>(
                 value: _selectedSemester,
-                isExpanded: true,
-                isDense: true,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                hint: const Text('选择学期', style: TextStyle(color: Color(0x66191999))),
+                style: yibinBlueStyle,
+                highlight: yibinBlueHighlight,
+                menuMaxHeight: 300,
                 items: _semesters.map((s) {
-                  return DropdownMenuItem(
+                  return SmoothSelectItem<String>(
                     value: s.dm,
-                    child: Text(s.mc),
+                    child: Text(s.mc, style: const TextStyle(color: Colors.black)),
                   );
                 }).toList(),
                 onChanged: (v) {
@@ -433,7 +439,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
                 },
               ),
             ),
-          ),
         ],
       ),
     );
@@ -475,10 +480,13 @@ class _CourseTablePageState extends State<CourseTablePage> {
           setState(() => _currentWeek--);
         }
       },
-      child: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      child: LayoutBuilder(
-        key: ValueKey('week_$_currentWeek'),
+      child: Cue.onChange(
+        value: _currentWeek,
+        motion: .smooth(),
+        fromCurrentValue: true,
+        acts: [.fadeIn()],
+        child: LayoutBuilder(
+          key: ValueKey('week_$_currentWeek'),
       builder: (context, constraints) {
         final dayWidth = (constraints.maxWidth - 44) / 7;
         const rowHeight = 120.0;
@@ -755,19 +763,9 @@ class _CourseTablePageState extends State<CourseTablePage> {
       ));
 
       for (final course in dayCourses) {
-        widgets.add(TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, 16 * (1 - value)),
-                child: child,
-              ),
-            );
-          },
+        widgets.add(Cue.onMount(
+          motion: .smooth(),
+          acts: [.fadeIn(), .slideY(from: 0.08)],
           child: _buildSemesterCourseCard(course),
         ));
       }
