@@ -1,19 +1,16 @@
-"""Patch flutter_inappwebview_android's deprecated proguard reference."""
+#!/usr/bin/env python3
+"""Patch flutter_inappwebview_android build.gradle to use proguard-android-optimize.txt."""
+
 import sys
 
-filepath = sys.argv[1]
-with open(filepath, 'r') as f:
-    content = f.read()
-
-content = content.replace(
-    "getDefaultProguardFile('proguard-android.txt')",
-    "getDefaultProguardFile('proguard-android-optimize.txt')",
-)
-content = content.replace(
-    'getDefaultProguardFile("proguard-android.txt")',
-    'getDefaultProguardFile("proguard-android-optimize.txt")',
-)
-
-with open(filepath, 'w') as f:
-    f.write(content)
-print(f'Patched proguard reference in {filepath}')
+if __name__ == '__main__':
+    path = sys.argv[1]
+    with open(path, 'r') as f:
+        content = f.read()
+    content = content.replace(
+        "getDefaultProguardFile('proguard-android.txt')",
+        "getDefaultProguardFile('proguard-android-optimize.txt')",
+    )
+    with open(path, 'w') as f:
+        f.write(content)
+    print(f"Patched {path}")

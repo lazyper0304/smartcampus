@@ -2,15 +2,37 @@ name: Build SmartCampus
 
 on:
   push:
-    branches: [ master ]
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ master ]
   workflow_dispatch:
 
 jobs:
+  auto-tag:
+    name: 🏷️ Auto-create tag from VERSION
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.create_tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version and create tag
+        id: create_tag
+        run: |
+          VERSION="v$(cat VERSION)"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -fa "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION" --force
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "Created and pushed tag: $VERSION"
+
   android:
     name: 📱 Build Android APK
+    if: github.event_name != 'workflow_dispatch' || always()
+    needs: [auto-tag]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -72,6 +94,8 @@ jobs:
 
   windows:
     name: 🪟 Build Windows
+    if: github.event_name != 'workflow_dispatch' || always()
+    needs: [auto-tag]
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -106,8 +130,8 @@ jobs:
 
   release:
     name: 🚀 Publish Release
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && always())
     needs: [android, windows]
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -131,14 +155,12 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.android.outputs.version }}"
-          # Rename APKs with readable names
           for f in release/android/*.apk; do
             abi=$(echo "$f" | sed -n 's/.*-\(arm64-v8a\|armeabi-v7a\|x86_64\).*/\1/p')
             if [ -n "$abi" ]; then
               mv "$f" "release/android/宜院宾果-v${VERSION}-${abi}.apk"
             fi
           done
-          # Zip windows build
           cd release/windows
           7z a -tzip "../宜院宾果-v${VERSION}-windows.zip" ./*
           cd ../..
@@ -149,8 +171,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ needs.android.outputs.version }}"
-          TAG="${GITHUB_REF_NAME}"
-          # Create release notes file
+          TAG="v${VERSION}"
           cat > release-notes.md <<- NOTEEND
           ## 宜院宾果 v${VERSION}
 
@@ -158,9 +179,7 @@ jobs:
           - **Android APK**：按 CPU 架构分为三个文件，通用选择 arm64-v8a
           - **Windows**：ZIP 压缩包，解压后运行 宜院宾果.exe
           NOTEEND
-          # Delete existing release if any (e.g. from a previous failed run)
           gh release view "$TAG" --json id 2>/dev/null && gh release delete "$TAG" -y || true
-          # Create release and upload assets
           gh release create "$TAG" \
             --title "宜院宾果 v${VERSION}" \
             --notes-file release-notes.md \
