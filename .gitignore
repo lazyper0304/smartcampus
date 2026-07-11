@@ -26,6 +26,7 @@ android/.gradle/
 android/app/build/
 android/local.properties
 android/key.properties
+android/*.jks
 
 # iOS
 ios/Pods/

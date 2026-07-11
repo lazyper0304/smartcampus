@@ -4,6 +4,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// 加载签名配置
+fun loadSigningConfig(): Map<String, String>? {
+    val propsFile = rootProject.file("key.properties")
+    if (!propsFile.exists()) return null
+    val props = java.util.Properties()
+    props.load(propsFile.inputStream())
+    val storeFile = props["storeFile"] as? String ?: return null
+    return mapOf(
+        "storeFile" to storeFile,
+        "storePassword" to (props["storePassword"] as? String ?: return null),
+        "keyAlias" to (props["keyAlias"] as? String ?: return null),
+        "keyPassword" to (props["keyPassword"] as? String ?: return null),
+    )
+}
+
 android {
     namespace = "com.smartcampus.smartcampus"
     compileSdk = flutter.compileSdkVersion
@@ -15,21 +30,33 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.smartcampus.smartcampus"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        val signConfig = loadSigningConfig()
+        if (signConfig != null) {
+            create("release") {
+                storeFile = file(signConfig["storeFile"]!!)
+                storePassword = signConfig["storePassword"]
+                keyAlias = signConfig["keyAlias"]
+                keyPassword = signConfig["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val hasSigning = loadSigningConfig() != null
+            signingConfig = if (hasSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -50,7 +77,6 @@ flutter {
 }
 
 dependencies {
-    // ML Kit optional language packs (needed for R8 release builds)
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")
