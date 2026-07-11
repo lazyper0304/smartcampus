@@ -41,26 +41,11 @@ jobs:
 
       - name: Patch flutter_inappwebview_android proguard reference
         run: |
-          BUILD_FILE="$PUB_CACHE/hosted/pub.dev/flutter_inappwebview_android-1.1.3/android/build.gradle"
-          if [ -f "$BUILD_FILE" ]; then
-            python3 -c "
-import sys
-with open(sys.argv[1], 'r') as f:
-    content = f.read()
-content = content.replace(
-    \"getDefaultProguardFile('proguard-android.txt')\",
-    \"getDefaultProguardFile('proguard-android-optimize.txt')\"
-)
-content = content.replace(
-    'getDefaultProguardFile(\"proguard-android.txt\")',
-    'getDefaultProguardFile(\"proguard-android-optimize.txt\")'
-)
-with open(sys.argv[1], 'w') as f:
-    f.write(content)
-print('Patched proguard reference')
-" "$BUILD_FILE"
+          FILE="$PUB_CACHE/hosted/pub.dev/flutter_inappwebview_android-1.1.3/android/build.gradle"
+          if [ -f "$FILE" ]; then
+            python3 scripts/patch_proguard.py "$FILE"
           else
-            echo "Warning: $BUILD_FILE not found"
+            echo "Warning: $FILE not found"
           fi
 
       - name: Build APK (release)
