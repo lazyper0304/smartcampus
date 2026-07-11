@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../auth/login_page.dart';
@@ -499,9 +499,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _openUrl(String url) {
-    // 使用进程打开（参考校历打开 PDF 的方式）
-    Process.run('start', ['""', url], runInShell: true);
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildSection(String title) {
