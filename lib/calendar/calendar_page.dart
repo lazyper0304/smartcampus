@@ -7,6 +7,7 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 
 import 'calendar.dart';
 import 'calendar_service.dart';
+import '../core/theme_utils.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -178,14 +179,14 @@ class _CalendarPageState extends State<CalendarPage> {
                     Row(
                       children: [
                         Icon(Icons.calendar_today,
-                            size: 14, color: Colors.grey[500]),
+                            size: 14, color: textSecondary(context)),
                         const SizedBox(width: 4),
                         Text(
                           entry.publishDate.isNotEmpty
                               ? '发布: ${entry.publishDate}'
                               : '',
                           style: TextStyle(
-                              fontSize: 12, color: Colors.grey[500]),
+                              fontSize: 12, color: textSecondary(context)),
                         ),
                         const SizedBox(width: 16),
                         Icon(Icons.picture_as_pdf,
@@ -199,7 +200,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
+              Icon(Icons.chevron_right, color: textHint(context)),
             ],
           ),
         ),
@@ -381,17 +382,17 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
                     image: _previewImage!,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(
+                        SizedBox(
                       height: 200,
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.broken_image,
-                                size: 48, color: Colors.grey),
+                                size: 48, color: textHint(context)),
                             SizedBox(height: 8),
                             Text('预览图片加载失败',
-                                style: TextStyle(color: Colors.grey)),
+                                style: TextStyle(color: textHint(context))),
                           ],
                         ),
                       ),
@@ -416,7 +417,7 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
                                     ? '${(progress * 100).toStringAsFixed(0)}%'
                                     : '加载中...',
                                 style:
-                                    const TextStyle(color: Colors.grey),
+                                    TextStyle(color: textHint(context)),
                               ),
                             ],
                           ),
@@ -447,12 +448,12 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
                     height: 200,
                     margin: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text('PDF 文件加载中…',
-                          style: TextStyle(color: Colors.grey)),
+                          style: TextStyle(color: textHint(context))),
                     ),
                   ),
 
@@ -472,9 +473,9 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.grey[600]),
+          Icon(icon, size: 14, color: textHint(context)),
           const SizedBox(width: 4),
-          Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text(text, style: TextStyle(fontSize: 12, color: textHint(context))),
         ],
       ),
     );

@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/theme_utils.dart';
 import '../core/data_cache.dart';
+import '../core/theme_utils.dart';
 import '../core/http_client.dart';
+import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
+import '../core/theme_utils.dart';
 import '../core/navigation.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -233,11 +237,11 @@ class _AppsPageState extends State<_AppsPage> {
           child: Column(
             children: [
               Icon(Icons.search_off_rounded,
-                  size: 48, color: Colors.grey[300]),
+                  size: 48, color: textHint(context)),
               const SizedBox(height: 12),
               Text(
                 _searchText.isNotEmpty ? '未找到 "$_searchText"' : '暂无最近使用',
-                style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                style: TextStyle(fontSize: 14, color: textHint(context)),
               ),
             ],
           ),
@@ -269,11 +273,11 @@ class _AppsPageState extends State<_AppsPage> {
         controller: _searchCtrl,
         decoration: InputDecoration(
           hintText: '搜索应用名称…',
-          hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
-          prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400], size: 20),
+          hintStyle: TextStyle(fontSize: 14, color: textHint(context)),
+          prefixIcon: Icon(Icons.search_rounded, color: textHint(context), size: 20),
           suffixIcon: _searchText.isNotEmpty
               ? IconButton(
-                  icon: Icon(Icons.clear_rounded, size: 18, color: Colors.grey[400]),
+                  icon: Icon(Icons.clear_rounded, size: 18, color: textHint(context)),
                   onPressed: () { _searchCtrl.clear(); },
                 )
               : null,
@@ -319,7 +323,7 @@ class _AppsPageState extends State<_AppsPage> {
                         Icon(
                           _tabIcons[i],
                           size: 16,
-                          color: selected ? Colors.white : Colors.grey[500],
+                          color: selected ? Colors.white : textSecondary(context),
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -327,7 +331,7 @@ class _AppsPageState extends State<_AppsPage> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: selected ? Colors.white : Colors.grey[600],
+                            color: selected ? Colors.white : textSecondary(context),
                           ),
                         ),
                       ],

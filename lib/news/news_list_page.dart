@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/theme_utils.dart';
 import '../core/data_cache.dart';
 import 'news.dart';
 import 'news_service.dart';
@@ -169,7 +170,7 @@ class _NewsListPageState extends State<NewsListPage> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: Text('— 已显示全部新闻 —',
-              style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+              style: TextStyle(fontSize: 12, color: textHint(context))),
         ),
       );
     }
@@ -235,14 +236,14 @@ class _NewsListPageState extends State<NewsListPage> {
                       Row(
                         children: [
                           Icon(Icons.calendar_today,
-                              size: 12, color: Colors.grey[400]),
+                              size: 12, color: textHint(context)),
                           const SizedBox(width: 4),
                           Text(item.publishDate,
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[400])),
+                                  fontSize: 11, color: textHint(context))),
                           const Spacer(),
                           Icon(Icons.chevron_right_rounded,
-                              size: 18, color: Colors.grey[300]),
+                              size: 18, color: textHint(context)),
                         ],
                       ),
                     ],

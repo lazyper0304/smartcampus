@@ -3,6 +3,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../news/webview_page.dart';
+import '../core/theme_utils.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 const Color _accentGreen = Color.fromRGBO(46, 125, 50, 1);
@@ -117,7 +118,7 @@ class NetworkServicePage extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             const SizedBox(height: 16),
             for (final cat in _services) ...[
               _buildCategory(context, cat),
@@ -129,7 +130,7 @@ class NetworkServicePage extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -161,7 +162,7 @@ class NetworkServicePage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text('宜宾学院信息中心',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey[500])),
+                          fontSize: 12, color: textSecondary(context))),
                 ],
               ),
             ),
@@ -263,7 +264,7 @@ class NetworkServicePage extends StatelessWidget {
                       Text(item.detail!,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: textSecondary(context),
                             height: 1.4,
                           )),
                     ],
@@ -272,7 +273,7 @@ class NetworkServicePage extends StatelessWidget {
               ),
               if (item.url != null)
                 Icon(Icons.open_in_new_rounded,
-                    size: 16, color: Colors.grey[400]),
+                    size: 16, color: textHint(context)),
             ],
           ),
         ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/theme_utils.dart';
 import '../core/http_client.dart';
+import '../core/theme_utils.dart';
 import '../core/data_cache.dart';
 import 'exam.dart';
 import 'exam_service.dart';
@@ -118,7 +120,7 @@ class _ExamPageState extends State<ExamPage> {
       Icon(icon, size: 20, color: _yibinBlue),
       const SizedBox(height: 4),
       Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-      Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+      Text(label, style: TextStyle(fontSize: 11, color: textSecondary(context))),
     ]);
   }
 
@@ -132,7 +134,7 @@ class _ExamPageState extends State<ExamPage> {
         Text('$date $weekday',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _yibinBlue)),
         const SizedBox(width: 8),
-        Text('共$count场', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        Text('共$count场', style: TextStyle(fontSize: 12, color: textSecondary(context))),
       ]),
     );
   }
@@ -177,7 +179,7 @@ class _ExamPageState extends State<ExamPage> {
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Row(children: [
-        Icon(icon, size: 13, color: Colors.grey[500]),
+        Icon(icon, size: 13, color: textSecondary(context)),
         const SizedBox(width: 4),
         Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[700]))),
       ]),

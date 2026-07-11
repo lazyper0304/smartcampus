@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import '../core/theme_utils.dart';
 
 import 'news.dart';
 
@@ -36,16 +37,16 @@ class NewsDetailPage extends StatelessWidget {
             Row(
               children: [
                 if (detail.source.isNotEmpty) ...[
-                  Icon(Icons.source, size: 14, color: Colors.grey[500]),
+                  Icon(Icons.source, size: 14, color: textSecondary(context)),
                   const SizedBox(width: 4),
                   Text(detail.source,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                      style: TextStyle(fontSize: 12, color: textSecondary(context))),
                   const SizedBox(width: 16),
                 ],
-                Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
+                Icon(Icons.calendar_today, size: 14, color: textSecondary(context)),
                 const SizedBox(width: 4),
                 Text(detail.publishDate,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                    style: TextStyle(fontSize: 12, color: textSecondary(context))),
               ],
             ),
             const SizedBox(height: 8),
@@ -146,7 +147,7 @@ class NewsDetailPage extends StatelessWidget {
                               ),
                             ),
                             Icon(Icons.open_in_new_rounded,
-                                size: 18, color: Colors.grey[400]),
+                                size: 18, color: textHint(context)),
                           ],
                         ),
                       ),

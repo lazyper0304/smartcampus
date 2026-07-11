@@ -12,6 +12,7 @@ import '../news/news_service.dart';
 import '../news/news_detail_page.dart';
 import '../news/news_list_page.dart';
 import '../core/navigation.dart';
+import '../core/theme_utils.dart';
 
 class HomeDashboard extends StatefulWidget {
   final SharedHttpClient client;
@@ -123,7 +124,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
+          side: BorderSide(color: dividerColor(context)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -150,7 +151,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   ),
                   Text('周${['', '一', '二', '三', '四', '五', '六', '日'][DateTime.now().weekday]}',
                       style: TextStyle(
-                          fontSize: 13, color: Colors.grey[500])),
+                          fontSize: 13, color: textSecondary(context))),
                 ],
               ),
               const SizedBox(height: 16),
@@ -167,10 +168,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        Icon(Icons.event_busy, size: 40, color: Colors.grey[300]),
+                        Icon(Icons.event_busy, size: 40, color: textHint(context)),
                         const SizedBox(height: 8),
                         Text('今天没有课程',
-                            style: TextStyle(color: Colors.grey[400])),
+                            style: TextStyle(color: textHint(context))),
                       ],
                     ),
                   ),
@@ -234,16 +235,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.access_time, size: 13, color: Colors.grey[500]),
+                    Icon(Icons.access_time, size: 13, color: textSecondary(context)),
                     const SizedBox(width: 4),
                     Text(course.sectionRange,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                        style: TextStyle(fontSize: 12, color: textSecondary(context))),
                     const SizedBox(width: 12),
-                    Icon(Icons.room, size: 13, color: Colors.grey[500]),
+                    Icon(Icons.room, size: 13, color: textSecondary(context)),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(course.position,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                          style: TextStyle(fontSize: 12, color: textSecondary(context)),
                           overflow: TextOverflow.ellipsis),
                     ),
                   ],
@@ -264,7 +265,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
+          side: BorderSide(color: dividerColor(context)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -293,7 +294,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     onTap: () => pushPage(context, const NewsListPage()),
                     child: Text('查看全部 ›',
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey[500])),
+                            fontSize: 13, color: textSecondary(context))),
                   ),
                 ],
               ),
@@ -311,10 +312,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        Icon(Icons.article_outlined, size: 40, color: Colors.grey[300]),
+                        Icon(Icons.article_outlined, size: 40, color: textHint(context)),
                         const SizedBox(height: 8),
                         Text('暂无新闻',
-                            style: TextStyle(color: Colors.grey[400])),
+                            style: TextStyle(color: textHint(context))),
                       ],
                     ),
                   ),
@@ -361,14 +362,14 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   Row(
                     children: [
                       Icon(Icons.calendar_today,
-                          size: 12, color: Colors.grey[400]),
+                          size: 12, color: textHint(context)),
                       const SizedBox(width: 4),
                       Text(news.publishDate,
                           style:
-                              TextStyle(fontSize: 11, color: Colors.grey[400])),
+                              TextStyle(fontSize: 11, color: textHint(context))),
                       const Spacer(),
                       Icon(Icons.chevron_right,
-                          size: 18, color: Colors.grey[400]),
+                          size: 18, color: textHint(context)),
                     ],
                   ),
                 ],

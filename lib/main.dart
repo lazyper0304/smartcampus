@@ -176,8 +176,36 @@ class _SmartCampusAppState extends State<SmartCampusApp> {
         elevation: 8,
         backgroundColor: colorScheme.surface,
         selectedItemColor: isDark ? const Color(0xFF5C5CFF) : _yibinBlue,
-        unselectedItemColor: Colors.grey.shade500,
+        unselectedItemColor: isDark ? const Color(0xFF6E6E80) : Colors.grey.shade500,
         type: BottomNavigationBarType.fixed,
+      ),
+
+      dividerTheme: DividerThemeData(
+        color: isDark ? const Color(0xFF3A3A4E) : const Color(0xFFEEEEF4),
+        space: 1,
+        thickness: 1,
+      ),
+
+      listTileTheme: ListTileThemeData(
+        titleTextStyle: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: colorScheme.onSurface,
+        ),
+        subtitleTextStyle: TextStyle(
+          fontSize: 12,
+          color: isDark ? const Color(0xFF9E9EB0) : Colors.grey.shade500,
+        ),
+        iconColor: isDark ? const Color(0xFF9E9EB0) : Colors.grey.shade500,
+      ),
+
+      iconTheme: IconThemeData(
+        color: isDark ? const Color(0xFF9E9EB0) : Colors.grey.shade500,
+      ),
+
+      dialogTheme: DialogThemeData(
+        backgroundColor: isDark ? const Color(0xFF2A2A3E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
 
       snackBarTheme: SnackBarThemeData(

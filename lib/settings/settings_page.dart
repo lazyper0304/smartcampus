@@ -7,8 +7,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../auth/login_page.dart';
+import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
+import '../core/theme_utils.dart';
 import '../core/http_client.dart';
+import '../core/theme_utils.dart';
 import '../core/version.dart';
 import '../main.dart';
 import '../xuegong/student_info_manager.dart';
@@ -217,17 +220,17 @@ class _SettingsPageState extends State<SettingsPage> {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 3),
                     Text(info.studentId,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                        style: TextStyle(fontSize: 13, color: textSecondary(context))),
                     if (info.major.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(info.major,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                          style: TextStyle(fontSize: 12, color: textHint(context)),
                           overflow: TextOverflow.ellipsis),
                     ],
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 22),
+              Icon(Icons.chevron_right_rounded, color: textHint(context), size: 22),
             ],
           ),
         ),
@@ -251,11 +254,11 @@ class _SettingsPageState extends State<SettingsPage> {
     if (text.isEmpty) return const SizedBox.shrink();
     return Row(
       children: [
-        Icon(icon, size: 13, color: Colors.grey[400]),
+        Icon(icon, size: 13, color: textHint(context)),
         const SizedBox(width: 4),
         Expanded(
           child: Text(text,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 12, color: textSecondary(context)),
               overflow: TextOverflow.ellipsis),
         ),
       ],
@@ -457,7 +460,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(width: 8),
                             if (date.isNotEmpty)
                               Text(date,
-                                  style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                                  style: TextStyle(fontSize: 11, color: textHint(context))),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -511,7 +514,7 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.only(left: 4, bottom: 4),
       child: Text(
         title,
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[500]),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary(context)),
       ),
     );
   }
@@ -540,7 +543,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 6),
             Text(label,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                    color: selected ? blue : Colors.grey[600])),
+                    color: selected ? blue : textSecondary(context))),
             if (selected) ...[
               const SizedBox(height: 4),
               Container(width: 6, height: 6, decoration: const BoxDecoration(color: blue, shape: BoxShape.circle)),
@@ -574,11 +577,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: textSecondary(context))),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 20),
+            Icon(Icons.chevron_right_rounded, color: textHint(context), size: 20),
           ],
         ),
       ),
@@ -590,7 +593,7 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+          Text(label, style: TextStyle(fontSize: 14, color: textSecondary(context))),
           const Spacer(),
           Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
         ],
@@ -599,7 +602,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDivider() {
-    return Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey[200]);
+    return Divider(height: 1, indent: 16, endIndent: 16, color: textHint(context));
   }
 
   Future<void> _logout(BuildContext context) async {

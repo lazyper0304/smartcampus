@@ -6,6 +6,7 @@ import 'package:smooth_dropdown/smooth_dropdown.dart';
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
+import '../core/theme_utils.dart';
 import 'score.dart';
 import 'score_service.dart';
 
@@ -89,7 +90,7 @@ class _ScorePageState extends State<ScorePage> {
     if (scores.isEmpty) {
       return Center(
         child: Text('暂无成绩数据',
-            style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+            style: TextStyle(fontSize: 14, color: textHint(context))),
       );
     }
 
@@ -173,7 +174,7 @@ class _ScorePageState extends State<ScorePage> {
                 fontSize: 18, fontWeight: FontWeight.w700, color: _yibinBlue)),
         const SizedBox(height: 2),
         Text(label,
-            style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            style: TextStyle(fontSize: 11, color: textHint(context))),
       ],
     );
   }
@@ -208,10 +209,10 @@ class _ScorePageState extends State<ScorePage> {
               children: [
                 Text(
                   semesterName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A2E),
+                    color: textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -219,7 +220,7 @@ class _ScorePageState extends State<ScorePage> {
                   '${scores.length}门课程 · ${termCredits.toStringAsFixed(1)}学分  · 平均绩点 $termAvgGpa',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[500],
+                    color: textSecondary(context),
                   ),
                 ),
               ],
@@ -231,7 +232,7 @@ class _ScorePageState extends State<ScorePage> {
 
     return SmoothExpansionTile(
       initiallyExpanded: initiallyExpanded,
-      style: yibinBlueStyle,
+      style: smoothStyle(context),
       headerBuilder: (context, expand, controller) => GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => controller.toggle(),
@@ -337,13 +338,13 @@ class _ScorePageState extends State<ScorePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[300]),
+            Icon(Icons.error_outline_rounded, size: 48, color: textHint(context)),
             const SizedBox(height: 16),
             Text('获取成绩失败',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                style: TextStyle(fontSize: 16, color: textPrimary(context))),
             const SizedBox(height: 8),
             Text(_error!,
-                style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                style: TextStyle(fontSize: 12, color: textSecondary(context)),
                 textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(

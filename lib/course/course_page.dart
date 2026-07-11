@@ -6,6 +6,7 @@ import 'package:smooth_dropdown/smooth_dropdown.dart';
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
+import '../core/theme_utils.dart';
 import 'course.dart';
 import 'course_service.dart';
 
@@ -236,7 +237,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
+          bottom: BorderSide(color: dividerColor(context)),
         ),
       ),
       child: Row(
@@ -288,18 +289,18 @@ class _CourseTablePageState extends State<CourseTablePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.grey.shade100,
+          color: selected ? Theme.of(context).colorScheme.primaryContainer : isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+            color: selected ? Theme.of(context).colorScheme.primary : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: selected ? Theme.of(context).colorScheme.primary : Colors.grey),
+            Icon(icon, size: 14, color: selected ? Theme.of(context).colorScheme.primary : textHint(context)),
             const SizedBox(width: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: selected ? Theme.of(context).colorScheme.primary : Colors.grey)),
+            Text(label, style: TextStyle(fontSize: 11, color: selected ? Theme.of(context).colorScheme.primary : textHint(context))),
           ],
         ),
       ),
@@ -365,8 +366,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: dividerColor(context))),
       ),
       child: Row(
         children: [
@@ -387,12 +388,12 @@ class _CourseTablePageState extends State<CourseTablePage> {
           const Spacer(),
           GestureDetector(
             onTap: _currentWeek > 1 ? () => setState(() => _currentWeek--) : null,
-            child: Icon(Icons.chevron_left, size: 20, color: _currentWeek > 1 ? Colors.black54 : Colors.grey.shade300),
+            child: Icon(Icons.chevron_left, size: 20, color: _currentWeek > 1 ? textSecondary(context) : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300),
           ),
-          Text('$_currentWeek/$_maxWeek', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          Text('$_currentWeek/$_maxWeek', style: TextStyle(color: textSecondary(context))),
           GestureDetector(
             onTap: _currentWeek < _maxWeek ? () => setState(() => _currentWeek++) : null,
-            child: Icon(Icons.chevron_right, size: 20, color: _currentWeek < _maxWeek ? Colors.black54 : Colors.grey.shade300),
+            child: Icon(Icons.chevron_right, size: 20, color: _currentWeek < _maxWeek ? textSecondary(context) : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300),
           ),
         ],
       ),
@@ -405,8 +406,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: dividerColor(context))),
       ),
       child: Row(
         children: [
@@ -425,13 +426,13 @@ class _CourseTablePageState extends State<CourseTablePage> {
               child: SmoothSelect<String>(
                 value: _selectedSemester,
                 hint: const Text('选择学期', style: TextStyle(color: Color(0x66191999))),
-                style: yibinBlueStyle,
-                highlight: yibinBlueHighlight,
+                style: smoothStyle(context),
+                highlight: smoothHighlight(context),
                 menuMaxHeight: 300,
                 items: _semesters.map((s) {
                   return SmoothSelectItem<String>(
                     value: s.dm,
-                    child: Text(s.mc, style: const TextStyle(color: Colors.black)),
+                    child: Text(s.mc, style: TextStyle(color: textPrimary(context))),
                   );
                 }).toList(),
                 onChanged: (v) {
@@ -523,12 +524,12 @@ class _CourseTablePageState extends State<CourseTablePage> {
                               color: isToday
                                   ? Theme.of(context).colorScheme.primaryContainer
                                   : isWeekend
-                                      ? Colors.grey.shade100
+                                      ? isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100
                                       : _yibinBlue.withValues(alpha: 0.06),
                               border: Border.all(
                                   color: isToday
                                       ? Theme.of(context).colorScheme.primary
-                                      : Colors.grey.shade300,
+                                      : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
                                   width: isToday ? 1.5 : 0.5),
                             ),
                             child: Column(
@@ -542,8 +543,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                     color: isToday
                                         ? Theme.of(context).colorScheme.primary
                                         : isWeekend
-                                            ? Colors.grey
-                                            : Colors.black87,
+                                            ? textHint(context)
+                                            : textPrimary(context),
                                   ),
                                 ),
                                 if (date != null)
@@ -553,7 +554,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                       fontSize: 9,
                                       color: isToday
                                           ? Theme.of(context).colorScheme.primary
-                                          : Colors.grey.shade500,
+                                          : Theme.of(context).scaffoldBackgroundColor,
                                     ),
                                   ),
                               ],
@@ -579,10 +580,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
                             child: Container(
                               decoration: BoxDecoration(
                                 color: isOdd
-                                    ? Colors.grey.shade50
+                                    ? Theme.of(context).scaffoldBackgroundColor
                                     : Colors.white,
                                 border: Border.all(
-                                    color: Colors.grey.shade300, width: 0.5),
+                                    color: isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300, width: 0.5),
                               ),
                               child: Center(
                                 child: Text(
@@ -620,7 +621,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                           .withValues(alpha: 0.3)
                                       : null,
                                   border: Border.all(
-                                      color: Colors.grey.shade300,
+                                      color: isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
                                       width: 0.5),
                                 ),
                                 child: coursesInCell.isEmpty
@@ -746,7 +747,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: isWeekend ? Colors.grey.shade100 : _yibinBlue.withValues(alpha: 0.06),
+                color: isWeekend ? isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100 : _yibinBlue.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -754,7 +755,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: isWeekend ? Colors.grey : Colors.black87,
+                  color: isWeekend ? textHint(context) : textPrimary(context),
                 ),
               ),
             ),
@@ -809,20 +810,20 @@ class _CourseTablePageState extends State<CourseTablePage> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.person, size: 14, color: Colors.grey),
+                      Icon(Icons.person, size: 14, color: textHint(context)),
                       const SizedBox(width: 4),
                       Text(course.teacher,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          style: TextStyle(fontSize: 12, color: textHint(context))),
                     ],
                   ),
                   if (course.position.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.room, size: 14, color: Colors.grey),
+                        Icon(Icons.room, size: 14, color: textHint(context)),
                         const SizedBox(width: 4),
                         Text(course.position,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            style: TextStyle(fontSize: 12, color: textHint(context))),
                       ],
                     ),
                   ],
@@ -852,8 +853,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return Container(
       constraints: const BoxConstraints(maxHeight: 250),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: dividerColor(context))),
       ),
       child: ListView(
         padding: const EdgeInsets.all(12),
@@ -864,14 +865,14 @@ class _CourseTablePageState extends State<CourseTablePage> {
             ..._courseChanges.map((c) => _buildChangeCard(c)),
           ],
           if (_showUnarranged && _unarrangedCourses.isNotEmpty) ...[
-            _buildSectionTitle('未安排课程', Icons.unpublished, Colors.grey),
+            _buildSectionTitle('未安排课程', Icons.unpublished, textHint(context)),
             ..._unarrangedCourses.map((c) => _buildUnarrangedCard(c)),
           ],
           if ((_showCourseChanges && _courseChanges.isEmpty) ||
               (_showUnarranged && _unarrangedCourses.isEmpty))
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: Text('暂无数据', style: TextStyle(color: Colors.grey))),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(child: Text('暂无数据', style: TextStyle(color: textHint(context)))),
             ),
         ],
       ),
@@ -947,7 +948,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
             child: Text(label,
                 style: TextStyle(
                     fontSize: 11,
-                    color: isNew ? Colors.green : Colors.grey,
+                    color: isNew ? Colors.green : textHint(context),
                     fontWeight: FontWeight.w500)),
           ),
           Expanded(
@@ -955,7 +956,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
               '周${_dayLabels[day]} ${startPeriod}-${endPeriod}节 ${formatPeriodTime(startPeriod)} '
               '${weekText.isNotEmpty ? weekText : ''}'
               '${room.isNotEmpty ? ' $room' : ''}',
-              style: TextStyle(fontSize: 11, color: isNew ? Colors.green.shade700 : Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, color: isNew ? Colors.green.shade700 : textSecondary(context)),
             ),
           ),
         ],
@@ -978,10 +979,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 2),
                   Text('教师: ${course.teacher}  学分: ${course.credits}  学时: ${course.hours}',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      style: TextStyle(fontSize: 11, color: textHint(context))),
                   if (course.weekRange.isNotEmpty)
                     Text('周次: ${course.weekRange}',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        style: TextStyle(fontSize: 11, color: textHint(context))),
                 ],
               ),
             ),
