@@ -1,20 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
 
-/// Standard transition duration.
+/// 纯淡入页面转场 — 无任何滑动/缩放动画
 const Duration _duration = Duration(milliseconds: 350);
 
-/// Shared axis slide + fade acts for forward page push.
-const List<Act> _pushActs = [Act.fadeIn(), Act.slideX(from: 0.25)];
-
-/// Build a cue-driven PageRoute.
-PageRouteBuilder _cueRoute(Widget page, {List<Act> acts = _pushActs}) {
+PageRouteBuilder _fadeRoute(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) {
-      return Cue.onProgress(
-        listenable: animation,
-        progress: () => animation.value,
-        acts: acts,
+      return FadeTransition(
+        opacity: animation,
         child: page,
       );
     },
@@ -23,24 +16,21 @@ PageRouteBuilder _cueRoute(Widget page, {List<Act> acts = _pushActs}) {
   );
 }
 
-/// Push a new page with a slide + fade transition.
+/// Push a new page with fade transition.
 void pushPage(BuildContext context, Widget page) {
-  Navigator.push(context, _cueRoute(page));
+  Navigator.push(context, _fadeRoute(page));
 }
 
 /// Replace the current page (splash → main/login).
-void replacePage(BuildContext context, Widget page, {List<Act>? acts}) {
-  Navigator.pushReplacement(
-    context,
-    _cueRoute(page, acts: acts ?? _pushActs),
-  );
+void replacePage(BuildContext context, Widget page) {
+  Navigator.pushReplacement(context, _fadeRoute(page));
 }
 
 /// Push and remove all previous routes (logout).
 void pushAndClear(BuildContext context, Widget page) {
   Navigator.pushAndRemoveUntil(
     context,
-    _cueRoute(page, acts: const [Act.fadeIn()]),
+    _fadeRoute(page),
     (route) => false,
   );
 }

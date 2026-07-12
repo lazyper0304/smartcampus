@@ -6,14 +6,11 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
 import '../core/data_cache.dart';
-import '../core/theme_utils.dart';
 import '../core/http_client.dart';
-import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
-import '../core/theme_utils.dart';
 import '../core/navigation.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -46,12 +43,9 @@ class _MainScreenState extends State<MainScreen> {
       ),
       statusBarStyle: GlassStatusBarStyle.auto,
       contentAwareBrightness: true,
-      body: Cue.onChange(
-        value: _currentIndex,
-        motion: .smooth(),
-        fromCurrentValue: true,
-        acts: [.fadeIn(), .slideX(from: 0.12)],
-        child: [
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
           HomeDashboard(
             key: const ValueKey('home'),
             client: widget.client,
@@ -63,8 +57,8 @@ class _MainScreenState extends State<MainScreen> {
             userId: widget.userId,
           ),
           SettingsPage(key: const ValueKey('settings'), client: widget.client),
-        ][_currentIndex],
-      ),
+          ],
+        ),
       bottomBar: Theme(
         data: ThemeData(
           colorScheme: ColorScheme.fromSeed(
@@ -216,14 +210,8 @@ class _AppsPageState extends State<_AppsPage> {
           // 分类标签
           _buildTabBar(),
           const SizedBox(height: 20),
-          // 应用网格（带渐入切换）
-          Cue.onChange(
-            value: _tabIndex,
-            motion: .smooth(),
-            fromCurrentValue: true,
-            acts: [.fadeIn()],
-            child: _buildContent(apps),
-          ),
+          // 应用网格
+          _buildContent(apps),
         ],
       ),
     );
@@ -353,10 +341,7 @@ class _AppsPageState extends State<_AppsPage> {
         final page = entry.pageBuilder(context, widget.client, widget.userId);
         pushPage(context, page);
       },
-      child: Cue.onMount(
-        motion: .smooth(),
-        acts: [.fadeIn(), .slideY(from: 0.08)],
-        child: Card(
+      child: Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -388,7 +373,6 @@ class _AppsPageState extends State<_AppsPage> {
                   ],
                 ),
               ),
-        ),
       ),
     );
   }

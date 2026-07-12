@@ -3,6 +3,7 @@ import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/data_cache.dart';
+import '../core/navigation.dart';
 import '../news/webview_page.dart';
 import 'employ_service.dart';
 
@@ -322,13 +323,11 @@ class _EmployPageState extends State<EmployPage> {
   }
 
   void _openDetail(EmployJob job) {
-    Navigator.push(
+    pushPage(
       context,
-      MaterialPageRoute(
-        builder: (_) => WebViewPage(
-          url: job.detailUrl,
-          title: '职位详情',
-        ),
+      WebViewPage(
+        url: job.detailUrl,
+        title: '职位详情',
       ),
     );
   }

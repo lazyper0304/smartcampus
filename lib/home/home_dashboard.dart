@@ -119,7 +119,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Widget _buildTodayCoursesCard(BuildContext context) {
     return Cue.onMount(
       motion: .smooth(),
-      acts: [.fadeIn(), .slideY(from: 0.08)],
+      acts: [.fadeIn()],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -260,7 +260,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Widget _buildNewsCard(BuildContext context) {
     return Cue.onMount(
       motion: .smooth(),
-      acts: [.fadeIn(), .slideY(from: 0.08)],
+      acts: [.fadeIn()],
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(

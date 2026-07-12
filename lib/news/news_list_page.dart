@@ -3,6 +3,7 @@ import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
+import '../core/navigation.dart';
 import '../core/data_cache.dart';
 import 'news.dart';
 import 'news_service.dart';
@@ -281,11 +282,9 @@ class _NewsListPageState extends State<NewsListPage> {
       final detail = await _service.fetchNewsDetail(item.url);
       if (!mounted) return;
       Navigator.of(context).pop();
-      Navigator.push(
+      pushPage(
         context,
-        MaterialPageRoute(
-          builder: (_) => NewsDetailPage(detail: detail),
-        ),
+        NewsDetailPage(detail: detail),
       );
     } catch (e) {
       if (!mounted) return;

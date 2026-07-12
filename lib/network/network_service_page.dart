@@ -3,6 +3,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../news/webview_page.dart';
+import '../core/navigation.dart';
 import '../core/theme_utils.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -222,12 +223,9 @@ class NetworkServicePage extends StatelessWidget {
               !item.url!.contains('vpn.yibinu') &&
               !item.url!.contains('oa.yibinu') &&
               !item.url!.contains('web.yibinu')) {
-            Navigator.push(
+            pushPage(
               context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      WebViewPage(url: item.url!, title: '网络服务')),
-            );
+              WebViewPage(url: item.url!, title: '网络服务'));
           } else {
             launchUrl(Uri.parse(item.url!),
                 mode: LaunchMode.externalApplication);

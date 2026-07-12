@@ -10,6 +10,7 @@ import 'core/http_client.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
 import 'home/main_screen.dart';
+import 'splash/fetch_info_page.dart';
 import 'xuegong/student_info_manager.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -253,11 +254,6 @@ class SplashPage extends StatefulWidget {
 class _SplashPageState extends State<SplashPage>
     with TickerProviderStateMixin {
   late final CueController _animCtrl;
-  String _statusText = '验证 Cookie 中…';
-
-  void _updateStatus(String text) {
-    if (mounted) setState(() => _statusText = text);
-  }
 
   @override
   void initState() {
@@ -290,16 +286,15 @@ class _SplashPageState extends State<SplashPage>
       // 首次进入才等待获取个人信息，后续使用缓存
       final cached = await StudentInfoManager.getCached();
       if (cached == null) {
-        if (mounted) _updateStatus('正在获取个人信息…');
-        await StudentInfoManager.fetchUntilSuccess(client);
+        if (!mounted) return;
+        replacePage(context, FetchInfoPage(client: client));
+        return;
       }
 
       if (!mounted) return;
-      replacePage(context, MainScreen(client: client, userId: savedUser),
-          acts: const [Act.fadeIn(), Act.scale(from: 0.92)]);
+      replacePage(context, MainScreen(client: client, userId: savedUser));
     } else {
-      replacePage(context, const LoginPage(),
-          acts: const [Act.fadeIn()]);
+      replacePage(context, const LoginPage());
     }
   }
 
@@ -359,7 +354,7 @@ class _SplashPageState extends State<SplashPage>
               ),
               const SizedBox(height: 16),
               Text(
-                _statusText,
+                '验证 Cookie 中…',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withValues(alpha: 0.6),

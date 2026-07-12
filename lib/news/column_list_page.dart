@@ -3,6 +3,7 @@ import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/data_cache.dart';
+import '../core/navigation.dart';
 import 'news.dart';
 import 'column_service.dart';
 import 'news_detail_page.dart';
@@ -271,13 +272,11 @@ class _ColumnListPageState extends State<ColumnListPage> {
     // 外部链接（非 yibinu.edu.cn）→ 用 WebView 打开
     final urlHost = Uri.tryParse(item.url)?.host ?? '';
     if (urlHost.isNotEmpty && !urlHost.contains('yibinu.edu.cn')) {
-      Navigator.push(
+      pushPage(
         context,
-        MaterialPageRoute(
-          builder: (_) => WebViewPage(
-            url: item.url,
-            title: '${widget.title}详情',
-          ),
+        WebViewPage(
+          url: item.url,
+          title: '${widget.title}详情',
         ),
       );
       return;
@@ -306,11 +305,9 @@ class _ColumnListPageState extends State<ColumnListPage> {
       final detail = await _service.fetchDetail(item.url);
       if (!mounted) return;
       Navigator.of(context).pop();
-      Navigator.push(
+      pushPage(
         context,
-        MaterialPageRoute(
-          builder: (_) => NewsDetailPage(detail: detail),
-        ),
+        NewsDetailPage(detail: detail),
       );
     } catch (e) {
       if (!mounted) return;

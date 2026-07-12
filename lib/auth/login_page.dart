@@ -5,8 +5,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
-import '../home/main_screen.dart';
-import '../xuegong/student_info_manager.dart';
+import '../splash/fetch_info_page.dart';
 import 'auth_service.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -91,17 +90,9 @@ class _LoginPageState extends State<LoginPage>
       await _authService.client.saveCookies();
       await LocalStorage.setString('saved_username', _usernameController.text.trim());
 
-      // 等待获取个人信息后再进入应用
+      // 跳转到获取个人信息过渡页
       if (!mounted) return;
-      setState(() => _isLoading = true);
-      await StudentInfoManager.fetchUntilSuccess(_authService.client);
-
-      if (!mounted) return;
-
-      replacePage(context, MainScreen(
-        client: _authService.client,
-        userId: _usernameController.text.trim(),
-      ), acts: const [Act.fadeIn(), Act.scale(from: 0.92)]);
+      replacePage(context, FetchInfoPage(client: _authService.client));
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

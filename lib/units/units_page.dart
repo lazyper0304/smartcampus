@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/navigation.dart';
 import '../news/webview_page.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
@@ -109,12 +110,9 @@ class UnitsPage extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          Navigator.push(
+          pushPage(
             context,
-            MaterialPageRoute(
-                builder: (_) =>
-                    WebViewPage(url: unit.url, title: unit.name)),
-          );
+            WebViewPage(url: unit.url, title: unit.name));
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

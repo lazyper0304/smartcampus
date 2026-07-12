@@ -7,6 +7,7 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 
 import 'calendar.dart';
 import 'calendar_service.dart';
+import '../core/navigation.dart';
 import '../core/theme_utils.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -209,13 +210,11 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _openDetail(CalendarEntry entry) {
-    Navigator.push(
+    pushPage(
       context,
-      MaterialPageRoute(
-        builder: (_) => CalendarDetailPage(
-          entry: entry,
-          service: _service,
-        ),
+      CalendarDetailPage(
+        entry: entry,
+        service: _service,
       ),
     );
   }
