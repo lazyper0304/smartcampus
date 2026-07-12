@@ -17,6 +17,7 @@ import '../departments/departments_page.dart';
 import '../employ/employ_page.dart';
 import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
+import '../vrmap/vrmap_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -69,6 +70,8 @@ final List<AppEntry> allApps = [
     pageBuilder: (ctx, c, uid) => const NetworkServicePage()),
   AppEntry(icon: Icons.shield_rounded, name: '校园安全', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const SafetyPage()),
+  AppEntry(icon: Icons.map_rounded, name: 'VR地图', category: AppCategory.service,
+    pageBuilder: (ctx, c, uid) => const VrmapPage()),
 
   // ── 资讯 ──
   AppEntry(icon: Icons.newspaper_rounded, name: '校园新闻', category: AppCategory.news,

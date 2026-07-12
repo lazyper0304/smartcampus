@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [1.0.4] - 2026-07-12
+
+### ✨ 新增
+
+- **VR地图服务**（`lib/vrmap/`）：内置 WebView 加载 VR 全景，支持 A区 / 临港双校区一键切换
+  - 使用 `flutter_inappwebview` 渲染 VR 页面
+  - 首页应用网格「服务」分类新增「VR地图」入口
+
+### 🎯 优化
+
+- **App 生命周期管理**：退出后台时立即保存 Cookie 并调用 `SystemNavigator.pop()` 灭活，应用不在后台持续运行
+- **VR 地图 UI**：移除顶部 SegmentedButton，切换校区改为 AppBar 右侧「切换校区」文字按钮
+
+### 🔧 重构
+
+- **清理无用代码**：删除 8 个未使用的旧文件（`xuegong_http_test_page.dart`、`xuegong_page.dart`、`xuegong_http_service.dart`、`xuegong_extract_page.dart`、`stuinfo_page.dart`、`profile_page.dart`、`home_page.dart`、`test_jiaocai.sh`）
+
 ## [1.0.3] - 2026-07-11
 
 ### 🐛 Bug 修复

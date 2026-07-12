@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -69,13 +72,15 @@ class SmartCampusApp extends StatefulWidget {
   State<SmartCampusApp> createState() => _SmartCampusAppState();
 }
 
-class _SmartCampusAppState extends State<SmartCampusApp> {
+class _SmartCampusAppState extends State<SmartCampusApp>
+    with WidgetsBindingObserver {
   late ThemeMode _themeMode;
   SharedHttpClient? _client;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _themeMode = widget.initialThemeMode;
     _client = widget.initialClient;
   }
@@ -89,6 +94,26 @@ class _SmartCampusAppState extends State<SmartCampusApp> {
     setState(() => _themeMode = mode);
     themeModeNotifier.value = mode;
     await LocalStorage.setString('theme_mode', mode.name);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _saveAndExit();
+    }
+  }
+
+  Future<void> _saveAndExit() async {
+    await _client?.saveCookies();
+    if (mounted) {
+      await SystemNavigator.pop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
