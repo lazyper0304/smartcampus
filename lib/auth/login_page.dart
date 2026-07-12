@@ -91,8 +91,10 @@ class _LoginPageState extends State<LoginPage>
       await _authService.client.saveCookies();
       await LocalStorage.setString('saved_username', _usernameController.text.trim());
 
-      // 后台提取学工系统学生信息
-      StudentInfoManager.fetchAndCache(_authService.client);
+      // 等待获取个人信息后再进入应用
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+      await StudentInfoManager.fetchUntilSuccess(_authService.client);
 
       if (!mounted) return;
 

@@ -9,10 +9,8 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../auth/login_page.dart';
 import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
-import '../core/theme_utils.dart';
-import '../core/http_client.dart';
-import '../core/theme_utils.dart';
 import '../core/version.dart';
+import '../core/http_client.dart';
 import '../main.dart';
 import '../xuegong/student_info_manager.dart';
 import '../xuegong/student_info_detail_page.dart';
@@ -60,19 +58,8 @@ class _SettingsPageState extends State<SettingsPage> {
               child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // ── 个人信息卡片 ──
-                if (_loadingInfo)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Center(child: SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )),
-                  )
-                else if (_studentInfo != null)
-                  _buildStudentCard(_studentInfo!),
-
-                // ── 外观 ──
+                // ── 个人信息卡片（始终显示） ──
+                _buildInfoCard(context),
                 const SizedBox(height: 16),
                 _buildSection('外观'),
                 // ... (外观设置不变)
@@ -172,6 +159,82 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
       },
+    );
+  }
+
+  /// 个人信息卡片：有数据展示学生信息，无数据显示占位鼓励手动获取
+  Widget _buildInfoCard(BuildContext context) {
+    // 首次加载且无缓存
+    if (_loadingInfo && _studentInfo == null) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1)),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: SizedBox(
+              width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 有数据 → 展示完整信息
+    if (_studentInfo != null) {
+      return _buildStudentCard(_studentInfo!);
+    }
+
+    // 无数据 → 占位卡片，点击手动获取
+    return GestureDetector(
+      onTap: widget.client != null ? _refreshInfo : null,
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(13),
+                  color: Colors.grey.withValues(alpha: 0.08),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+                ),
+                child: Icon(Icons.person_outline_rounded,
+                    color: Colors.grey.shade400, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.client != null ? '点击获取个人信息' : '个人信息暂不可用',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.client != null ? '手动拉取学号、姓名、专业等信息' : '请在登录后查看',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.client != null)
+                Icon(Icons.refresh_rounded, color: Colors.grey.shade400, size: 22),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

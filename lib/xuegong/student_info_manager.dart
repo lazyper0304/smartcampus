@@ -174,4 +174,13 @@ class StudentInfoManager {
   static Future<void> clearCache() async {
     await LocalStorage.remove(_cacheKey);
   }
+
+  /// 持续重试直到成功获取个人信息
+  static Future<StudentInfo> fetchUntilSuccess(SharedHttpClient client) async {
+    while (true) {
+      final info = await fetchAndCache(client);
+      if (info != null) return info;
+      await Future.delayed(const Duration(seconds: 3));
+    }
+  }
 }
