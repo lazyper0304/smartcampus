@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
@@ -8,8 +6,10 @@ import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
 import 'jiaocai.dart';
 import 'jiaocai_service.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class JiaocaiPage extends StatefulWidget {
   final SharedHttpClient client;
@@ -58,7 +58,7 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -123,14 +123,24 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
   }
 
   Widget _buildInfoCard(TextbookOrder info) {
-    return Cue.onMount(
-      motion: .smooth(),
-      acts: [.fadeIn(), .slideY(from: 0.08)],
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -141,11 +151,11 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _yibinBlue.withValues(alpha: 0.08),
+                  color: accentColorNotifier.value.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.person_rounded,
-                    color: _yibinBlue, size: 22),
+                    color: accentColorNotifier.value, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -176,12 +186,12 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: _yibinBlue.withValues(alpha: 0.6)),
+        Icon(icon, size: 14, color: accentColorNotifier.value.withValues(alpha: 0.6)),
         const SizedBox(width: 6),
         Expanded(
           child: Text(text,
               style: TextStyle(
-                  fontSize: 13, color: _yibinBlue.withValues(alpha: 0.8))),
+                  fontSize: 13, color: accentColorNotifier.value.withValues(alpha: 0.8))),
         ),
       ],
     );
@@ -196,7 +206,7 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
             width: 4,
             height: 44,
             decoration: BoxDecoration(
-              color: _yibinBlue,
+              color: accentColorNotifier.value,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -227,12 +237,9 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
       ),
     );
 
-    return Cue.onMount(
-      motion: .smooth(),
-      child: Actor(
-        delay: Duration(milliseconds: (index % 10) * 30),
-        acts: [.fadeIn(), .slideY(from: 0.08)],
-        child: SmoothExpansionTile(
+    return _DelayedFadeSlide(
+      delay: Duration(milliseconds: (index % 10) * 30),
+      child: SmoothExpansionTile(
           initiallyExpanded: false,
           style: smoothStyle(context),
           headerBuilder: (context, expand, controller) => GestureDetector(
@@ -256,7 +263,6 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -297,7 +303,7 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: _yibinBlue)),
+                  color: accentColorNotifier.value)),
         ],
       ),
     );
@@ -327,7 +333,7 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
                 _fetch();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: _yibinBlue,
+                backgroundColor: accentColorNotifier.value,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
@@ -336,6 +342,60 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DelayedFadeSlide extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  const _DelayedFadeSlide({required this.child, this.delay = Duration.zero});
+
+  @override
+  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
+}
+
+class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    if (widget.delay == Duration.zero) {
+      _controller.forward();
+    } else {
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - t)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

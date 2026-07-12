@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 const Color _yibinOrange = Color.fromRGBO(230, 126, 34, 1);
 
 /// 班次方向
@@ -38,7 +39,7 @@ class ShuttlePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -67,7 +68,7 @@ class ShuttlePage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -145,7 +146,7 @@ class ShuttlePage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -158,7 +159,7 @@ class ShuttlePage extends StatelessWidget {
                   width: 4,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: _yibinBlue,
+                    color: accentColorNotifier.value,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -173,7 +174,7 @@ class ShuttlePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.06),
+                color: accentColorNotifier.value.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -184,7 +185,7 @@ class ShuttlePage extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: _yibinBlue)),
+                            color: accentColorNotifier.value)),
                   ),
                   Expanded(
                     flex: 2,
@@ -193,7 +194,7 @@ class ShuttlePage extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: _yibinBlue)),
+                            color: accentColorNotifier.value)),
                   ),
                   Expanded(
                     flex: 2,
@@ -221,7 +222,7 @@ class ShuttlePage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _legendDot(_yibinBlue, 'A区→临港'),
+                _legendDot(accentColorNotifier.value, 'A区→临港'),
                 const SizedBox(width: 16),
                 _legendDot(_yibinOrange, '临港→A区'),
               ],
@@ -252,7 +253,7 @@ class ShuttlePage extends StatelessWidget {
           ),
           Expanded(
             flex: 2,
-            child: _timeColumn(toList, _yibinBlue),
+            child: _timeColumn(toList, accentColorNotifier.value),
           ),
           Expanded(
             flex: 2,
@@ -305,7 +306,7 @@ class ShuttlePage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -318,7 +319,7 @@ class ShuttlePage extends StatelessWidget {
                   width: 4,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: _yibinBlue,
+                    color: accentColorNotifier.value,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -342,7 +343,7 @@ class ShuttlePage extends StatelessWidget {
                 '大学路',
                 '→ 临港校区（二期办公楼）',
               ],
-              _yibinBlue,
+              accentColorNotifier.value,
             ),
             const SizedBox(height: 20),
             _buildRouteBlock(

@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../auth/login_page.dart';
 import '../core/theme_utils.dart';
@@ -9,10 +8,13 @@ import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../core/version.dart';
 import '../core/http_client.dart';
-import '../main.dart';
-import '../xuegong/student_info_manager.dart';
 import '../xuegong/student_info_detail_page.dart';
+import '../xuegong/student_info_manager.dart';
 import 'about_page.dart';
+import 'appearance_page.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 class SettingsPage extends StatefulWidget {
   final SharedHttpClient? client;
@@ -47,96 +49,78 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeModeNotifier,
-      builder: (context, currentMode, _) {
-        return GlassPage(
-          statusBarStyle: GlassStatusBarStyle.auto,
-          child: Scaffold(
-            body: SafeArea(
-              child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // ── 个人信息卡片（始终显示） ──
-                _buildInfoCard(context),
-                const SizedBox(height: 16),
-                _buildSection('外观'),
-                // ... (外观设置不变)
-                const SizedBox(height: 8),
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08)),
+    return SimplePage(
+      statusBarStyle: GlassStatusBarStyle.auto,
+      child: Scaffold(
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ── 个人信息卡片（始终显示） ──
+              _buildInfoCard(context),
+              const SizedBox(height: 16),
+              _buildSection('外观'),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF2A2A3E)
+                    : Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: accentColorNotifier.value.withValues(alpha: 0.08),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                    child: Row(
-                      children: [
-                        Expanded(child: _buildThemeOption(
-                          icon: Icons.brightness_auto_rounded,
-                          label: '跟随系统',
-                          selected: currentMode == ThemeMode.system,
-                          onTap: () => _setMode(ThemeMode.system),
-                        )),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildThemeOption(
-                          icon: Icons.light_mode_rounded,
-                          label: '浅色',
-                          selected: currentMode == ThemeMode.light,
-                          onTap: () => _setMode(ThemeMode.light),
-                        )),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildThemeOption(
-                          icon: Icons.dark_mode_rounded,
-                          label: '深色',
-                          selected: currentMode == ThemeMode.dark,
-                          onTap: () => _setMode(ThemeMode.dark),
-                        )),
-                      ],
+                ),
+                child: _buildSettingTile(
+                  context,
+                  icon: Icons.palette_outlined,
+                  title: '外观',
+                  subtitle: '切换浅色/深色模式',
+                  color: accentColorNotifier.value,
+                  onTap: () => pushPage(context, const AppearancePage()),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildSection('账号'),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
+                ),
+                child: Column(
+                  children: [
+                    _buildSettingTile(
+                      context,
+                      icon: Icons.logout_rounded,
+                      title: '退出登录',
+                      subtitle: '清除登录状态，返回登录页面',
+                      color: Colors.red,
+                      onTap: () => _logout(context),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                _buildSection('账号'),
-                const SizedBox(height: 8),
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08)),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSettingTile(
-                        context,
-                        icon: Icons.logout_rounded,
-                        title: '退出登录',
-                        subtitle: '清除登录状态，返回登录页面',
-                        color: Colors.red,
-                        onTap: () => _logout(context),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(height: 24),
+              _buildSection('关于'),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF2A2A3E)
+                    : Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
                 ),
-                const SizedBox(height: 24),
-                _buildSection('关于'),
-                const SizedBox(height: 8),
-                Card(
-                  elevation: 0,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF2A2A3E)
-                      : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08)),
-                  ),
-                  child: _buildSettingTile(
+                child: _buildSettingTile(
                     context,
                     icon: Icons.info_outline_rounded,
                     title: '关于',
                     subtitle: '版本 $appVersion',
-                    color: const Color.fromRGBO(25, 25, 153, 1),
+                    color: accentColorNotifier.value,
                     onTap: () => pushPage(context, const AboutPage()),
                   ),
                 ),
@@ -145,9 +129,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       );
-      },
-    );
-  }
+    }
 
   /// 个人信息卡片：有数据展示学生信息，无数据显示占位鼓励手动获取
   Widget _buildInfoCard(BuildContext context) {
@@ -157,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.1)),
         ),
         child: const Padding(
           padding: EdgeInsets.symmetric(vertical: 24),
@@ -232,7 +214,7 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.1)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -244,8 +226,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 height: 56,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(13),
-                  color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.05),
-                  border: Border.all(color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1)),
+                  color: accentColorNotifier.value.withValues(alpha: 0.05),
+                  border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -287,11 +269,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAvatarFallback(String name) {
     return Container(
-      color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08),
+      color: accentColorNotifier.value.withValues(alpha: 0.08),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0] : '?',
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: Color.fromRGBO(25, 25, 153, 1)),
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: accentColorNotifier.value),
         ),
       ),
     );
@@ -312,52 +294,12 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _setMode(ThemeMode mode) async {
-    final appState = SmartCampusApp.of(context);
-    await appState?.setThemeMode(mode);
-  }
-
   Widget _buildSection(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 4),
       child: Text(
         title,
         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary(context)),
-      ),
-    );
-  }
-
-  Widget _buildThemeOption({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    const blue = Color.fromRGBO(25, 25, 153, 1);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? blue.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? blue.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.15),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: selected ? blue : Colors.grey, size: 24),
-            const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
-                    color: selected ? blue : textSecondary(context))),
-            if (selected) ...[
-              const SizedBox(height: 4),
-              Container(width: 6, height: 6, decoration: const BoxDecoration(color: blue, shape: BoxShape.circle)),
-            ],
-          ],
-        ),
       ),
     );
   }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/navigation.dart';
 import '../news/webview_page.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class _Unit {
   final String name;
@@ -36,7 +37,7 @@ class UnitsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -63,7 +64,7 @@ class UnitsPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -73,11 +74,11 @@ class UnitsPage extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.08),
+                color: accentColorNotifier.value.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.school_rounded,
-                  color: _yibinBlue, size: 22),
+              child: Icon(Icons.school_rounded,
+                  color: accentColorNotifier.value, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -105,7 +106,7 @@ class UnitsPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -122,7 +123,7 @@ class UnitsPage extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _yibinBlue.withValues(alpha: 0.06),
+                  color: accentColorNotifier.value.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
@@ -131,7 +132,7 @@ class UnitsPage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: _yibinBlue,
+                      color: accentColorNotifier.value,
                     ),
                   ),
                 ),

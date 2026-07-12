@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'auth/login_page.dart';
@@ -18,6 +17,32 @@ const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 /// 主题模式通知器，供设置页监听
 final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
 
+/// 自定义背景图片路径通知器（null 表示使用默认纯色背景）
+final ValueNotifier<String?> backgroundNotifier = ValueNotifier(null);
+
+/// 主题强调色通知器（默认宜院蓝）
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(_yibinBlue);
+
+/// 将 Color 序列化为十六进制字符串
+String colorToHex(Color c) =>
+    '#${c.red.toRadixString(16).padLeft(2, '0')}'
+    '${c.green.toRadixString(16).padLeft(2, '0')}'
+    '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
+/// 从十六进制字符串解析 Color，失败返回默认值
+Color hexToColor(String hex, [Color fallback = _yibinBlue]) {
+  try {
+    hex = hex.replaceFirst('#', '');
+    if (hex.length != 6) return fallback;
+    final r = int.parse(hex.substring(0, 2), radix: 16);
+    final g = int.parse(hex.substring(2, 4), radix: 16);
+    final b = int.parse(hex.substring(4, 6), radix: 16);
+    return Color.fromRGBO(r, g, b, 1);
+  } catch (_) {
+    return fallback;
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LiquidGlassWidgets.initialize();
@@ -29,27 +54,41 @@ void main() async {
     orElse: () => ThemeMode.system,
   );
 
+  // 加载保存的背景图片路径
+  final savedBg = await LocalStorage.getString('background_image');
+  if (savedBg != null && savedBg.isNotEmpty) {
+    backgroundNotifier.value = savedBg;
+  }
+
+  // 加载保存的主题颜色
+  final savedColor = await LocalStorage.getString('accent_color');
+  if (savedColor != null && savedColor.isNotEmpty) {
+    accentColorNotifier.value = hexToColor(savedColor);
+  }
+
   runApp(LiquidGlassWidgets.wrap(
-    child: SmartCampusApp(initialThemeMode: initialMode),
+    child: SmartCampusApp(
+      initialThemeMode: initialMode,
+    ),
     theme: GlassThemeData(
       light: GlassThemeVariant(
         settings: GlassThemeSettings(thickness: 45, blur: 18),
         quality: GlassQuality.premium,
         glowColors: GlassGlowColors(
-          primary: _yibinBlue,
+          primary: Colors.white,
           glowBlurRadius: 32,
           glowSpreadRadius: 0.8,
-          glowOpacity: 1.0,
+          glowOpacity: 0.6,
         ),
       ),
       dark: GlassThemeVariant(
         settings: GlassThemeSettings(thickness: 45, blur: 18),
         quality: GlassQuality.premium,
         glowColors: GlassGlowColors(
-          primary: _yibinBlue,
+          primary: Colors.white,
           glowBlurRadius: 24,
           glowSpreadRadius: 0.6,
-          glowOpacity: 1.0,
+          glowOpacity: 0.4,
         ),
       ),
     ),
@@ -85,7 +124,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
     WidgetsBinding.instance.addObserver(this);
     _themeMode = widget.initialThemeMode;
     _client = widget.initialClient;
+    accentColorNotifier.addListener(_onAccentColorChanged);
   }
+
+  void _onAccentColorChanged() => setState(() {});
 
   ThemeMode get themeMode => _themeMode;
   SharedHttpClient? get client => _client;
@@ -96,6 +138,16 @@ class _SmartCampusAppState extends State<SmartCampusApp>
     setState(() => _themeMode = mode);
     themeModeNotifier.value = mode;
     await LocalStorage.setString('theme_mode', mode.name);
+  }
+
+  /// 设置自定义背景图片，null 为恢复默认
+  Future<void> setBackground(String? path) async {
+    backgroundNotifier.value = path;
+    if (path != null) {
+      await LocalStorage.setString('background_image', path);
+    } else {
+      await LocalStorage.remove('background_image');
+    }
   }
 
   @override
@@ -114,6 +166,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
   @override
   void dispose() {
+    accentColorNotifier.removeListener(_onAccentColorChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -126,18 +179,36 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       themeMode: _themeMode,
+      builder: (context, child) {
+        return ValueListenableBuilder<Color>(
+          valueListenable: accentColorNotifier,
+          builder: (context, _, __) {
+            return Theme(
+              data: _buildTheme(
+                _themeMode == ThemeMode.dark
+                    ? Brightness.dark
+                    : _themeMode == ThemeMode.light
+                        ? Brightness.light
+                        : MediaQuery.platformBrightnessOf(context),
+              ),
+              child: child!,
+            );
+          },
+        );
+      },
       home: const SplashPage(),
     );
   }
 
   ThemeData _buildTheme(Brightness brightness) {
+    final accent = accentColorNotifier.value;
     final isDark = brightness == Brightness.dark;
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: _yibinBlue,
+      seedColor: accent,
       brightness: brightness,
-      primary: _yibinBlue,
+      primary: accent,
       onPrimary: Colors.white,
-      surface: isDark ? const Color(0xFF121212) : const Color(0xFFF0F4FF),
+      surface: isDark ? Color.lerp(accent, const Color(0xFF121212), 0.7)! : Color.lerp(accent, const Color(0xFFF0F4FF), 0.85)!,
       onSurface: isDark ? Colors.white : const Color(0xFF1A1A2E),
     );
 
@@ -146,14 +217,15 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       colorScheme: colorScheme,
 
 
-      scaffoldBackgroundColor: isDark ? const Color(0xFF1A1A2E) : const Color(0xFFF0F4FF),
+      scaffoldBackgroundColor: isDark ? Color.lerp(accent, const Color(0xFF1A1A2E), 0.85)! : Color.lerp(accent, Colors.white, 0.9)!,
 
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        scrolledUnderElevation: 1,
-        backgroundColor: colorScheme.surface,
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
+        surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -173,7 +245,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: isDark ? const Color(0xFF3D3DF0) : _yibinBlue,
+          backgroundColor: isDark ? const Color(0xFF3D3DF0) : accent,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -182,27 +254,27 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF2A2A3E) : _yibinBlue.withValues(alpha: 0.04),
+        fillColor: isDark ? const Color(0xFF2A2A3E) : accent.withValues(alpha: 0.04),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: (isDark ? Colors.white : _yibinBlue).withValues(alpha: 0.2)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : accent).withValues(alpha: 0.2)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: (isDark ? Colors.white : _yibinBlue).withValues(alpha: 0.15)),
+          borderSide: BorderSide(color: (isDark ? Colors.white : accent).withValues(alpha: 0.15)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF5C5CFF) : _yibinBlue, width: 2),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF5C5CFF) : accent, width: 2),
         ),
-        labelStyle: TextStyle(color: isDark ? Colors.white70 : _yibinBlue.withValues(alpha: 0.6)),
+        labelStyle: TextStyle(color: isDark ? Colors.white70 : accent.withValues(alpha: 0.6)),
       ),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         elevation: 8,
         backgroundColor: colorScheme.surface,
-        selectedItemColor: isDark ? const Color(0xFF5C5CFF) : _yibinBlue,
+        selectedItemColor: isDark ? const Color(0xFF5C5CFF) : accent,
         unselectedItemColor: isDark ? const Color(0xFF6E6E80) : Colors.grey.shade500,
         type: BottomNavigationBarType.fixed,
       ),
@@ -252,13 +324,20 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage>
-    with TickerProviderStateMixin {
-  late final CueController _animCtrl;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _animCtrl = CueController(vsync: this, motion: .smooth());
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
+    );
     _animCtrl.repeat(reverse: true);
     _checkSession();
   }
@@ -317,7 +396,7 @@ class _SplashPageState extends State<SplashPage>
               ListenableBuilder(
                 listenable: _animCtrl,
                 builder: (context, _) {
-                  final pulse = _animCtrl.value;
+                  final pulse = _pulseAnim.value;
                   return Container(
                     width: 88,
                     height: 88,

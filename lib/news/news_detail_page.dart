@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/theme_utils.dart';
 
 import 'news.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 class NewsDetailPage extends StatelessWidget {
   final NewsDetail detail;
@@ -13,7 +14,7 @@ class NewsDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(

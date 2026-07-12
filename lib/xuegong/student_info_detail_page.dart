@@ -1,11 +1,12 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'student_info_manager.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 /// 学生信息详情页面
 class StudentInfoDetailPage extends StatelessWidget {
@@ -15,7 +16,7 @@ class StudentInfoDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -34,8 +35,8 @@ class StudentInfoDetailPage extends StatelessWidget {
                     height: 88,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      color: _yibinBlue.withValues(alpha: 0.05),
-                      border: Border.all(color: _yibinBlue.withValues(alpha: 0.1)),
+                      color: accentColorNotifier.value.withValues(alpha: 0.05),
+                      border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(17),
@@ -65,10 +66,10 @@ class StudentInfoDetailPage extends StatelessWidget {
 
   Widget _avatarFallback(String name) {
     return Container(
-      color: _yibinBlue.withValues(alpha: 0.08),
+      color: accentColorNotifier.value.withValues(alpha: 0.08),
       child: Center(
         child: Text(name.isNotEmpty ? name[0] : '?',
-            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w600, color: _yibinBlue)),
+            style: TextStyle(fontSize: 34, fontWeight: FontWeight.w600, color: accentColorNotifier.value)),
       ),
     );
   }
@@ -91,7 +92,7 @@ class StudentInfoDetailPage extends StatelessWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,7 +102,7 @@ class StudentInfoDetailPage extends StatelessWidget {
               child: Row(children: [
                 Container(
                   width: 4, height: 16,
-                  decoration: BoxDecoration(color: _yibinBlue, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: accentColorNotifier.value, borderRadius: BorderRadius.circular(2)),
                 ),
                 const SizedBox(width: 8),
                 Text(section.title,

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
@@ -8,8 +6,10 @@ import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
 import 'graduation.dart';
 import 'graduation_service.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class GraduationPage extends StatefulWidget {
   final SharedHttpClient client;
@@ -69,7 +69,7 @@ class _GraduationPageState extends State<GraduationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -124,14 +124,24 @@ class _GraduationPageState extends State<GraduationPage> {
   Widget _buildSummaryCard(GraduationSummary summary) {
     final progress = summary.progress;
 
-    return Cue.onMount(
-      motion: .smooth(),
-      acts: [.fadeIn(), .slideY(from: 0.08)],
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -143,11 +153,11 @@ class _GraduationPageState extends State<GraduationPage> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: _yibinBlue.withValues(alpha: 0.08),
+                      color: accentColorNotifier.value.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(Icons.school_rounded,
-                        color: _yibinBlue, size: 24),
+                        color: accentColorNotifier.value, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -181,7 +191,7 @@ class _GraduationPageState extends State<GraduationPage> {
                   value: progress,
                   backgroundColor: Colors.grey[200],
                   valueColor:
-                      AlwaysStoppedAnimation(_yibinBlue.withValues(alpha: 0.7)),
+                      AlwaysStoppedAnimation(accentColorNotifier.value.withValues(alpha: 0.7)),
                   minHeight: 8,
                 ),
               ),
@@ -208,8 +218,8 @@ class _GraduationPageState extends State<GraduationPage> {
     return Column(
       children: [
         Text(value,
-            style: const TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w700, color: _yibinBlue)),
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w700, color: accentColorNotifier.value)),
         const SizedBox(height: 2),
         Text(label,
             style: TextStyle(fontSize: 11, color: Colors.grey[500])),
@@ -307,7 +317,7 @@ class _GraduationPageState extends State<GraduationPage> {
               width: 4,
               height: 44,
               decoration: BoxDecoration(
-                color: _yibinBlue,
+                color: accentColorNotifier.value,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -352,7 +362,7 @@ class _GraduationPageState extends State<GraduationPage> {
                       value: progress,
                       backgroundColor: Colors.grey[200],
                       valueColor: AlwaysStoppedAnimation(
-                          _yibinBlue.withValues(alpha: 0.8)),
+                          accentColorNotifier.value.withValues(alpha: 0.8)),
                       minHeight: 6,
                     ),
                   ),
@@ -395,7 +405,7 @@ class _GraduationPageState extends State<GraduationPage> {
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.1),
+                color: accentColorNotifier.value.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -403,7 +413,7 @@ class _GraduationPageState extends State<GraduationPage> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: _yibinBlue,
+                  color: accentColorNotifier.value,
                 ),
               ),
             ),
@@ -512,7 +522,7 @@ class _GraduationPageState extends State<GraduationPage> {
                 _load();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: _yibinBlue,
+                backgroundColor: accentColorNotifier.value,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),

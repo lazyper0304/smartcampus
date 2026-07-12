@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
@@ -9,10 +7,18 @@ import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
 import 'course.dart';
 import 'course_service.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
-
-class CourseTablePage extends StatefulWidget {
+/// 从当前主题色生成 12 级课程卡片色阶
+List<Color> get _courseColors {
+  final base = accentColorNotifier.value;
+  return List.generate(12, (i) {
+    final t = i / 11;
+    return Color.lerp(base, Colors.white, t * 0.55)!;
+  });
+}class CourseTablePage extends StatefulWidget {
   final SharedHttpClient client;
   final String? userId;
 
@@ -203,7 +209,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: _buildAppBar(),
@@ -235,7 +241,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: accentColorNotifier.value.withValues(alpha: isDark(context) ? 0.08 : 0.04),
         border: Border(
           bottom: BorderSide(color: dividerColor(context)),
         ),
@@ -254,6 +260,18 @@ class _CourseTablePageState extends State<CourseTablePage> {
               style: ButtonStyle(
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return accentColorNotifier.value.withValues(alpha: 0.12);
+                  }
+                  return Colors.transparent;
+                }),
+                foregroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return accentColorNotifier.value;
+                  }
+                  return textHint(context);
+                }),
               ),
             ),
           ),
@@ -289,18 +307,22 @@ class _CourseTablePageState extends State<CourseTablePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: selected ? Theme.of(context).colorScheme.primaryContainer : isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100,
+          color: selected
+              ? accentColorNotifier.value.withValues(alpha: 0.12)
+              : isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? Theme.of(context).colorScheme.primary : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
+            color: selected
+                ? accentColorNotifier.value.withValues(alpha: 0.5)
+                : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: selected ? Theme.of(context).colorScheme.primary : textHint(context)),
+            Icon(icon, size: 14, color: selected ? accentColorNotifier.value : textHint(context)),
             const SizedBox(width: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: selected ? Theme.of(context).colorScheme.primary : textHint(context))),
+            Text(label, style: TextStyle(fontSize: 11, color: selected ? accentColorNotifier.value : textHint(context))),
           ],
         ),
       ),
@@ -411,9 +433,9 @@ class _CourseTablePageState extends State<CourseTablePage> {
       ),
       child: Row(
         children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, right: 8),
-            child: Text('学期', style: TextStyle(fontSize: 13, color: Color(0x99191999))),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 8),
+            child: Text('学期', style: TextStyle(fontSize: 13, color: accentColorNotifier.value.withValues(alpha: 0.6))),
           ),
           if (_isLoadingSemester)
             const SizedBox(
@@ -425,7 +447,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
             Expanded(
               child: SmoothSelect<String>(
                 value: _selectedSemester,
-                hint: const Text('选择学期', style: TextStyle(color: Color(0x66191999))),
+                hint: Text('选择学期', style: TextStyle(color: accentColorNotifier.value.withValues(alpha: 0.4))),
                 style: smoothStyle(context),
                 highlight: smoothHighlight(context),
                 menuMaxHeight: 300,
@@ -481,11 +503,9 @@ class _CourseTablePageState extends State<CourseTablePage> {
           setState(() => _currentWeek--);
         }
       },
-      child: Cue.onChange(
-        value: _currentWeek,
-        motion: .smooth(),
-        fromCurrentValue: true,
-        acts: [.fadeIn()],
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
         child: LayoutBuilder(
           key: ValueKey('week_$_currentWeek'),
       builder: (context, constraints) {
@@ -525,7 +545,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                                   ? Theme.of(context).colorScheme.primaryContainer
                                   : isWeekend
                                       ? isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100
-                                      : _yibinBlue.withValues(alpha: 0.06),
+                                      : accentColorNotifier.value.withValues(alpha: 0.06),
                               border: Border.all(
                                   color: isToday
                                       ? Theme.of(context).colorScheme.primary
@@ -659,8 +679,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
   }
 
   Widget _buildCourseCard(Course course, double width) {
-    final color = Color(courseColors[course.colorIndex % courseColors.length]);
-
+    final color = _courseColors[course.colorIndex % _courseColors.length];
+    
     return Container(
       width: width,
       padding: const EdgeInsets.all(3),
@@ -747,7 +767,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: isWeekend ? isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100 : _yibinBlue.withValues(alpha: 0.06),
+                color: isWeekend ? isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100 : accentColorNotifier.value.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -764,9 +784,19 @@ class _CourseTablePageState extends State<CourseTablePage> {
       ));
 
       for (final course in dayCourses) {
-        widgets.add(Cue.onMount(
-          motion: .smooth(),
-          acts: [.fadeIn(), .slideY(from: 0.08)],
+        widgets.add(TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: child,
+              ),
+            );
+          },
           child: _buildSemesterCourseCard(course),
         ));
       }
@@ -776,8 +806,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
   }
 
   Widget _buildSemesterCourseCard(Course course) {
-    final color = Color(courseColors[course.colorIndex % courseColors.length]);
-
+    final color = _courseColors[course.colorIndex % _courseColors.length];
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(

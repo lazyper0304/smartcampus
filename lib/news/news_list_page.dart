@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
 import '../core/navigation.dart';
@@ -8,8 +6,10 @@ import '../core/data_cache.dart';
 import 'news.dart';
 import 'news_service.dart';
 import 'news_detail_page.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class NewsListPage extends StatefulWidget {
   const NewsListPage({super.key});
@@ -110,7 +110,7 @@ class _NewsListPageState extends State<NewsListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -190,17 +190,25 @@ class _NewsListPageState extends State<NewsListPage> {
   }
 
   Widget _buildNewsCard(NewsItem item, int index) {
-    return Cue.onMount(
-      motion: .smooth(),
-      child: Actor(
-        delay: Duration(milliseconds: (index % 10) * 30),
-        acts: [.fadeIn(), .slideY(from: 0.08)],
-        child: Card(
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -214,7 +222,7 @@ class _NewsListPageState extends State<NewsListPage> {
                   width: 4,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: _yibinBlue,
+                    color: accentColorNotifier.value,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -255,9 +263,8 @@ class _NewsListPageState extends State<NewsListPage> {
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _openDetail(NewsItem item) async {
     showDialog(

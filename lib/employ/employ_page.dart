@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/data_cache.dart';
 import '../core/navigation.dart';
 import '../news/webview_page.dart';
 import 'employ_service.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class EmployPage extends StatefulWidget {
   const EmployPage({super.key});
@@ -103,7 +103,7 @@ class _EmployPageState extends State<EmployPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -197,17 +197,14 @@ class _EmployPageState extends State<EmployPage> {
   }
 
   Widget _buildCard(EmployJob job, int index) {
-    return Cue.onMount(
-      motion: .smooth(),
-      child: Actor(
-        delay: Duration(milliseconds: (index % 10) * 30),
-        acts: [.fadeIn(), .slideY(from: 0.08)],
-        child: Card(
+    return _DelayedFadeSlide(
+      delay: Duration(milliseconds: (index % 10) * 30),
+      child: Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -225,7 +222,7 @@ class _EmployPageState extends State<EmployPage> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: _yibinBlue.withValues(alpha: 0.08),
+                        color: accentColorNotifier.value.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Center(
@@ -234,7 +231,7 @@ class _EmployPageState extends State<EmployPage> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: _yibinBlue,
+                            color: accentColorNotifier.value,
                           ),
                         ),
                       ),
@@ -268,7 +265,7 @@ class _EmployPageState extends State<EmployPage> {
                 Row(
                   children: [
                     _chip(Icons.monetization_on_outlined, job.salary,
-                        _yibinBlue),
+                        accentColorNotifier.value),
                     const SizedBox(width: 8),
                     _chip(Icons.visibility_outlined, '${job.views}次浏览',
                         Colors.grey[600]!),
@@ -279,8 +276,7 @@ class _EmployPageState extends State<EmployPage> {
           ),
         ),
       ),
-    ),
-  );
+    );
 }
 
   Widget _metaRow(IconData icon, String text) {
@@ -329,6 +325,62 @@ class _EmployPageState extends State<EmployPage> {
         url: job.detailUrl,
         title: '职位详情',
       ),
+    );
+  }
+}
+
+class _DelayedFadeSlide extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  const _DelayedFadeSlide({required this.child, this.delay = Duration.zero});
+
+  @override
+  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
+}
+
+class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    if (widget.delay == Duration.zero) {
+      _controller.forward();
+    } else {
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final t = _animation.value;
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - t)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }

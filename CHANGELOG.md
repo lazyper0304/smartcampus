@@ -4,9 +4,34 @@
 
 ### ✨ 新增
 
+- **自定义主题颜色**：外观页新增"主题颜色"选择器，支持 12 种预设主题色
+  - 默认宜院蓝（`#191999`），另有中国红、翠绿、天蓝、紫罗兰等色板
+  - 选中颜色带光晕高亮 + 白色勾选标记
+  - 颜色通过 `ColorScheme.fromSeed` 全局传播到按钮、导航栏、输入框等组件
+  - 设置即时生效，自动持久化到本地存储
+  - **[修复]** 主题色硬编码问题：main_screen/settings_page/appearance_page/home_dashboard/login_page 等关键页面改用 `accentColorNotifier.value` 替代局部常量 `_yibinBlue`
+  - 底部导航栏 `GlassTab.activeIcon`、设置页图标、首页卡片、登录按钮等最可见元素全部跟随主题色变化
+
+- **自定义背景图片**：外观页新增"自定义背景"功能，支持从相册选择图片作为应用背景
+  - 图片复制到应用持久目录，删除源文件不影响
+  - 背景自动叠加 50% 半透明遮罩，确保内容可读性
+  - 支持"恢复默认"回到纯色背景
+  - 集成 `image_picker` 依赖
 - **VR地图服务**（`lib/vrmap/`）：内置 WebView 加载 VR 全景，支持 A区 / 临港双校区一键切换
   - 使用 `flutter_inappwebview` 渲染 VR 页面
   - 首页应用网格「服务」分类新增「VR地图」入口
+
+### 🎨 UI 优化
+
+- **底部 Tab 切换动画**：首页/应用/设置三个页面切换新增 `AnimatedSwitcher` 300ms 淡入淡出过渡，替代原无动画的 `IndexedStack`
+- **背景图片全局集成**：`GlassScaffold` 动态监听 `backgroundNotifier`，选择背景图后实时生效
+- **设置页重构**：将浅色/深色/跟随系统三个主题选项从设置页内联展示迁移至独立的外观页面（`lib/settings/appearance_page.dart`）
+  - 设置页「外观」区改为带图标的导航入口，点击进入新页面切换主题
+  - 新增主题模式说明文字（跟随系统/浅色/深色对应描述）
+- **主题选项切换动画**：外观页主题模式选择器使用 Flutter 原生动画实现全部过渡效果
+  - 选中态切换：`AnimatedContainer` 弹性动画过渡背景色和边框色
+  - 选中指示点：`AnimatedScale` + `AnimatedOpacity` 伸缩淡入淡出
+  - 描述文字：`AnimatedSwitcher` 平滑淡入切换
 
 ### 🎯 优化
 
@@ -15,7 +40,13 @@
 
 ### 🔧 重构
 
-- **清理无用代码**：删除 8 个未使用的旧文件（`xuegong_http_test_page.dart`、`xuegong_page.dart`、`xuegong_http_service.dart`、`xuegong_extract_page.dart`、`stuinfo_page.dart`、`profile_page.dart`、`home_page.dart`、`test_jiaocai.sh`）
+- **移除 cue 动画包，改用 page_transition 转场 + Flutter 原生动画**：删除全部 15 个文件中的 cue 依赖，用以下方式替代（涉及项目所有页面动画）：
+  - **页面转场**：`lib/core/navigation.dart` 统一使用 `page_transition` 包驱动（保留淡入效果）
+  - **入场动画**（原 `Cue.onMount` + `Actor`）：改用 `TweenAnimationBuilder`（淡入 + 上浮 20px），11 个文件
+  - **切换动画**（原 `Cue.onChange`）：改用 `AnimatedSwitcher` + `FadeTransition`，4 个文件
+  - **选中态动画**（原 `Cue.onToggle` + `Actor.decorate`）：改用 `AnimatedContainer`（背景色/边框过渡），2 个文件
+  - **选中指示点**（原 `Cue.onToggle` + `.scale()`）：改用 `AnimatedScale` + `AnimatedOpacity`
+  - **呼吸灯动画**（原 `CueController`）：改用标准 `AnimationController` + `CurvedAnimation`，2 个启动页
 
 ## [1.0.3] - 2026-07-11
 

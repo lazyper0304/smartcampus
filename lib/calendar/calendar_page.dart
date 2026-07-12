@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 
@@ -121,13 +120,9 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildAnimatedCard(int index) {
-    return Cue.onMount(
-      motion: .smooth(),
-      child: Actor(
-        delay: Duration(milliseconds: index * 50),
-        acts: [.fadeIn(), .slideY(from: 0.08)],
-        child: _buildCalendarCard(_entries![index]),
-      ),
+    return _DelayedFadeSlide(
+      delay: Duration(milliseconds: index * 50),
+      child: _buildCalendarCard(_entries![index]),
     );
   }
 
@@ -570,5 +565,58 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
         ),
       );
     }
+  }
+}
+
+/// 延时淡入+上浮动画（替代原 cue 入场动画）
+class _DelayedFadeSlide extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+
+  const _DelayedFadeSlide({required this.child, required this.delay});
+
+  @override
+  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
+}
+
+class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    Future.delayed(widget.delay, () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - _animation.value)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
   }
 }

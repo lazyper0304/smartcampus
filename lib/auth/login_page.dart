@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:cue/cue.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../splash/fetch_info_page.dart';
 import 'auth_service.dart';
+import '../main.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
+Color get _accentBlue => accentColorNotifier.value;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,8 +17,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with TickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -28,21 +27,14 @@ class _LoginPageState extends State<LoginPage>
   bool _isLoading = false;
   bool _rememberPassword = false;
 
-  late final CueController _flowCtrl;
-
   @override
   void initState() {
     super.initState();
-    _flowCtrl = CueController(
-      vsync: this,
-      motion: .linear(const Duration(seconds: 6)),
-    )..repeat(reverse: true);
     _loadSavedCredentials();
   }
 
   @override
   void dispose() {
-    _flowCtrl.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -109,45 +101,37 @@ class _LoginPageState extends State<LoginPage>
     final colorScheme = Theme.of(context).colorScheme;
 
     return GlassScaffold(
-      background: ListenableBuilder(
-        listenable: _flowCtrl,
-        builder: (context, _) {
-          final flow = _flowCtrl.value;
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color.lerp(
-                    const Color(0xFF0D47A1),
-                    const Color(0xFF1565C0),
-                    flow,
-                  )!,
-                  Color.lerp(
-                    const Color(0xFF002171),
-                    const Color(0xFF0D47A1),
-                    flow,
-                  )!,
-                  Color.lerp(
-                    const Color(0xFF1A237E),
-                    const Color(0xFF002171),
-                    flow,
-                  )!,
-                ],
-              ),
-            ),
-          );
-        },
+      background: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0D47A1),
+              Color(0xFF1565C0),
+              Color(0xFF1A237E),
+            ],
+          ),
+        ),
       ),
       statusBarStyle: GlassStatusBarStyle.light,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: Cue.onMount(
-              motion: .smooth(),
-              acts: [.fadeIn(), .slideY(from: 0.15)],
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 30 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -207,13 +191,12 @@ class _LoginPageState extends State<LoginPage>
                 labelText: '密码',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
-                  icon: Cue.onChange(
-                    value: _obscurePassword,
-                    motion: .snappy(),
-                    acts: [.fadeIn()],
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
                     child: _obscurePassword
-                        ? const Icon(Icons.visibility_off_rounded)
-                        : const Icon(Icons.visibility_rounded),
+                        ? const Icon(Icons.visibility_off_rounded, key: ValueKey('off'))
+                        : const Icon(Icons.visibility_rounded, key: ValueKey('on')),
                   ),
                   onPressed: () =>
                       setState(() => _obscurePassword = !_obscurePassword),
@@ -248,26 +231,23 @@ class _LoginPageState extends State<LoginPage>
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _yibinBlue,
+                  backgroundColor: _accentBlue,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: _yibinBlue.withValues(alpha: 0.6),
+                  disabledBackgroundColor: _accentBlue.withValues(alpha: 0.6),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: Cue.onChange(
-                  value: _isLoading,
-                  motion: .snappy(),
-                  acts: [.fadeIn(), .scale(from: 0.9)],
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    );
+                  },
                   child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
+                      ? const SizedBox(key: ValueKey('loading'), width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                       : const Row(
                           key: ValueKey('login'),
                           mainAxisAlignment: MainAxisAlignment.center,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
@@ -18,13 +17,20 @@ class FetchInfoPage extends StatefulWidget {
 }
 
 class _FetchInfoPageState extends State<FetchInfoPage>
-    with TickerProviderStateMixin {
-  late final CueController _animCtrl;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _animCtrl = CueController(vsync: this, motion: .smooth());
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
+    );
     _animCtrl.repeat(reverse: true);
     _fetchInfo();
   }
@@ -67,7 +73,7 @@ class _FetchInfoPageState extends State<FetchInfoPage>
               ListenableBuilder(
                 listenable: _animCtrl,
                 builder: (context, _) {
-                  final pulse = _animCtrl.value;
+                  final pulse = _pulseAnim.value;
                   return Container(
                     width: 88,
                     height: 88,

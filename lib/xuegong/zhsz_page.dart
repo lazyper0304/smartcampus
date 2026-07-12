@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import 'zhsz_api_service.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 /// 综合素质测评页面
 class ZhszPage extends StatefulWidget {
@@ -40,7 +41,7 @@ class _ZhszPageState extends State<ZhszPage> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -81,7 +82,7 @@ class _ZhszPageState extends State<ZhszPage> {
                 label: const Text('重试'),
                 onPressed: () { DataCache().invalidateAll(); _fetch(); },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _yibinBlue,
+                  backgroundColor: accentColorNotifier.value,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -109,7 +110,7 @@ class _ZhszPageState extends State<ZhszPage> {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,7 +124,7 @@ class _ZhszPageState extends State<ZhszPage> {
             child: Row(children: [
               Container(
                 width: 4, height: 16,
-                decoration: BoxDecoration(color: _yibinBlue, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: accentColorNotifier.value, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(width: 8),
               Text(record.semester,
@@ -146,7 +147,7 @@ class _ZhszPageState extends State<ZhszPage> {
             child: Row(
               children: [
                 Text(record.score.toStringAsFixed(2),
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: _yibinBlue)),
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: accentColorNotifier.value)),
                 const SizedBox(width: 6),
                 Text('分', style: TextStyle(fontSize: 13, color: Colors.grey[400])),
               ],
@@ -175,9 +176,9 @@ class _ZhszPageState extends State<ZhszPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: _yibinBlue.withValues(alpha: 0.04),
+        color: accentColorNotifier.value.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _yibinBlue.withValues(alpha: 0.08)),
+        border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -185,7 +186,7 @@ class _ZhszPageState extends State<ZhszPage> {
           Text('$label ',
               style: TextStyle(fontSize: 11, color: Colors.grey[500])),
           Text(rank,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _yibinBlue)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accentColorNotifier.value)),
           Text(' (${pct.toStringAsFixed(1)}%)',
               style: TextStyle(fontSize: 10, color: Colors.grey[400])),
         ],

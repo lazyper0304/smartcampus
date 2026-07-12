@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 const Color _redAccent = Color.fromRGBO(211, 47, 47, 1);
 const Color _amber = Color.fromRGBO(255, 160, 0, 1);
 
@@ -25,7 +26,7 @@ class SafetyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -126,7 +127,7 @@ class SafetyPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -139,7 +140,7 @@ class SafetyPage extends StatelessWidget {
                   width: 4,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: _yibinBlue,
+                    color: accentColorNotifier.value,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -159,7 +160,7 @@ class SafetyPage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.04),
+                color: accentColorNotifier.value.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -188,11 +189,11 @@ class SafetyPage extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: _yibinBlue.withValues(alpha: 0.08),
+            color: accentColorNotifier.value.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.phone_rounded,
-              size: 18, color: _yibinBlue),
+          child: Icon(Icons.phone_rounded,
+              size: 18, color: accentColorNotifier.value),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -207,7 +208,7 @@ class SafetyPage extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: _yibinBlue)),
+                      color: accentColorNotifier.value)),
             ],
           ),
         ),
@@ -217,7 +218,7 @@ class SafetyPage extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: _yibinBlue,
+              color: accentColorNotifier.value,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Text('拨打',

@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../core/http_client.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 /// 内置浏览器学工系统页面
 ///
@@ -103,7 +104,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -169,7 +170,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(_yibinBlue),
+              valueColor: AlwaysStoppedAnimation<Color>(accentColorNotifier.value),
             ),
           ),
           const SizedBox(height: 16),
@@ -199,8 +200,8 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
             height: 3,
             child: LinearProgressIndicator(
               value: _progress > 0 ? _progress : null,
-              backgroundColor: _yibinBlue.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(_yibinBlue),
+              backgroundColor: accentColorNotifier.value.withValues(alpha: 0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(accentColorNotifier.value),
             ),
           ),
 
@@ -269,7 +270,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
       decoration: BoxDecoration(
         color: bgColor,
         border: Border(
-          top: BorderSide(color: _yibinBlue.withValues(alpha: 0.15)),
+          top: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.15)),
         ),
       ),
       padding: EdgeInsets.only(
@@ -418,8 +419,8 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
                 Row(children: [
                   Container(
                     width: 32, height: 32,
-                    decoration: BoxDecoration(color: _yibinBlue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.data_exploration_rounded, size: 18, color: _yibinBlue),
+                    decoration: BoxDecoration(color: accentColorNotifier.value.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.data_exploration_rounded, size: 18, color: accentColorNotifier.value),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text(title.length > 30 ? '${title.substring(0, 30)}…' : title,
@@ -434,7 +435,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
                     ...texts.take(3).map((t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Card(
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08))),
+                          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08))),
                       child: Padding(padding: const EdgeInsets.all(12), child: Text(t.toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
                     ))),
                     const SizedBox(height: 16),
@@ -447,7 +448,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
                       return Padding(padding: const EdgeInsets.only(bottom: 12), child: Card(
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08))),
+                            side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08))),
                         child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('表格 $idx（${rows.length} 行）', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 8),
@@ -480,7 +481,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
 
   Widget _sectionHeader(String text) {
     return Row(children: [
-      Container(width: 4, height: 16, decoration: BoxDecoration(color: _yibinBlue, borderRadius: BorderRadius.circular(2))),
+      Container(width: 4, height: 16, decoration: BoxDecoration(color: accentColorNotifier.value, borderRadius: BorderRadius.circular(2))),
       const SizedBox(width: 8),
       Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
     ]);
@@ -531,14 +532,14 @@ class _ToolbarButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: _yibinBlue.withValues(alpha: enabled ? 0.08 : 0.03),
+            color: accentColorNotifier.value.withValues(alpha: enabled ? 0.08 : 0.03),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 20, color: enabled ? _yibinBlue : Colors.grey),
+              Icon(icon, size: 20, color: enabled ? accentColorNotifier.value : Colors.grey),
               const SizedBox(height: 2),
-              Text(label, style: TextStyle(fontSize: 10, color: enabled ? _yibinBlue : Colors.grey)),
+              Text(label, style: TextStyle(fontSize: 10, color: enabled ? accentColorNotifier.value : Colors.grey)),
             ],
           ),
         ),

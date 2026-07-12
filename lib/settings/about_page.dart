@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
 import '../core/version.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 /// 关于页面 — 检查更新、更新日志、作者信息
 class AboutPage extends StatelessWidget {
@@ -14,7 +16,7 @@ class AboutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(title: const Text('关于')),
@@ -26,7 +28,7 @@ class AboutPage extends StatelessWidget {
               icon: Icons.update_rounded,
               title: '检查更新',
               subtitle: '查看是否有新版本可用',
-              color: const Color.fromRGBO(25, 25, 153, 1),
+              color: accentColorNotifier.value,
               onTap: () => _checkUpdate(context),
             ),
             const SizedBox(height: 4),
@@ -244,7 +246,7 @@ class AboutPage extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                color: const Color.fromRGBO(25, 25, 153, 1),
+                color: accentColorNotifier.value,
                 padding: const EdgeInsets.only(right: 4),
                 child: Row(
                   children: [
@@ -283,13 +285,13 @@ class AboutPage extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1),
+                                color: accentColorNotifier.value.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(tag,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 12, fontWeight: FontWeight.w600,
-                                      color: Color.fromRGBO(25, 25, 153, 1))),
+                                      color: accentColorNotifier.value)),
                             ),
                             const SizedBox(width: 8),
                             if (date.isNotEmpty)

@@ -3,15 +3,14 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/local_storage.dart' as store;
 import '../core/data_cache.dart';
+import '../main.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class _DayData {
   final String date;
@@ -392,7 +391,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 40),
-        Center(child: Icon(Icons.electrical_services_rounded, size: 64, color: _yibinBlue.withValues(alpha: 0.3))),
+        Center(child: Icon(Icons.electrical_services_rounded, size: 64, color: accentColorNotifier.value.withValues(alpha: 0.3))),
         const SizedBox(height: 16),
         const Center(child: Text('绑定电表', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
         const SizedBox(height: 8),
@@ -431,7 +430,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
                 : const Icon(Icons.link_rounded, size: 20),
             label: Text(_loading ? '查询中…' : '绑定并查询'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _yibinBlue, foregroundColor: Colors.white,
+              backgroundColor: accentColorNotifier.value, foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: _loading ? null : () { DataCache().invalidate('dianfei_$_meterId'); _query(); },
@@ -475,8 +474,8 @@ class _DianfeiPageState extends State<DianfeiPage> {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: _yibinBlue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Icon(Icons.electrical_services_rounded, size: 20, color: _yibinBlue),
+              decoration: BoxDecoration(color: accentColorNotifier.value.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.electrical_services_rounded, size: 20, color: accentColorNotifier.value),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -501,7 +500,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
                   ? [Colors.red[700]!, Colors.red[400]!]
                   : _shengyu < 50
                       ? [Colors.orange[700]!, Colors.orange[400]!]
-                      : [_yibinBlue, _yibinBlue.withValues(alpha: 0.7)],
+                      : [accentColorNotifier.value, accentColorNotifier.value.withValues(alpha: 0.7)],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
@@ -563,7 +562,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [_yibinBlue.withValues(alpha: 0.9), _yibinBlue.withValues(alpha: 0.6)],
+                colors: [accentColorNotifier.value.withValues(alpha: 0.9), accentColorNotifier.value.withValues(alpha: 0.6)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
@@ -600,11 +599,9 @@ class _DianfeiPageState extends State<DianfeiPage> {
         ),
         const SizedBox(height: 12),
         // 可切换内容（带动画）
-        Cue.onChange(
-          value: _viewMode,
-          motion: .smooth(),
-          fromCurrentValue: true,
-          acts: [.fadeIn()],
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
           child: Column(
             key: ValueKey('view_$_viewMode'),
             children: [
@@ -612,7 +609,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
               Container(
                 width: double.infinity, padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [_yibinBlue, _yibinBlue.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  gradient: LinearGradient(colors: [accentColorNotifier.value, accentColorNotifier.value.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -661,10 +658,10 @@ class _DianfeiPageState extends State<DianfeiPage> {
                                 painter: _LineChartPainter(
                                   data: days.map((d) => d.kwh).toList(),
                                   maxValue: maxKwh,
-                                  lineColor: _yibinBlue,
-                                  fillColor: _yibinBlue.withValues(alpha: 0.12),
+                                  lineColor: accentColorNotifier.value,
+                                  fillColor: accentColorNotifier.value.withValues(alpha: 0.12),
                                   gridColor: isDark ? Colors.grey[700]! : Colors.grey[200]!,
-                                  dotColor: _yibinBlue,
+                                  dotColor: accentColorNotifier.value,
                                 ),
                               ),
                             ),
@@ -715,8 +712,8 @@ class _DianfeiPageState extends State<DianfeiPage> {
                         borderRadius: BorderRadius.circular(3),
                         child: LinearProgressIndicator(
                           value: ratio, minHeight: 6,
-                          backgroundColor: _yibinBlue.withValues(alpha: 0.06),
-                          valueColor: AlwaysStoppedAnimation<Color>(d.kwh > 15 ? Colors.orange : _yibinBlue.withValues(alpha: 0.7)),
+                          backgroundColor: accentColorNotifier.value.withValues(alpha: 0.06),
+                          valueColor: AlwaysStoppedAnimation<Color>(d.kwh > 15 ? Colors.orange : accentColorNotifier.value.withValues(alpha: 0.7)),
                         ),
                       ),
                     ),
@@ -731,7 +728,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
         }),
       ],   // Column children
     ),     // Column
-  ),       // Cue.onChange
+  ),       // AnimatedSwitcher
 ],
     );
   }
@@ -763,10 +760,10 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: _yibinBlue.withValues(alpha: 0.1),
+                          color: accentColorNotifier.value.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.electrical_services_rounded, size: 20, color: _yibinBlue),
+                        child: Icon(Icons.electrical_services_rounded, size: 20, color: accentColorNotifier.value),
                       ),
                       const SizedBox(width: 12),
                       const Text('电费充值', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -783,53 +780,33 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       final isSelected = selectedAmount == amt;
                       return GestureDetector(
                         onTap: () => setSheetState(() => selectedAmount = amt.toDouble()),
-                        child: Cue.onToggle(
-                          toggled: isSelected,
-                          motion: .snappy(),
-                          child: TweenActor<double>(
-                            from: 0.0,
-                            to: 1.0,
-                            motion: .snappy(),
-                            builder: (context, animation) {
-                              final t = animation.value;
-                              return Container(
-                                width: (MediaQuery.of(ctx).size.width - 72) / 3,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: Color.lerp(
-                                    _yibinBlue.withValues(alpha: 0.06),
-                                    _yibinBlue.withValues(alpha: 0.15),
-                                    t,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Color.lerp(
-                                      _yibinBlue.withValues(alpha: 0.2),
-                                      _yibinBlue,
-                                      t,
-                                    )!,
-                                    width: 1.0 + t,
-                                  ),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          width: (MediaQuery.of(ctx).size.width - 72) / 3,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? accentColorNotifier.value.withValues(alpha: 0.15)
+                                : accentColorNotifier.value.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? accentColorNotifier.value : accentColorNotifier.value.withValues(alpha: 0.2),
+                              width: isSelected ? 2.0 : 1.0,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text('¥$amt', style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w700,
+                                color: isSelected ? accentColorNotifier.value : accentColorNotifier.value.withValues(alpha: 0.7),
+                              )),
+                              if (isSelected)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Icon(Icons.check_circle, size: 16, color: accentColorNotifier.value),
                                 ),
-                                child: Column(
-                                  children: [
-                                    Text('¥$amt', style: TextStyle(
-                                      fontSize: 20, fontWeight: FontWeight.w700,
-                                      color: Color.lerp(
-                                        _yibinBlue.withValues(alpha: 0.7),
-                                        _yibinBlue,
-                                        t,
-                                      ),
-                                    )),
-                                    if (isSelected)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Icon(Icons.check_circle, size: 16, color: _yibinBlue),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
+                            ],
                           ),
                         ),
                       );
@@ -842,7 +819,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       icon: const Icon(Icons.receipt_long_rounded, size: 20),
                       label: const Text('生成订单', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedAmount != null ? _yibinBlue : Colors.grey[300],
+                        backgroundColor: selectedAmount != null ? accentColorNotifier.value : Colors.grey[300],
                         foregroundColor: selectedAmount != null ? Colors.white : Colors.grey[500],
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
@@ -912,7 +889,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _yibinBlue.withValues(alpha: 0.06),
+                  color: accentColorNotifier.value.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -922,8 +899,8 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('充值金额', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                        Text('¥${amount.toStringAsFixed(0)}', style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold, color: _yibinBlue,
+                        Text('¥${amount.toStringAsFixed(0)}', style: TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold, color: accentColorNotifier.value,
                         )),
                       ],
                     ),

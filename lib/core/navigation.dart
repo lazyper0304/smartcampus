@@ -1,36 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:page_transition/page_transition.dart';
 
-/// 纯淡入页面转场 — 无任何滑动/缩放动画
 const Duration _duration = Duration(milliseconds: 350);
 
-PageRouteBuilder _fadeRoute(Widget page) {
-  return PageRouteBuilder(
-    pageBuilder: (context, animation, secondaryAnimation) {
-      return FadeTransition(
-        opacity: animation,
-        child: page,
-      );
-    },
-    transitionDuration: _duration,
-    reverseTransitionDuration: const Duration(milliseconds: 300),
+PageTransitionType _transitionType = PageTransitionType.fade;
+
+PageTransition _buildRoute(Widget page) {
+  final type = _transitionType;
+  return PageTransition(
+    type: type,
+    child: page,
+    duration: _duration,
+    reverseDuration: const Duration(milliseconds: 300),
   );
 }
 
-/// Push a new page with fade transition.
+/// Push a new page.
 void pushPage(BuildContext context, Widget page) {
-  Navigator.push(context, _fadeRoute(page));
+  Navigator.push(context, _buildRoute(page));
 }
 
 /// Replace the current page (splash → main/login).
 void replacePage(BuildContext context, Widget page) {
-  Navigator.pushReplacement(context, _fadeRoute(page));
+  Navigator.pushReplacement(context, _buildRoute(page));
 }
 
 /// Push and remove all previous routes (logout).
 void pushAndClear(BuildContext context, Widget page) {
   Navigator.pushAndRemoveUntil(
     context,
-    _fadeRoute(page),
+    _buildRoute(page),
     (route) => false,
   );
 }

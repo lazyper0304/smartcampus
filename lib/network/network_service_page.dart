@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../news/webview_page.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 const Color _accentGreen = Color.fromRGBO(46, 125, 50, 1);
 const Color _accentOrange = Color.fromRGBO(230, 126, 34, 1);
 
@@ -29,8 +30,8 @@ class NetworkServiceItem {
 class NetworkServicePage extends StatelessWidget {
   const NetworkServicePage({super.key});
 
-  static const _services = [
-    _Category('校园网 & 教室多媒体', Icons.wifi_rounded, _yibinBlue, [
+  static final _services = [
+    _Category('校园网 & 教室多媒体', Icons.wifi_rounded, accentColorNotifier.value, [
       NetworkServiceItem(
         icon: Icons.school_rounded,
         name: '校园网服务',
@@ -109,7 +110,7 @@ class NetworkServicePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -136,7 +137,7 @@ class NetworkServicePage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -146,11 +147,11 @@ class NetworkServicePage extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.08),
+                color: accentColorNotifier.value.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.info_outline_rounded,
-                  color: _yibinBlue, size: 22),
+              child: Icon(Icons.info_outline_rounded,
+                  color: accentColorNotifier.value, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(

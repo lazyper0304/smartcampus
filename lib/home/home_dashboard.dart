@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
@@ -13,6 +12,9 @@ import '../news/news_detail_page.dart';
 import '../news/news_list_page.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 class HomeDashboard extends StatefulWidget {
   final SharedHttpClient client;
@@ -96,7 +98,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         body: SafeArea(
@@ -117,9 +119,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildTodayCoursesCard(BuildContext context) {
-    return Cue.onMount(
-      motion: .smooth(),
-      acts: [.fadeIn()],
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -137,11 +149,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08),
+                      color: accentColorNotifier.value.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.calendar_month_rounded,
-                        color: Color.fromRGBO(25, 25, 153, 1), size: 22),
+                    child: Icon(Icons.calendar_month_rounded,
+                        color: accentColorNotifier.value, size: 22),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -205,7 +217,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildCourseRow(Course course) {
-    const blue = Color.fromRGBO(25, 25, 153, 1);
+    final blue = accentColorNotifier.value;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -258,9 +270,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildNewsCard(BuildContext context) {
-    return Cue.onMount(
-      motion: .smooth(),
-      acts: [.fadeIn()],
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -278,11 +300,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08),
+                      color: accentColorNotifier.value.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.newspaper_rounded,
-                        color: Color.fromRGBO(25, 25, 153, 1), size: 22),
+                    child: Icon(Icons.newspaper_rounded,
+                        color: accentColorNotifier.value, size: 22),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -336,10 +358,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.04),
+          color: accentColorNotifier.value.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.1)),
+              color: accentColorNotifier.value.withValues(alpha: 0.1)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

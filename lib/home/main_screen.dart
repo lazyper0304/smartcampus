@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:cue/cue.dart';
+
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
@@ -12,8 +13,10 @@ import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
 import '../core/navigation.dart';
+import '../main.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
+/// 当前生效的主题色（跟随外观设置动态变化）
+Color get _accentBlue => accentColorNotifier.value;
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
@@ -35,35 +38,70 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
+  Widget _buildCurrentPage() {
+    switch (_currentIndex) {
+      case 0:
+        return HomeDashboard(
+          key: const ValueKey('home'),
+          client: widget.client,
+          userId: widget.userId,
+        );
+      case 1:
+        return _AppsPage(
+          key: const ValueKey('apps'),
+          client: widget.client,
+          userId: widget.userId,
+        );
+      case 2:
+        return SettingsPage(
+          key: const ValueKey('settings'),
+          client: widget.client,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GlassScaffold(
-      background: Container(
-        color: _isDark(context) ? const Color(0xFF1A1A2E) : const Color(0xFFF0F4FF),
+    final defaultBg = _isDark(context)
+        ? Color.lerp(_accentBlue, const Color(0xFF1A1A2E), 0.85)!
+        : Color.lerp(_accentBlue, Colors.white, 0.9)!;
+
+    return ValueListenableBuilder<String?>(
+      valueListenable: backgroundNotifier,
+      builder: (context, bgPath, _) {
+        return GlassScaffold(
+          background: bgPath != null
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.file(
+                      File(bgPath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(color: defaultBg),
+                    ),
+                    // 半透明遮罩确保内容可读性
+                    Container(color: defaultBg.withValues(alpha: 0.5)),
+                  ],
+                )
+              : Container(color: defaultBg),
+          statusBarStyle: GlassStatusBarStyle.auto,
+          contentAwareBrightness: true,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: _buildCurrentPage(),
       ),
-      statusBarStyle: GlassStatusBarStyle.auto,
-      contentAwareBrightness: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          HomeDashboard(
-            key: const ValueKey('home'),
-            client: widget.client,
-            userId: widget.userId,
-          ),
-          _AppsPage(
-            key: const ValueKey('apps'),
-            client: widget.client,
-            userId: widget.userId,
-          ),
-          SettingsPage(key: const ValueKey('settings'), client: widget.client),
-          ],
-        ),
       bottomBar: Theme(
         data: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: _yibinBlue,
-            primary: _yibinBlue,
+            seedColor: _accentBlue,
+            primary: _accentBlue,
           ),
         ),
         child: GlassTabBar.bottom(
@@ -79,22 +117,24 @@ class _MainScreenState extends State<MainScreen> {
           tabs: [
             GlassTab(
               icon: Icon(Icons.home_rounded),
-              activeIcon: Icon(Icons.home_rounded, color: _yibinBlue),
+              activeIcon: Icon(Icons.home_rounded, color: _accentBlue),
               label: '首页',
             ),
             GlassTab(
               icon: Icon(Icons.apps_rounded),
-              activeIcon: Icon(Icons.apps_rounded, color: _yibinBlue),
+              activeIcon: Icon(Icons.apps_rounded, color: _accentBlue),
               label: '应用',
             ),
             GlassTab(
               icon: Icon(Icons.settings_rounded),
-              activeIcon: Icon(Icons.settings_rounded, color: _yibinBlue),
+              activeIcon: Icon(Icons.settings_rounded, color: _accentBlue),
               label: '设置',
             ),
           ],
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -288,43 +328,33 @@ class _AppsPageState extends State<_AppsPage> {
           final selected = i == _tabIndex;
           return GestureDetector(
             onTap: () => setState(() => _tabIndex = i),
-            child: SizedBox(
-              height: 36,
-              child: Cue.onToggle(
-                toggled: selected,
-                motion: .snappy(),
-                child: Actor(
-                  acts: [
-                    .decorate(
-                      color: .tween(
-                        Colors.grey.withValues(alpha: 0.06),
-                        _yibinBlue,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: selected ? _accentBlue : Colors.grey.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _tabIcons[i],
+                      size: 16,
+                      color: selected ? Colors.white : textSecondary(context),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _tabLabels[i],
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? Colors.white : textSecondary(context),
                       ),
-                      borderRadius: .fixed(.circular(18)),
                     ),
                   ],
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _tabIcons[i],
-                          size: 16,
-                          color: selected ? Colors.white : textSecondary(context),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _tabLabels[i],
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: selected ? Colors.white : textSecondary(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
             ),
@@ -345,7 +375,7 @@ class _AppsPageState extends State<_AppsPage> {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: _yibinBlue.withValues(alpha: 0.1)),
+            side: BorderSide(color: _accentBlue.withValues(alpha: 0.1)),
           ),
           child: Padding(
                 padding: const EdgeInsets.all(8),
@@ -357,10 +387,10 @@ class _AppsPageState extends State<_AppsPage> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: _yibinBlue.withValues(alpha: 0.08),
+                        color: _accentBlue.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(entry.icon, color: _yibinBlue, size: 20),
+                      child: Icon(entry.icon, color: _accentBlue, size: 20),
                     ),
                     const SizedBox(height: 8),
                     Text(

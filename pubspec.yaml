@@ -57,8 +57,10 @@ dependencies:
   gbk_codec: ^0.4.0
   # 平滑动画下拉/选择/折叠组件（渲染层动画）
   smooth_dropdown: ^1.0.0
-  # 物理优先、基于 cue 时间线的动画引擎
-  cue: ^0.3.1
+  # 页面转场动画
+  page_transition: ^2.2.1
+  # 从设备选择图片
+  image_picker: ^1.1.2
   # SVG 图标渲染
   flutter_svg: ^2.0.17
 dev_dependencies:

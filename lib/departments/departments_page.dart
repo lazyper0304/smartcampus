@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../news/webview_page.dart';
 import '../core/navigation.dart';
+import '../main.dart';
+import '../core/simple_page.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
 class _Dept {
   final String name;
@@ -49,7 +50,7 @@ class DepartmentsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPage(
+    return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
@@ -76,7 +77,7 @@ class DepartmentsPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -86,11 +87,11 @@ class DepartmentsPage extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _yibinBlue.withValues(alpha: 0.08),
+                color: accentColorNotifier.value.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.business_rounded,
-                  color: _yibinBlue, size: 22),
+              child: Icon(Icons.business_rounded,
+                  color: accentColorNotifier.value, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -118,7 +119,7 @@ class DepartmentsPage extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: _yibinBlue.withValues(alpha: 0.08)),
+        side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -131,7 +132,7 @@ class DepartmentsPage extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _yibinBlue.withValues(alpha: 0.06),
+                  color: accentColorNotifier.value.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
@@ -140,7 +141,7 @@ class DepartmentsPage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: _yibinBlue,
+                      color: accentColorNotifier.value,
                     ),
                   ),
                 ),
