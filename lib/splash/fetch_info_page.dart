@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
+import '../main.dart';
 import '../home/main_screen.dart';
 import '../xuegong/student_info_manager.dart';
 
@@ -58,11 +59,14 @@ class _FetchInfoPageState extends State<FetchInfoPage>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF0D47A1), Color(0xFF002171)],
+            colors: [
+              accentColorNotifier.value,
+              Color.lerp(accentColorNotifier.value, const Color(0xFF002171), 0.6)!,
+            ],
           ),
         ),
         child: Center(

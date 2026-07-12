@@ -264,7 +264,9 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
   }
 
   Widget _buildBottomToolbar(bool isDark) {
-    final bgColor = isDark ? const Color(0xFF1E1E32) : Colors.white;
+    final bgColor = isDark
+        ? accentColorNotifier.value.withValues(alpha: 0.85)
+        : Colors.white.withValues(alpha: 0.92);
 
     return Container(
       decoration: BoxDecoration(

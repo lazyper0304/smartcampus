@@ -102,14 +102,14 @@ class _LoginPageState extends State<LoginPage> {
 
     return GlassScaffold(
       background: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0D47A1),
-              Color(0xFF1565C0),
-              Color(0xFF1A237E),
+              accentColorNotifier.value,
+              Color.lerp(accentColorNotifier.value, const Color(0xFF1565C0), 0.5)!,
+              Color.lerp(accentColorNotifier.value, const Color(0xFF1A237E), 0.7)!,
             ],
           ),
         ),
