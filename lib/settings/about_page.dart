@@ -147,10 +147,29 @@ class AboutPage extends StatelessWidget {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       final latestTag = json['tag_name']?.toString() ?? '';
       final releaseBody = json['body']?.toString() ?? '';
-      // 使用直接下载链接，不跳转到 Release 页面
-      final downloadUrl = latestTag.isNotEmpty
-          ? 'https://github.com/lazyper0304/smartcampus/releases/download/$latestTag/app-release.apk'
-          : 'https://github.com/lazyper0304/smartcampus/releases/latest';
+
+      // 从 release assets 中获取 APK 下载链接
+      String downloadUrl = 'https://github.com/lazyper0304/smartcampus/releases/latest';
+      if (latestTag.isNotEmpty) {
+        final assets = json['assets'] as List?;
+        if (assets != null && assets.isNotEmpty) {
+          // 优先匹配 .apk 后缀的 asset
+          final apkAsset = assets.cast<Map<String, dynamic>>().firstWhere(
+            (a) => (a['name']?.toString() ?? '').endsWith('.apk'),
+            orElse: () => <String, dynamic>{},
+          );
+          final assetUrl = apkAsset['browser_download_url']?.toString();
+          if (assetUrl != null && assetUrl.isNotEmpty) {
+            downloadUrl = assetUrl;
+          } else {
+            // 兜底：构造下载链接
+            downloadUrl = 'https://github.com/lazyper0304/smartcampus/releases/download/$latestTag/${latestTag}.apk';
+          }
+        } else {
+          // 无 assets 列表，构造下载链接
+          downloadUrl = 'https://github.com/lazyper0304/smartcampus/releases/download/$latestTag/${latestTag}.apk';
+        }
+      }
       if (latestTag.isEmpty) {
         _showSnack(context, '获取版本信息失败');
         return;
