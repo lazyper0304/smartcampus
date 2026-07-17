@@ -43,6 +43,20 @@ class _FetchInfoPageState extends State<FetchInfoPage>
   }
 
   Future<void> _fetchInfo() async {
+    // 1. 检查缓存，已有则直接跳转（cookie 失效也不用重新获取）
+    final cached = await StudentInfoManager.getCached();
+    if (cached != null) {
+      if (!mounted) return;
+      final savedUser = await LocalStorage.getString('saved_username') ?? '';
+      if (!mounted) return;
+      replacePage(context, MainScreen(client: widget.client, userId: savedUser));
+      return;
+    }
+
+    // 2. 等待 2 秒让 CAS session 完全生效、学工页面加载完成
+    await Future.delayed(const Duration(seconds: 2));
+
+    // 3. 持续重试获取个人信息
     await StudentInfoManager.fetchUntilSuccess(widget.client);
     if (!mounted) return;
 

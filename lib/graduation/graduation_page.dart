@@ -76,19 +76,101 @@ class _GraduationPageState extends State<GraduationPage> {
           title: const Text('学业完成情况'),
           centerTitle: true,
           actions: [
-            if (_result != null)
+            if (_result != null) ...[
               IconButton(
                 icon: const Icon(Icons.refresh),
+                tooltip: '刷新',
                 onPressed: () {
                   DataCache().invalidateAll();
                   _load();
                 },
               ),
+              IconButton(
+                icon: const Icon(Icons.calculate_rounded),
+                tooltip: '重新计算',
+                onPressed: () => _recalculate(),
+              ),
+            ],
           ],
         ),
         body: _buildBody(),
       ),
     );
+  }
+
+  /// 重新计算学业完成情况
+  Future<void> _recalculate() async {
+    // 确认对话框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重新计算'),
+        content: const Text('将重新计算学业完成情况，请确认？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // 加载对话框
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          margin: EdgeInsets.all(32),
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(strokeWidth: 2),
+                SizedBox(height: 16),
+                Text('正在重新计算…', style: TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await _service.recalculate();
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭加载对话框
+      DataCache().invalidateAll();
+      _courseCache.clear();
+      await _load();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('重新计算完成'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭加载对话框
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('重新计算失败：${e.toString().replaceFirst("Exception: ", "")}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Widget _buildBody() {
@@ -456,10 +538,21 @@ class _GraduationPageState extends State<GraduationPage> {
   }
 
   Widget _buildCourseRow(CourseDetail course) {
-    final scoreText = course.score?.toString() ?? '-';
-    final scoreColor = course.score != null
-        ? (course.score! >= 60 ? Colors.green[700] : Colors.red[600])
-        : Colors.grey[400];
+    // 成绩文本：有成绩显示成绩，SFTG_DISPLAY=4（已选课）显示"已选课"，否则显示"-"
+    final bool isSelected = course.passStatus == '4';
+    final bool hasScore = course.score != null;
+    final String scoreText;
+    final Color? scoreColor;
+    if (hasScore) {
+      scoreText = course.score.toString();
+      scoreColor = course.score! >= 60 ? Colors.green[700] : Colors.red[600];
+    } else if (isSelected) {
+      scoreText = '已选课';
+      scoreColor = Colors.orange[700];
+    } else {
+      scoreText = '-';
+      scoreColor = Colors.grey[400];
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Row(

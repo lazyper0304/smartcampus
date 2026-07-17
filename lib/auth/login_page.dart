@@ -4,7 +4,9 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
+import '../home/main_screen.dart';
 import '../splash/fetch_info_page.dart';
+import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
 import '../main.dart';
 
@@ -82,9 +84,19 @@ class _LoginPageState extends State<LoginPage> {
       await _authService.client.saveCookies();
       await LocalStorage.setString('saved_username', _usernameController.text.trim());
 
-      // 跳转到获取个人信息过渡页
       if (!mounted) return;
-      replacePage(context, FetchInfoPage(client: _authService.client));
+
+      // 有缓存则直接进主页面（cookie 失效也不重新获取）
+      final cached = await StudentInfoManager.getCached();
+      if (cached != null) {
+        replacePage(
+          context,
+          MainScreen(client: _authService.client, userId: _usernameController.text.trim()),
+        );
+      } else {
+        // 首次登录，获取个人信息
+        replacePage(context, FetchInfoPage(client: _authService.client));
+      }
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

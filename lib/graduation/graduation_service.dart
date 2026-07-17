@@ -40,14 +40,36 @@ class GraduationService {
       headers: _entryHeaders(host),
     );
 
-    // 3. 获取当前学年学期
-    await client.postForm(
+    // 3. 获取选课学年学期（服务端返回，如 2026-2027-1）
+    var xnxqdm = '';
+    final xkResp = await client.postForm(
       Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/cxxkxnxq.do'),
       body: {},
       headers: _formHeaders(host),
     );
+    if (xkResp.statusCode == 200) {
+      try {
+        final xkJson = jsonDecode(xkResp.body) as Map<String, dynamic>;
+        if (xkJson['code']?.toString() == '0') {
+          final datas = xkJson['datas'];
+          if (datas is Map) {
+            final module = datas['cxxkxnxq'];
+            if (module is Map) {
+              final rows = module['rows'];
+              if (rows is List && rows.isNotEmpty) {
+                xnxqdm = rows[0]['DM']?.toString() ?? '';
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    // 兜底：从日期推算
+    if (xnxqdm.isEmpty) {
+      xnxqdm = _calcXnxqdm();
+    }
 
-    // 4. 获取当前学期
+    // 4. 获取当前学期（保持会话活跃）
     await client.postForm(
       Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/cxdqxnxq.do'),
       body: {},
@@ -55,7 +77,6 @@ class GraduationService {
     );
 
     // 5. 获取学期参数先查培养方案概要（cxxsscfa.do）
-    var xnxqdm = _calcXnxqdm();
     final pyfaResp = await client.postForm(
       Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/cxxsscfa.do'),
       body: {'XNXQDM': xnxqdm},
@@ -154,6 +175,87 @@ class GraduationService {
     return result;
   }
 
+  /// 触发学业完成情况重新计算
+  /// 调用 bysc.do 后轮询 byscjd.do 直到计算完成
+  Future<void> recalculate() async {
+    final host = Uri.parse(baseUrl).host;
+
+    // 先访问入口页刷新会话
+    await client.get(
+      Uri.parse('$baseUrl/jwapp/sys/xywccx/*default/index.do'),
+      headers: _entryHeaders(host),
+    );
+
+    // 1. 调用 bysc.do 触发计算
+    var xh = _studentId;
+    if (xh.isEmpty) {
+      xh = await LocalStorage.getString('saved_username') ?? '';
+    }
+    final bydm = _bynjdm.isNotEmpty ? _bynjdm : '-';
+    final scdm = _sclbdm.isNotEmpty ? _sclbdm : '04';
+
+    debugPrint('recalculate: PYFADM=[$_pyfadm] BYNJDM=[$bydm] SCLBDM=[$scdm] XH=[$xh]');
+    final resp = await client.postForm(
+      Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/bysc.do'),
+      body: {
+        'PYFADM': _pyfadm,
+        'BYNJDM': bydm,
+        'SCLBDM': scdm,
+        'XH': xh,
+      },
+      headers: _formHeaders(host),
+      noRedirect: true,
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('触发重新计算失败：HTTP ${resp.statusCode}');
+    }
+    final j1 = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (j1['code']?.toString() != '0') {
+      throw Exception('重新计算返回错误：${j1['code']} ${j1['msg'] ?? ''}');
+    }
+
+    // 2. 轮询 byscjd.do 查询计算进度
+    const maxRetries = 30;
+    const retryDelay = Duration(seconds: 1);
+    final zxjdkey = 'BYSC_$xh';
+
+    for (var i = 0; i < maxRetries; i++) {
+      final jdResp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/xywccx/modules/xywccx/byscjd.do'),
+        body: {'ZXJDKEY': zxjdkey},
+        headers: _formHeaders(host),
+        noRedirect: true,
+      );
+
+      if (jdResp.statusCode == 200) {
+        final j2 = jsonDecode(jdResp.body) as Map<String, dynamic>;
+        if (j2['code']?.toString() == '0') {
+          final datas = j2['datas'];
+          if (datas is Map) {
+            final module = datas['byscjd'];
+            if (module is Map) {
+              final rows = module['rows'];
+              if (rows is List && rows.isNotEmpty) {
+                final row = rows[0] as Map;
+                final ywcs = int.tryParse(row['YWCS']?.toString() ?? '0') ?? 0;
+                final zs = int.tryParse(row['ZS']?.toString() ?? '0') ?? 0;
+                debugPrint('recalculate progress: $ywcs/$zs');
+                if (zs > 0 && ywcs >= zs) {
+                  return; // 计算完成
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 未完成，等 1 秒后重试
+      await Future.delayed(retryDelay);
+    }
+
+    throw Exception('重新计算超时，请稍后手动刷新查看结果');
+  }
+
   /// 将 flat list 构建为层级树（递归）
   List<GraduationCategory> _buildTree(List<GraduationCategory> all) {
     // 按 parentId 分组
@@ -238,6 +340,7 @@ class GraduationService {
     );
 
     debugPrint('fetchCategoryCourses[$kzh] status=${resp.statusCode}');
+    debugPrint('fetchCategoryCourses[$kzh] body=${resp.body.substring(0, resp.body.length > 300 ? 300 : resp.body.length)}');
 
     if (resp.statusCode != 200) {
       throw Exception(
@@ -256,6 +359,7 @@ class GraduationService {
       if (module is Map) {
         final rows = module['rows'];
         if (rows is List && rows.isNotEmpty) {
+          debugPrint('fetchCategoryCourses[$kzh] rows=${rows.length} SFTG_DISPLAYs=${rows.map((r) => r['SFTG_DISPLAY']).toList()}');
           return rows
               .map((r) =>
                   CourseDetail.fromJson(r as Map<String, dynamic>))
