@@ -147,7 +147,10 @@ class AboutPage extends StatelessWidget {
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       final latestTag = json['tag_name']?.toString() ?? '';
       final releaseBody = json['body']?.toString() ?? '';
-      final htmlUrl = json['html_url']?.toString() ?? 'https://github.com/lazyper0304/smartcampus/releases/latest';
+      // 使用直接下载链接，不跳转到 Release 页面
+      final downloadUrl = latestTag.isNotEmpty
+          ? 'https://github.com/lazyper0304/smartcampus/releases/download/$latestTag/app-release.apk'
+          : 'https://github.com/lazyper0304/smartcampus/releases/latest';
       if (latestTag.isEmpty) {
         _showSnack(context, '获取版本信息失败');
         return;
@@ -176,7 +179,7 @@ class AboutPage extends StatelessWidget {
               FilledButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  _openUrl(htmlUrl);
+                  _openUrl(downloadUrl);
                 },
                 child: const Text('前往下载'),
               ),
