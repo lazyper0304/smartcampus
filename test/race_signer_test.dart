@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:smartcampus/race/race_signer.dart';
 import 'package:smartcampus/race/race.dart';
+import 'package:smartcampus/scjx2/scjx2_signer.dart';
 
 void main() {
-  group('RaceApiSigner.generateZhxhSign', () {
-    final signer = RaceApiSigner();
+  group('Scjx2ApiSigner.generateZhxhSign', () {
+    final signer = Scjx2ApiSigner();
 
     test('listStuRacePage (data only) - matches user request', () {
       final data = {'currpage': 1, 'pagesize': 15};
@@ -37,6 +37,22 @@ void main() {
       );
       expect(sig.length, 64);
       expect(sig, matches(RegExp(r'^[0-9A-F]{64}$')));
+    });
+
+    test('null values are serialized as "null" string - matches TEACH listStuTimePage', () {
+      // 用户真实 TEACH 请求:
+      // body: {yearterm:"2025-2026-2", course_id:"", week:null, currpage:1, pagesize:15}
+      // zhxhsign: 2DF6CD84D7C16D7C34B5F10516AC7DE8219D051C5904C70BCA7DE9CAD697ED83
+      final data = {
+        'yearterm': '2025-2026-2',
+        'course_id': '',
+        'week': null,
+        'currpage': 1,
+        'pagesize': 15,
+      };
+      final sig = signer.generateZhxhSign(data, null);
+      expect(sig,
+          '2DF6CD84D7C16D7C34B5F10516AC7DE8219D051C5904C70BCA7DE9CAD697ED83');
     });
   });
 

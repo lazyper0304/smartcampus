@@ -109,7 +109,7 @@ class Scjx2ApiSigner {
   }
 
   String _stringify(Object? v) {
-    if (v == null) return '';
+    if (v == null) return 'null';
     if (v is String) return v;
     if (v is bool) return v.toString();
     if (v is num) return v.toString();

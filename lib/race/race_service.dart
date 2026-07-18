@@ -9,6 +9,9 @@ import 'race.dart';
 class RaceService {
   final Scjx2ApiService _scjx2;
 
+  /// RACE 模块标识
+  static const String moduleId = 'race';
+
   /// RACE 模块的当前路由路径（用于签名头）
   static const String currentRoutePath =
       '/9001/modules/sjjx/race/stu/race/stage/list';
@@ -17,16 +20,16 @@ class RaceService {
       : _scjx2 = Scjx2ApiService(client: client);
 
   /// 获取缓存的 JWT token
-  Future<String?> getAuthToken() => _scjx2.getAuthToken();
+  Future<String?> getAuthToken() => _scjx2.getAuthToken(moduleId: moduleId);
 
   /// 清除 JWT token
-  Future<void> clearAuthToken() => _scjx2.clearAuthToken();
+  Future<void> clearAuthToken() => _scjx2.clearAuthToken(moduleId: moduleId);
 
   /// 是否已登录
-  Future<bool> isLoggedIn() => _scjx2.isLoggedIn();
+  Future<bool> isLoggedIn() => _scjx2.isLoggedIn(moduleId: moduleId);
 
   /// 引导登录（zxcas → 提取 key1 → 缓存 token + cookie）
-  Future<bool> bootstrapLogin() => _scjx2.bootstrapLogin();
+  Future<bool> bootstrapLogin() => _scjx2.bootstrapLogin(moduleId: moduleId);
 
   /// 拉取学科竞赛列表
   Future<RacePageResult> fetchCompetitions({
@@ -49,6 +52,7 @@ class RaceService {
       data: body,
       currentRoutePath: currentRoutePath,
       apiName: 'RACE',
+      moduleId: moduleId,
     );
     final result = RacePageResult.fromJson(json);
     DataCache().set(cacheKey, result);
@@ -66,6 +70,7 @@ class RaceService {
       params: {'race_id': raceId},
       currentRoutePath: currentRoutePath,
       apiName: 'RACE',
+      moduleId: moduleId,
     );
     final detail = RaceDetail.fromJson(json);
     DataCache().set(cacheKey, detail);

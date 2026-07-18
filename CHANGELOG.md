@@ -2,6 +2,12 @@
 
 ## [1.0.6] - 2026-07-18
 
+### 🎨 UI 优化
+- **课程表实验课卡片简化**：实验课不再显示实验项目名（`exp_name`），只保留「实验」橙色小标签 + 课程名 + 教室，周课表卡片更紧凑易读
+
+### 🐛 Bug 修复
+- **TEACH 模块 API 404**：scjx2 `teach` 模块的 API 路径修正为 `/teach/teach/stuTime/listStuTimePage`（每段路径均包含模块名），同时重构 `Scjx2ApiService.bootstrapLogin` 支持多模块独立 token（`race` / `teach` / `grad`），cookie 同步改用 `CookieManager.getCookies` 绕过 httpOnly 限制，bootstrap 改为「zxcas 入口 + 模块内 navigate」两步式，先清空 scjx2 域 cookie 防止跨实例残留
+
 ### ✨ 新增
 - **学科竞赛 API 模式**：通过分析 scjx2.yibinu.edu.cn RACE 系统前端 JavaScript 源码，逆向出 API 签名算法
   - `signature`: HMAC-SHA512(`{timestamp}-{nonce}`, `zxtd_256-bit-secret-key-2025-8-7`)

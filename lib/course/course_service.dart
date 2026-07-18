@@ -19,6 +19,9 @@ class CourseService {
   static const String _teachRoutePath =
       '/6001/modules/teach/stu/result/result';
 
+  /// TEACH 模块标识
+  static const String _teachModuleId = 'teach';
+
   CourseService({
     required this.client,
     this.baseUrl = 'https://ehall.yibinu.edu.cn',
@@ -404,7 +407,7 @@ class CourseService {
     }
 
     // 未登录时不抛错，返回空列表（用户可能没登录 scjx2）
-    if (!await _scjx2.isLoggedIn()) {
+    if (!await _scjx2.isLoggedIn(moduleId: _teachModuleId)) {
       return [];
     }
 
@@ -418,10 +421,11 @@ class CourseService {
 
     try {
       final json = await _scjx2.request(
-        path: '/teach/stuTime/listStuTimePage',
+        path: '/teach/teach/stuTime/listStuTimePage',
         data: body,
         currentRoutePath: _teachRoutePath,
         apiName: 'TEACH',
+        moduleId: _teachModuleId,
       );
       final result = (json['result'] as Map<String, dynamic>?)?['list'] as List?;
       if (result == null) return [];

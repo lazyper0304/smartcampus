@@ -664,14 +664,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          if (course.remark.isNotEmpty)
-            Text(
-              course.remark,
-              style: TextStyle(
-                  fontSize: 9, color: color.withValues(alpha: 0.75)),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
           if (course.position.isNotEmpty)
             Text(
               course.position,
