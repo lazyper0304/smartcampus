@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
@@ -1116,13 +1118,18 @@ class _CourseTablePageState extends State<CourseTablePage> {
     final hideTeacher = cfg.hideTeacher;
     final showTag = course.tag.isNotEmpty;
 
-    return Container(
-      margin: EdgeInsets.all(radius > 0 ? 1.5 : 1),
-      child: Material(
-        color: color.withValues(alpha: 0.88),
+    // 磨玻璃效果：半透明彩色背景 + 高斯模糊 + 描边
+    Widget cardBody = Container(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(radius),
-        elevation: radius > 0 ? 2 : 0,
-        shadowColor: color.withValues(alpha: 0.3),
+        border: Border.all(
+          color: color.withValues(alpha: 0.5),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(radius),
           onTap: () => _showCourseDetail(course),
@@ -1132,7 +1139,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 课程类型标签
                 if (showTag)
                   Container(
                     margin: const EdgeInsets.only(bottom: 1),
@@ -1152,7 +1158,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
                     ),
                   ),
                 const SizedBox(height: 1),
-                // 课程名称
                 Text(
                   course.name,
                   style: TextStyle(
@@ -1165,7 +1170,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
-                // 教师
                 if (!hideTeacher && course.teacher.isNotEmpty)
                   Text(
                     course.teacher,
@@ -1178,7 +1182,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
-                // 教室
                 if (course.position.isNotEmpty)
                   Text(
                     course.position,
@@ -1194,6 +1197,22 @@ class _CourseTablePageState extends State<CourseTablePage> {
           ),
         ),
       ),
+    );
+
+    // 磨玻璃效果：用 BackdropFilter 添加模糊
+    if (radius > 0) {
+      cardBody = ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: cardBody,
+        ),
+      );
+    }
+
+    return Container(
+      margin: EdgeInsets.all(radius > 0 ? 1.5 : 1),
+      child: cardBody,
     );
   }
 
