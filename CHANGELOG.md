@@ -1,9 +1,9 @@
 # CHANGELOG
 
-## [1.0.7] - 2026-07-18
+## [1.0.8] - 2026-07-18
 
 ### 🎯 优化
-- 版本号从 1.0.6 升级到 1.0.7（同步更新 `VERSION` / `pubspec.yaml` / `lib/core/version.dart`）
+- 版本号从 1.0.7 升级到 1.0.8（同步更新 `VERSION` / `pubspec.yaml` / `lib/core/version.dart`）
 
 ### 🔧 重构
 - **课程表页面彻底重构为圆角卡片风格**：周课表课程卡片改用 `Material` + 圆角 + 阴影浮层，纯色半透明背景 + 白色文字，替代原纯色边框块风格
