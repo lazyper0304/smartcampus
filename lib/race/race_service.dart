@@ -105,10 +105,12 @@ class RaceService {
   /// - [path]: API 路径（不含域名）
   /// - [data]: POST body 字典（可为 null）
   /// - [params]: query string 字典（可为 null）
+  /// - [retryCount]: 内部递归计数器（401 时自动重新登录后重试一次）
   Future<Map<String, dynamic>> _request({
     required String path,
     Map<String, dynamic>? data,
     Map<String, dynamic>? params,
+    int retryCount = 0,
   }) async {
     final token = await getAuthToken();
     if (token == null || token.isEmpty) {
@@ -134,16 +136,31 @@ class RaceService {
         : Uri.parse(base);
 
     debugPrint('Race API: POST $uri');
+    debugPrint('  headers: ${headers.keys.toList()}');
+    debugPrint('  body: ${data ?? "{}"}');
 
     final resp = await _client.postJson(
       uri,
-      body: data ?? <String, dynamic>{},
+      body: data,  // null 时发空 body
       headers: headers,
     );
 
+    debugPrint('  status: ${resp.statusCode}');
+    debugPrint('  resp.body (前500): ${resp.body.length > 500 ? "${resp.body.substring(0, 500)}..." : resp.body}');
+
     if (resp.statusCode != 200) {
-      if (resp.statusCode == 401) {
+      if (resp.statusCode == 401 && retryCount < 1) {
+        // token 过期或 cookie 缺失，尝试重新登录后重试一次
         await clearAuthToken();
+        final ok = await bootstrapLogin();
+        if (ok) {
+          return _request(
+            path: path,
+            data: data,
+            params: params,
+            retryCount: retryCount + 1,
+          );
+        }
         throw Exception('登录已过期，请重新登录');
       }
       throw Exception('RACE 接口失败 (HTTP ${resp.statusCode})');
@@ -153,12 +170,20 @@ class RaceService {
     final code = json['code'];
     if (code != 200) {
       final msg = json['msg']?.toString() ?? '未知错误';
-      if (code == 401 ||
-          resp.body.contains('未登录') ||
-          resp.body.contains('token')) {
+      if (code == 401 && retryCount < 1) {
+        // 业务 401：尝试重新登录后重试
         await clearAuthToken();
+        final ok = await bootstrapLogin();
+        if (ok) {
+          return _request(
+            path: path,
+            data: data,
+            params: params,
+            retryCount: retryCount + 1,
+          );
+        }
       }
-      throw Exception('RACE 接口错误: $msg');
+      throw Exception('RACE 接口错误 [code=$code]: $msg');
     }
 
     return json;
@@ -267,7 +292,7 @@ class RaceService {
         return false;
       }
 
-      // ---- 4. 缓存到 LocalStorage ----
+      // ---- 4. 缓存到 LocalStorage + 同步 cookie 到 SharedHttpClient ----
       await setAuthToken(key1);
       if (menuId != null && menuId.isNotEmpty) {
         await LocalStorage.setString(_kMenuId, menuId);
@@ -276,12 +301,60 @@ class RaceService {
         await LocalStorage.setString(_kUserId, userId);
       }
 
+      // 把 WebView 登录后产生的 scjx2/authserver cookie 同步到 SharedHttpClient
+      await _syncCookiesFromWebView(controller);
+
       return true;
     } catch (e) {
       debugPrint('RaceService.bootstrapLogin error: $e');
       return false;
     } finally {
       await headlessWebView.dispose();
+    }
+  }
+
+  /// 把 WebView 中的 cookie 同步到 SharedHttpClient
+  ///
+  /// scjx2.yibinu.edu.cn 域的 Set-Cookie 在 WebView 登录后产生，
+  /// 但 SharedHttpClient 不知道，需要手动拉取并注入
+  Future<void> _syncCookiesFromWebView(InAppWebViewController? controller) async {
+    if (controller == null) return;
+    try {
+      final js = '''
+(function() {
+  try {
+    var all = document.cookie || '';
+    return all;
+  } catch(e) {
+    return '';
+  }
+})();
+''';
+      final result = await controller.evaluateJavascript(source: js);
+      final cookieStr = result?.toString() ?? '';
+      if (cookieStr.isEmpty) return;
+      debugPrint('RaceService: syncing cookies (${cookieStr.length} chars)');
+
+      // 解析 cookie 字符串
+      final cookieMap = <String, String>{};
+      for (final part in cookieStr.split(';')) {
+        final eqIdx = part.indexOf('=');
+        if (eqIdx < 0) continue;
+        final name = part.substring(0, eqIdx).trim();
+        final value = part.substring(eqIdx + 1).trim();
+        if (name.isEmpty || value.isEmpty) continue;
+        cookieMap[name] = value;
+      }
+
+      if (cookieMap.isEmpty) return;
+
+      // 注入到 SharedHttpClient 的 scjx2 / authserver 域名 bucket
+      _client.setCookiesForDomain('scjx2.yibinu.edu.cn', cookieMap);
+      _client.setCookiesForDomain('authserver.yibinu.edu.cn', cookieMap);
+      _client.setCookiesForDomain('yibinu.edu.cn', cookieMap);
+      debugPrint('RaceService: injected ${cookieMap.length} cookies');
+    } catch (e) {
+      debugPrint('RaceService._syncCookiesFromWebView error: $e');
     }
   }
 }

@@ -136,6 +136,17 @@ class SharedHttpClient {
     return copy;
   }
 
+  /// 注入 cookie 到指定域名 bucket（用于 WebView 登录后同步）
+  ///
+  /// 会覆盖同名 cookie。多个域名都会注入（如同时给
+  /// `scjx2.yibinu.edu.cn` 和 `.yibinu.edu.cn` 写入）
+  void setCookiesForDomain(String domain, Map<String, String> cookies) {
+    if (cookies.isEmpty) return;
+    final bucket = _cookiesByDomain.putIfAbsent(domain, () => {});
+    bucket.addAll(cookies);
+    _scheduleSave();
+  }
+
   // ==================== 会话验证 ====================
 
   /// 验证会话是否有效（调用学期 API 检查返回是否为有效 JSON）
@@ -231,16 +242,21 @@ Future<RawResponse> getRaw(Uri uri,
   }
 
   /// POST JSON
+  ///
+  /// [body] 为 null 时发送空 body（content-length: 0），非 null 时发送 jsonEncode(body)
   Future<HttpResponse> postJson(Uri uri,
       {Map<String, String>? headers,
-      required Object body,
+      Object? body,
       bool noRedirect = false}) async {
     final req = await _client.postUrl(uri);
     _setup(req, uri, headers);
     req.headers.contentType =
         ContentType('application', 'json', charset: 'utf-8');
     if (noRedirect) req.followRedirects = false;
-    req.write(jsonEncode(body));
+    if (body != null) {
+      req.write(jsonEncode(body));
+    }
+    // body 为 null：不写任何内容，自动得到 content-length: 0
     return _send(req);
   }
 
