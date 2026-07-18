@@ -38,30 +38,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  Widget _buildCurrentPage() {
-    switch (_currentIndex) {
-      case 0:
-        return HomeDashboard(
-          key: const ValueKey('home'),
-          client: widget.client,
-          userId: widget.userId,
-        );
-      case 1:
-        return _AppsPage(
-          key: const ValueKey('apps'),
-          client: widget.client,
-          userId: widget.userId,
-        );
-      case 2:
-        return SettingsPage(
-          key: const ValueKey('settings'),
-          client: widget.client,
-        );
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final defaultBg = _isDark(context)
@@ -88,14 +64,24 @@ class _MainScreenState extends State<MainScreen> {
               : Container(color: defaultBg),
           statusBarStyle: GlassStatusBarStyle.auto,
           contentAwareBrightness: true,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        child: _buildCurrentPage(),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          HomeDashboard(
+            key: const ValueKey('home'),
+            client: widget.client,
+            userId: widget.userId,
+          ),
+          _AppsPage(
+            key: const ValueKey('apps'),
+            client: widget.client,
+            userId: widget.userId,
+          ),
+          SettingsPage(
+            key: const ValueKey('settings'),
+            client: widget.client,
+          ),
+        ],
       ),
       bottomBar: Theme(
         data: ThemeData(
@@ -244,8 +230,19 @@ class _AppsPageState extends State<_AppsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 搜索框
-          _buildSearchBar(),
+          // 搜索框（独立渐显）
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: child,
+              );
+            },
+            child: _buildSearchBar(),
+          ),
           const SizedBox(height: 20),
           // 分类标签
           _buildTabBar(),

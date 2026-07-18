@@ -7,7 +7,9 @@ import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
 import 'course.dart';
 import 'course_service.dart';
+import 'course_changes_page.dart';
 import '../main.dart';
+import '../core/navigation.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -34,8 +36,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
   // ---- 数据 ----
   List<Course>? _courses;
-  List<CourseChange> _courseChanges = [];
-  List<UnarrangedCourse> _unarrangedCourses = [];
   List<SemesterInfo> _semesters = [];
   int _currentWeek = 1;
   int _maxWeek = 1;
@@ -49,8 +49,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
   bool _isWeeklyView = true;
   String? _selectedSemester;
   bool _isLoadingSemester = false;
-  bool _showCourseChanges = false;
-  bool _showUnarranged = false;
 
   static const _dayLabels = ['', '一', '二', '三', '四', '五', '六', '日'];
 
@@ -134,30 +132,12 @@ class _CourseTablePageState extends State<CourseTablePage> {
     }
   }
 
-  Future<void> _toggleCourseChanges() async {
-    final show = !_showCourseChanges;
-    setState(() => _showCourseChanges = show);
-    if (show && _courseChanges.isEmpty) {
-      try {
-        final changes = await _service.fetchCourseChanges();
-        if (mounted) {
-          setState(() => _courseChanges = changes);
-        }
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _toggleUnarranged() async {
-    final show = !_showUnarranged;
-    setState(() => _showUnarranged = show);
-    if (show && _unarrangedCourses.isEmpty) {
-      try {
-        final courses = await _service.fetchUnarrangedCourses();
-        if (mounted) {
-          setState(() => _unarrangedCourses = courses);
-        }
-      } catch (_) {}
-    }
+  void _openChangesPage() {
+    pushPage(context, CourseChangesPage(
+      service: _service,
+      semesters: _semesters,
+      initialSemester: _selectedSemester,
+    ));
   }
 
   void _jumpToToday() {
@@ -223,12 +203,18 @@ class _CourseTablePageState extends State<CourseTablePage> {
       title: const Text('课程表'),
       centerTitle: true,
       actions: [
-        if (!_isLoading && _courses != null)
+        if (!_isLoading && _courses != null) ...[
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            onPressed: _openChangesPage,
+            tooltip: '调课 & 未安排课程',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () { DataCache().invalidateAll(); _loadAll(); },
             tooltip: '刷新',
           ),
+        ],
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(44),
@@ -275,56 +261,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          // 调课信息 toggle
-          _buildToggleChip(
-            label: '调课',
-            icon: Icons.swap_horiz,
-            selected: _showCourseChanges,
-            onTap: _toggleCourseChanges,
-          ),
-          const SizedBox(width: 4),
-          // 未安排课程 toggle
-          _buildToggleChip(
-            label: '未安排',
-            icon: Icons.unpublished,
-            selected: _showUnarranged,
-            onTap: _toggleUnarranged,
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildToggleChip({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected
-              ? accentColorNotifier.value.withValues(alpha: 0.12)
-              : isDark(context) ? const Color(0xFF2A2A3E) : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected
-                ? accentColorNotifier.value.withValues(alpha: 0.5)
-                : isDark(context) ? const Color(0xFF4A4A5E) : Colors.grey.shade300,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: selected ? accentColorNotifier.value : textHint(context)),
-            const SizedBox(width: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: selected ? accentColorNotifier.value : textHint(context))),
-          ],
-        ),
       ),
     );
   }
@@ -375,9 +312,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
         Expanded(
           child: _isWeeklyView ? _buildWeeklyView() : _buildSemesterView(),
         ),
-        // 底部额外信息
-        if (!_isWeeklyView && (_showCourseChanges || _showUnarranged))
-          _buildExtraInfoPanel(),
       ],
     );
   }
@@ -877,148 +811,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
     );
   }
 
-  // ==================== 额外信息面板 ====================
 
-  Widget _buildExtraInfoPanel() {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 250),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(top: BorderSide(color: dividerColor(context))),
-      ),
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        shrinkWrap: true,
-        children: [
-          if (_showCourseChanges && _courseChanges.isNotEmpty) ...[
-            _buildSectionTitle('调课/停课信息', Icons.swap_horiz, Colors.orange),
-            ..._courseChanges.map((c) => _buildChangeCard(c)),
-          ],
-          if (_showUnarranged && _unarrangedCourses.isNotEmpty) ...[
-            _buildSectionTitle('未安排课程', Icons.unpublished, textHint(context)),
-            ..._unarrangedCourses.map((c) => _buildUnarrangedCard(c)),
-          ],
-          if ((_showCourseChanges && _courseChanges.isEmpty) ||
-              (_showUnarranged && _unarrangedCourses.isEmpty))
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(child: Text('暂无数据', style: TextStyle(color: textHint(context)))),
-            ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSectionTitle(String title, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildChangeCard(CourseChange change) {
-    final color = change.isSuspended ? Colors.red : Colors.orange;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(change.changeType,
-                      style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(change.courseName,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (change.isSuspended) ...[
-              _buildChangeRow('原安排', change.originalWeekText, change.originalDay,
-                  change.originalStartPeriod, change.originalEndPeriod, change.originalRoom),
-            ] else ...[
-              _buildChangeRow('原安排', change.originalWeekText, change.originalDay,
-                  change.originalStartPeriod, change.originalEndPeriod, change.originalRoom),
-              _buildChangeRow('新安排', change.newWeekText, change.newDay,
-                  change.newStartPeriod, change.newEndPeriod, change.newRoom,
-                  isNew: true),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChangeRow(String label, String weekText, int day,
-      int startPeriod, int endPeriod, String room,
-      {bool isNew = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 48,
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: isNew ? Colors.green : textHint(context),
-                    fontWeight: FontWeight.w500)),
-          ),
-          Expanded(
-            child: Text(
-              '周${_dayLabels[day]} ${startPeriod}-${endPeriod}节 ${formatPeriodTime(startPeriod)} '
-              '${weekText.isNotEmpty ? weekText : ''}'
-              '${room.isNotEmpty ? ' $room' : ''}',
-              style: TextStyle(fontSize: 11, color: isNew ? Colors.green.shade700 : textSecondary(context)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUnarrangedCard(UnarrangedCourse course) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(course.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 2),
-                  Text('教师: ${course.teacher}  学分: ${course.credits}  学时: ${course.hours}',
-                      style: TextStyle(fontSize: 11, color: textHint(context))),
-                  if (course.weekRange.isNotEmpty)
-                    Text('周次: ${course.weekRange}',
-                        style: TextStyle(fontSize: 11, color: textHint(context))),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
