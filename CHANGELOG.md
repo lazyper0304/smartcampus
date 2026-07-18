@@ -18,6 +18,8 @@
 ### 🎯 优化
 - **RaceService 完全重写**：去除原来复杂的「CAS SSO + Vue 路由跳转 + fetch 拦截器 + DOM 表格解析」长流程，改为「首次 WebView 登录 + 之后纯 HTTP API」的简洁方案
 - **zhxhsign 算法修正**：经端到端调试发现，前端 2fd1 模块中 `u()` 的 `n = {}` 是 module-level 赋值（非 var 声明），`m()` 写的是 module-level n，data 和 params 实际合并到同一个 map 计算签名
+- **抽 Scjx2ApiService 通用层**：把 race_service 里的 scjx2 通用逻辑（签名、cookie 同步、bootstrap、401 重试）抽到 `lib/scjx2/scjx2_api_service.dart`，让 race 和 course 等模块都能用。新建 `lib/scjx2/scjx2_signer.dart` 通用签名工具
+- **课程表新增实验教学**：新建 `Course.fromExperimentJson` 工厂，调用 scjx2 `teach/stuTime/listStuTimePage` 接口获取实验课列表，合并到课程表。实验课显示「实验」橙色小标签和实验项目名
 - **调课/未安排课程独立页面**：新建 `course_changes_page.dart`，全屏页面替代原底部弹窗面板
   - 页面自带学期选择器，切换学期自动加载对应学期数据
   - Tab 式布局：调课/停课 + 未安排课程独立 Tab 切换

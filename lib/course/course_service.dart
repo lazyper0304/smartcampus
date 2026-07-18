@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../scjx2/scjx2_api_service.dart';
 import 'course.dart';
 
 class CourseService {
@@ -9,11 +12,20 @@ class CourseService {
   final String baseUrl;
   final String? userId;
 
+  /// scjx2 通用 API 客户端（实验教学）
+  late final Scjx2ApiService _scjx2;
+
+  /// TEACH 模块的当前路由路径（用于签名头）
+  static const String _teachRoutePath =
+      '/6001/modules/teach/stu/result/result';
+
   CourseService({
     required this.client,
     this.baseUrl = 'https://ehall.yibinu.edu.cn',
     this.userId,
-  });
+  }) {
+    _scjx2 = Scjx2ApiService(client: client);
+  }
 
   String get _host => Uri.parse(baseUrl).host;
 
@@ -365,6 +377,72 @@ class CourseService {
       return periodTimeRanges;
     }
   }
+
+  // ==================== 获取实验教学（scjx2 TEACH 模块） ====================
+
+  /// 获取实验教学列表
+  ///
+  /// 调用 scjx2 `teach/stuTime/listStuTimePage` 接口，返回的每条记录是
+  /// 「单次实验」（单周次 + 单节次范围），转成 Course 列表后可直接
+  /// 与普通课程合并显示。
+  ///
+  /// - [xnxqdm]: 学期代码，如 "2025-2026-2"
+  /// - [week]: 周次（null 表示全部），用于缓存 key
+  /// - [courseId]: 可选，按课程 ID 过滤
+  /// - [forceRefresh]: 强制刷新
+  Future<List<Course>> fetchExperiments({
+    String? xnxqdm,
+    int? week,
+    String courseId = '',
+    bool forceRefresh = false,
+  }) async {
+    xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'course_experiments_${xnxqdm}_${week ?? "all"}_$courseId';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<Course>>(cacheKey);
+      if (cached != null) return cached;
+    }
+
+    // 未登录时不抛错，返回空列表（用户可能没登录 scjx2）
+    if (!await _scjx2.isLoggedIn()) {
+      return [];
+    }
+
+    final body = <String, dynamic>{
+      'yearterm': xnxqdm,
+      'course_id': courseId,
+      'week': week,
+      'currpage': 1,
+      'pagesize': 200, // 一次拿完所有实验记录
+    };
+
+    try {
+      final json = await _scjx2.request(
+        path: '/teach/stuTime/listStuTimePage',
+        data: body,
+        currentRoutePath: _teachRoutePath,
+        apiName: 'TEACH',
+      );
+      final result = (json['result'] as Map<String, dynamic>?)?['list'] as List?;
+      if (result == null) return [];
+
+      final courses = <Course>[];
+      for (int i = 0; i < result.length; i++) {
+        courses.add(Course.fromExperimentJson(
+          result[i] as Map<String, dynamic>,
+          colorIndex: i,
+        ));
+      }
+      DataCache().set(cacheKey, courses);
+      return courses;
+    } catch (e) {
+      debugPrint('fetchExperiments error: $e');
+      return [];
+    }
+  }
+
+  /// 引导登录 scjx2（实验教学需要）
+  Future<bool> bootstrapScjx2() => _scjx2.bootstrapLogin();
 
   // ==================== 内部工具 ====================
 

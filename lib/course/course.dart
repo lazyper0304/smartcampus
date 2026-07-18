@@ -46,6 +46,13 @@ class Course {
   /// 显示颜色
   final int colorIndex;
 
+  /// 课程类型标签（如 "实验"、"理论"）
+  /// 实验课/普通课的 course 卡片会显示这个小标签
+  final String tag;
+
+  /// 附加备注（实验课的项目名、调课的备注等）
+  final String remark;
+
   Course({
     required this.name,
     required this.teacher,
@@ -54,6 +61,8 @@ class Course {
     required this.weeks,
     required this.sections,
     this.colorIndex = 0,
+    this.tag = '',
+    this.remark = '',
   });
 
   /// 从 Wisedu API xskcb.do 返回的 JSON row 创建 Course
@@ -105,6 +114,37 @@ class Course {
       weeks: weeks,
       sections: sections,
       colorIndex: colorIndex,
+    );
+  }
+
+  /// 从 scjx2 实验教学 API row 创建 Course（单次实验记录）
+  ///
+  /// scjx2 返回的是「单次实验」记录（单周次 + 单节次范围），
+  /// 所以 weeks 列表里只有一项。
+  factory Course.fromExperimentJson(Map<String, dynamic> json,
+      {int colorIndex = 0}) {
+    final week = int.tryParse(json['week']?.toString() ?? '0') ?? 0;
+    final startSection = int.tryParse(json['jc_start']?.toString() ?? '0') ?? 0;
+    final endSection = int.tryParse(json['jc_end']?.toString() ?? '0') ?? 0;
+    final sections = <int>[];
+    for (int s = startSection; s <= endSection; s++) {
+      sections.add(s);
+    }
+
+    // 课程名优先用 course_name（所属课程），附加 exp_name（实验项目）
+    final courseName = json['course_name']?.toString() ?? '实验课程';
+    final expName = json['exp_name']?.toString() ?? '';
+
+    return Course(
+      name: courseName,
+      teacher: json['teacher_name']?.toString() ?? '',
+      position: json['room_name']?.toString() ?? '',
+      day: int.tryParse(json['week_day']?.toString() ?? '0') ?? 0,
+      weeks: week > 0 ? [week] : <int>[],
+      sections: sections,
+      colorIndex: colorIndex,
+      tag: '实验',
+      remark: expName,
     );
   }
 

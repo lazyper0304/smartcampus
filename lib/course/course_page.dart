@@ -93,28 +93,33 @@ class _CourseTablePageState extends State<CourseTablePage> {
         }
       }
 
-      // 并行获取课表 + 当前周（传入学期代码以获取准确日期）
+      // 并行获取课表 + 当前周 + 实验教学（传入学期代码以获取准确日期）
       final results = await Future.wait([
         _service.fetchCourses(xnxqdm: activeSemester),
         _service.fetchCurrentWeek(xnxqdm: activeSemester),
+        _service.fetchExperiments(xnxqdm: activeSemester),
       ]);
 
       if (!mounted) return;
 
       final courses = results[0] as List<Course>;
       final weekInfo = results[1] as CurrentWeekInfo;
+      final experiments = results[2] as List<Course>;
       final currentWeek = weekInfo.week;
+
+      // 合并实验教学到课程表
+      final allCourses = [...courses, ...experiments];
 
       // 计算最大周次
       int maxW = 1;
-      for (final c in courses) {
+      for (final c in allCourses) {
         for (final w in c.weeks) {
           if (w > maxW) maxW = w;
         }
       }
 
       setState(() {
-        _courses = courses;
+        _courses = allCourses;
         _currentWeek = currentWeek;
         _todayWeek = currentWeek;
         _firstMonday = weekInfo.firstMonday;
@@ -155,22 +160,25 @@ class _CourseTablePageState extends State<CourseTablePage> {
       final results = await Future.wait([
         _service.fetchCourses(xnxqdm: xnxqdm),
         _service.fetchCurrentWeek(xnxqdm: xnxqdm, forceRefresh: true),
+        _service.fetchExperiments(xnxqdm: xnxqdm, forceRefresh: true),
       ]);
       if (!mounted) return;
 
       final courses = results[0] as List<Course>;
       final weekInfo = results[1] as CurrentWeekInfo;
+      final experiments = results[2] as List<Course>;
+      final allCourses = [...courses, ...experiments];
 
       // 重新计算最大周次
       int maxW = 1;
-      for (final c in courses) {
+      for (final c in allCourses) {
         for (final w in c.weeks) {
           if (w > maxW) maxW = w;
         }
       }
 
       setState(() {
-        _courses = courses;
+        _courses = allCourses;
         _maxWeek = maxW;
         _currentWeek = 1;
         _firstMonday = weekInfo.firstMonday;
@@ -627,6 +635,24 @@ class _CourseTablePageState extends State<CourseTablePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // 实验课标"实验"小标签
+          if (course.tag.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Text(
+                course.tag,
+                style: const TextStyle(
+                    fontSize: 8,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2),
+              ),
+            ),
           Text(
             course.name,
             style: TextStyle(
@@ -638,11 +664,21 @@ class _CourseTablePageState extends State<CourseTablePage> {
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
+          if (course.remark.isNotEmpty)
+            Text(
+              course.remark,
+              style: TextStyle(
+                  fontSize: 9, color: color.withValues(alpha: 0.75)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           if (course.position.isNotEmpty)
             Text(
               course.position,
               style: TextStyle(
                   fontSize: 9, color: color.withValues(alpha: 0.8)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
         ],
       ),
