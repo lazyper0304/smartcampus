@@ -157,30 +157,34 @@ class RaceDetail {
   });
 
   factory RaceDetail.fromJson(Map<String, dynamic> json) {
-    final subs = (json['subs'] as List? ?? [])
+    // API 响应结构: { code, msg, result: { id, name, ... } }
+    // 先剥掉外层 result
+    final data = (json['result'] as Map<String, dynamic>?) ?? json;
+
+    final subs = (data['subs'] as List? ?? [])
         .map((e) => RaceSubItem.fromJson(e as Map<String, dynamic>))
         .toList();
     return RaceDetail(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      teacherName: json['teacher_name']?.toString() ?? '',
-      teacherNo: json['teacher_no']?.toString() ?? '',
-      mobile: json['mobile']?.toString() ?? '',
-      depName: json['dep_name']?.toString() ?? '',
-      depCode: json['dep_code']?.toString() ?? '',
-      hostDep: json['host_dep']?.toString() ?? '',
-      typeName: json['type_name']?.toString() ?? '',
-      levelHName: json['level_h_name']?.toString() ?? '',
-      yearterm: json['yearterm']?.toString() ?? '',
-      year: json['year']?.toString() ?? '',
-      beginTime: json['begin_time']?.toString(),
-      endTime: json['end_time']?.toString(),
-      creTime: json['cre_time']?.toString() ?? '',
-      updateTime: json['update_time']?.toString() ?? '',
-      content: json['content']?.toString() ?? '',
-      outlay: (json['outlay'] as num?)?.toDouble() ?? 0.0,
-      havesub: json['havesub']?.toString() ?? '否',
-      ispublishName: json['ispublish_name']?.toString() ?? '',
+      id: data['id']?.toString() ?? '',
+      name: data['name']?.toString() ?? '',
+      teacherName: data['teacher_name']?.toString() ?? '',
+      teacherNo: data['teacher_no']?.toString() ?? '',
+      mobile: data['mobile']?.toString() ?? '',
+      depName: data['dep_name']?.toString() ?? '',
+      depCode: data['dep_code']?.toString() ?? '',
+      hostDep: data['host_dep']?.toString() ?? '',
+      typeName: data['type_name']?.toString() ?? '',
+      levelHName: data['level_h_name']?.toString() ?? '',
+      yearterm: data['yearterm']?.toString() ?? '',
+      year: data['year']?.toString() ?? '',
+      beginTime: data['begin_time']?.toString(),
+      endTime: data['end_time']?.toString(),
+      creTime: data['cre_time']?.toString() ?? '',
+      updateTime: data['update_time']?.toString() ?? '',
+      content: data['content']?.toString() ?? '',
+      outlay: (data['outlay'] as num?)?.toDouble() ?? 0.0,
+      havesub: data['havesub']?.toString() ?? '否',
+      ispublishName: data['ispublish_name']?.toString() ?? '',
       subs: subs,
     );
   }

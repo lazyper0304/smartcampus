@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:smartcampus/race/race_signer.dart';
+import 'package:smartcampus/race/race.dart';
 
 void main() {
   group('RaceApiSigner.generateZhxhSign', () {
@@ -24,10 +25,7 @@ void main() {
       final data = {'currpage': 1, 'pagesize': 15};
       final params = {'race_id': 'abc123'};
       final sig = signer.generateZhxhSign(data, params);
-      // 验证字符串拼接顺序: sorted keys = [currpage, pagesize, race_id]
-      // 期望的 string-to-sign: currpage=1pagesize=15race_id=abc123
-      // 同样用 HMAC-SHA256 + key 计算
-      expect(sig.length, 64); // SHA-256 hex
+      expect(sig.length, 64);
       expect(sig, matches(RegExp(r'^[0-9A-F]{64}$')));
     });
 
@@ -37,10 +35,71 @@ void main() {
         null,
         authToken: 'eyJtest',
       );
-      // 期望 string-to-sign: Authorization=eyJtest
-      // SHA-256 = known value
       expect(sig.length, 64);
       expect(sig, matches(RegExp(r'^[0-9A-F]{64}$')));
+    });
+  });
+
+  group('RaceDetail.fromJson', () {
+    test('parses full toRaceApply response (with result wrapper)', () {
+      final json = {
+        'code': 200,
+        'msg': '操作成功！',
+        'result': {
+          'teacher_name': '张亚娟',
+          'type_name': 'B类',
+          'year': '2024',
+          'subs': [
+            {
+              'isteam': '1',
+              'entryfee': 0,
+              'race_id': '0554ec6268814919b1f55906d2937eac',
+              'name': '2025川渝师范生教学能力大赛',
+              'id': '38830b8c416b482989af5730cb2409d6',
+              'isteam_name': '不限',
+              'is_pay': null,
+            }
+          ],
+          'outlay': 0,
+          'name': '2024川渝师范生教学能力大赛',
+          'id': '0554ec6268814919b1f55906d2937eac',
+          'dep_name': '教师教育学院/教育科学学院',
+          'dep_code': 'XB033',
+          'content': '详情内容...',
+          'havesub': '否',
+          'ispublish_name': '终审通过',
+          'level_h_name': '省级',
+          'yearterm': '2024-2025',
+          'host_dep': '教育厅',
+        },
+      };
+
+      final detail = RaceDetail.fromJson(json);
+      expect(detail.id, '0554ec6268814919b1f55906d2937eac');
+      expect(detail.name, '2024川渝师范生教学能力大赛');
+      expect(detail.teacherName, '张亚娟');
+      expect(detail.typeName, 'B类');
+      expect(detail.year, '2024');
+      expect(detail.depName, '教师教育学院/教育科学学院');
+      expect(detail.depCode, 'XB033');
+      expect(detail.content, '详情内容...');
+      expect(detail.havesub, '否');
+      expect(detail.ispublishName, '终审通过');
+      expect(detail.subs.length, 1);
+      expect(detail.subs[0].id, '38830b8c416b482989af5730cb2409d6');
+      expect(detail.subs[0].isteamName, '不限');
+    });
+
+    test('parses direct data (no result wrapper)', () {
+      final json = {
+        'id': 'abc',
+        'name': 'Test Race',
+        'teacher_name': 'Test Teacher',
+      };
+      final detail = RaceDetail.fromJson(json);
+      expect(detail.id, 'abc');
+      expect(detail.name, 'Test Race');
+      expect(detail.teacherName, 'Test Teacher');
     });
   });
 }
