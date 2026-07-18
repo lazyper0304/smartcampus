@@ -158,6 +158,35 @@ class Course {
     return '$first-$last节 ($timeStr - ${formatPeriodTime(last, short: true)})';
   }
 
+  /// 节次紧凑显示（合并连续区间，支持多段）：
+  /// - 单节：`3节`
+  /// - 连续区间：`1-2节`
+  /// - 多段（含间隔）：`1-2节,5-6节`
+  /// - 混合：`1节,3-5节,8节`
+  String get sectionRangesCompact {
+    if (sections.isEmpty) return '';
+    final sorted = [...sections]..sort();
+    final ranges = <String>[];
+    int? start;
+    int? prev;
+    for (final s in sorted) {
+      if (start == null) {
+        start = s;
+        prev = s;
+      } else if (s == prev! + 1) {
+        prev = s;
+      } else {
+        ranges.add(start == prev ? '$start' : '$start-$prev');
+        start = s;
+        prev = s;
+      }
+    }
+    if (start != null) {
+      ranges.add(start == prev ? '$start' : '$start-$prev');
+    }
+    return ranges.map((r) => '$r节').join(',');
+  }
+
   /// 周次显示文本
   String get weeksDisplay {
     if (weeks.isEmpty) return '';

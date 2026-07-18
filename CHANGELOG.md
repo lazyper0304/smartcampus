@@ -4,6 +4,9 @@
 
 ### 🎨 UI 优化
 - **课程表实验课卡片简化**：实验课不再显示实验项目名（`exp_name`），只保留「实验」橙色小标签 + 课程名 + 教室，周课表卡片更紧凑易读
+- **学期课表同课程合并**：同一天 + 同一课程名 + 同一教师的多个时间片合并为一张卡片，节次/周次/教室取并集展示。理论课与实验课（`tag` 不同）天然按类型分开合并。学期课卡新增「实验」橙色小标签
+  - 新增 `Course.sectionRangesCompact` getter：合并连续节次区间，单节/连续区间/多段都正确显示（如 `3节` / `1-2节` / `1-2节,5-6节` / `1节,3-5节,8节`）
+  - 新增 `_mergeSameCourses()` 工具方法：按 `(name, teacher, tag)` 分组后并集 sections/weeks，position 用「、」拼接
 
 ### 🐛 Bug 修复
 - **TEACH 模块 API 404**：scjx2 `teach` 模块的 API 路径修正为 `/teach/teach/stuTime/listStuTimePage`（每段路径均包含模块名），同时重构 `Scjx2ApiService.bootstrapLogin` 支持多模块独立 token（`race` / `teach` / `grad`），cookie 同步改用 `CookieManager.getCookies` 绕过 httpOnly 限制，bootstrap 改为「zxcas 入口 + 模块内 navigate」两步式，先清空 scjx2 域 cookie 防止跨实例残留

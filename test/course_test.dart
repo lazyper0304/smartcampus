@@ -36,4 +36,38 @@ void main() {
       expect(course.tag, '实验');
     });
   });
+
+  group('Course.sectionRangesCompact', () {
+    Course make(List<int> sections) => Course(
+          name: 'X',
+          teacher: '',
+          day: 1,
+          weeks: const [1],
+          sections: sections,
+        );
+
+    test('empty sections', () {
+      expect(make([]).sectionRangesCompact, '');
+    });
+
+    test('single section', () {
+      expect(make([3]).sectionRangesCompact, '3节');
+    });
+
+    test('continuous sections collapse to one range', () {
+      expect(make([1, 2, 3, 4]).sectionRangesCompact, '1-4节');
+    });
+
+    test('unsorted continuous still produces one range', () {
+      expect(make([3, 1, 2, 4]).sectionRangesCompact, '1-4节');
+    });
+
+    test('discontiguous sections produce multiple ranges', () {
+      expect(make([1, 2, 5, 6]).sectionRangesCompact, '1-2节,5-6节');
+    });
+
+    test('mixed singles and ranges', () {
+      expect(make([1, 3, 4, 5, 8]).sectionRangesCompact, '1节,3-5节,8节');
+    });
+  });
 }

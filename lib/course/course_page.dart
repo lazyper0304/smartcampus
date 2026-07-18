@@ -721,6 +721,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
       final dayCourses = byDay[day] ?? [];
       if (dayCourses.isEmpty) continue;
 
+      // 同一天 + 相同课程名 + 相同教师 + 相同类型（实验/普通）→ 合并
+      // 合并后节次/周次/教室都取并集，理论课和实验课天然按 tag 分开
+      final merged = _mergeSameCourses(dayCourses);
+
       final isWeekend = day >= 6;
       widgets.add(Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -745,7 +749,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
         ),
       ));
 
-      for (final course in dayCourses) {
+      for (final course in merged) {
         widgets.add(TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
           duration: const Duration(milliseconds: 400),
@@ -767,9 +771,49 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return widgets;
   }
 
+  /// 同一天内，将「课程名+教师+类型」相同的多个时间片合并为一张卡片。
+  ///
+  /// 合并后：
+  /// - sections: 所有节次并集（去重 + 排序）
+  /// - weeks: 所有周次并集（去重 + 排序）
+  /// - position: 全部去重后用「、」拼接
+  /// - teacher/remark: 取第一个
+  /// - tag/colorIndex: 不变（理论课和实验课 tag 不同会天然分开）
+  List<Course> _mergeSameCourses(List<Course> courses) {
+    final groups = <String, List<Course>>{};
+    for (final c in courses) {
+      final key = '${c.name}|${c.teacher}|${c.tag}';
+      groups.putIfAbsent(key, () => []).add(c);
+    }
+
+    return groups.values.map((group) {
+      if (group.length == 1) return group.first;
+      final first = group.first;
+      final allSections = <int>{};
+      final allWeeks = <int>{};
+      final positions = <String>{};
+      for (final c in group) {
+        allSections.addAll(c.sections);
+        allWeeks.addAll(c.weeks);
+        if (c.position.isNotEmpty) positions.add(c.position);
+      }
+      return Course(
+        name: first.name,
+        teacher: first.teacher,
+        position: positions.join('、'),
+        day: first.day,
+        weeks: allWeeks.toList()..sort(),
+        sections: allSections.toList()..sort(),
+        colorIndex: first.colorIndex,
+        tag: first.tag,
+        remark: first.remark,
+      );
+    }).toList();
+  }
+
   Widget _buildSemesterCourseCard(Course course) {
     final color = _courseColors[course.colorIndex % _courseColors.length];
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -792,12 +836,37 @@ class _CourseTablePageState extends State<CourseTablePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    course.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      // 实验课标"实验"小标签
+                      if (course.tag.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade400,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            course.tag,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          course.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -814,8 +883,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
                       children: [
                         Icon(Icons.room, size: 14, color: textHint(context)),
                         const SizedBox(width: 4),
-                        Text(course.position,
-                            style: TextStyle(fontSize: 12, color: textHint(context))),
+                        Expanded(
+                          child: Text(course.position,
+                              style: TextStyle(fontSize: 12, color: textHint(context))),
+                        ),
                       ],
                     ),
                   ],
@@ -825,7 +896,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                       Icon(Icons.schedule, size: 14, color: color),
                       const SizedBox(width: 4),
                       Text(
-                        '${course.sectionRange}  ${course.weeksDisplay}',
+                        '${course.sectionRangesCompact}  ${course.weeksDisplay}',
                         style: TextStyle(fontSize: 12, color: color),
                       ),
                     ],
