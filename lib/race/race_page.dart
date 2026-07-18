@@ -204,7 +204,6 @@ class _RacePageState extends State<RacePage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 左侧图标
             Container(
               width: 42,
               height: 42,
@@ -216,20 +215,15 @@ class _RacePageState extends State<RacePage> {
                   color: Colors.amber.shade600, size: 22),
             ),
             const SizedBox(width: 14),
-            // 右侧信息
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    race.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(race.name,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
                   _buildInfoRow(Icons.person_outline, race.teacherName),
                   const SizedBox(height: 2),
@@ -249,11 +243,9 @@ class _RacePageState extends State<RacePage> {
         Icon(icon, size: 14, color: textHint(context)),
         const SizedBox(width: 4),
         Flexible(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 12, color: textHint(context)),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(text,
+              style: TextStyle(fontSize: 12, color: textHint(context)),
+              overflow: TextOverflow.ellipsis),
         ),
       ],
     );
