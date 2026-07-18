@@ -18,6 +18,7 @@ import '../employ/employ_page.dart';
 import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
 import '../vrmap/vrmap_page.dart';
+import '../race/race_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -58,6 +59,8 @@ final List<AppEntry> allApps = [
     pageBuilder: (ctx, c, uid) => const UnitsPage()),
   AppEntry(icon: Icons.domain_rounded, name: '职能部门', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => const DepartmentsPage()),
+  AppEntry(icon: Icons.emoji_events_rounded, name: '学科竞赛', category: AppCategory.jiaowu,
+    pageBuilder: (ctx, c, uid) => RacePage(client: c)),
 
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,

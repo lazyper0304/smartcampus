@@ -3,6 +3,11 @@
 ## [1.0.6] - 2026-07-18
 
 ### ✨ 新增
+- **学科竞赛模块**：新建 `lib/race/` 模块，接入 `scjx2.yibinu.edu.cn` 竞赛系统
+  - 数据模型 `RaceCompetition` + 分页 `RacePageResult`
+  - API 服务 `RaceService`：先访问入口页触发 CAS SSO 认证，再调用 `listStuRacePage` 接口获取数据
+  - 列表页面支持下拉刷新、自动加载更多、错误重试
+  - 在「教务」分类注册入口，图标 🏆
 - **调课/未安排课程独立页面**：新建 `course_changes_page.dart`，全屏页面替代原底部弹窗面板
   - 页面自带学期选择器，切换学期自动加载对应学期数据
   - Tab 式布局：调课/停课 + 未安排课程独立 Tab 切换
