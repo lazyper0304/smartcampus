@@ -55,6 +55,8 @@ dependencies:
   flutter_pdfview: ^1.3.2
   # GBK/GB2312 编码支持（部分学校接口使用）
   gbk_codec: ^0.4.0
+  # HMAC-SHA256/512 签名（学科竞赛 API 用）
+  crypto: ^3.0.3
   # 平滑动画下拉/选择/折叠组件（渲染层动画）
   smooth_dropdown: ^1.0.0
   # 页面转场动画

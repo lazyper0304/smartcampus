@@ -2,23 +2,65 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide LocalStorage;
 
 import '../core/http_client.dart';
+import '../core/local_storage.dart';
 import '../core/data_cache.dart';
 import 'race.dart';
+import 'race_signer.dart';
 
-/// 学科竞赛服务
+/// 学科竞赛服务（API 模式）
 ///
-/// 使用 HeadlessInAppWebView 完整加载 scjx2 主应用，
-/// CAS SSO → 主应用首页 → Vue Router 导航到竞赛模块 → 拦截 API
+/// 通过分析 scjx2 RACE 系统前端 JavaScript，逆向出 API 签名算法：
+/// - signature: HMAC-SHA512("{ts}-{nonce}", "zxtd_256-bit-secret-key-2025-8-7")
+/// - zhxhsign:   HMAC-SHA256(serialized_params, "zhxintd201020301")
+///
+/// 直接使用 SharedHttpClient + 自构造签名头调用后端 API，
+/// 不再需要 HeadlessInAppWebView 加载页面提取数据。
+///
+/// JWT 授权（Authorization）由 zxcas 登录引导流程获取并缓存到 LocalStorage。
 class RaceService {
   final SharedHttpClient _client;
+  final RaceApiSigner _signer = RaceApiSigner();
 
   static const String baseUrl = 'https://scjx2.yibinu.edu.cn';
 
+  /// LocalStorage key：缓存 zxcas 登录后从 sessionStorage 提取的 JWT
+  static const String _kAuthToken = 'race_auth_token';
+
+  /// LocalStorage key：zxcas 登录时设置的 user_id（备用标识）
+  static const String _kUserId = 'race_user_id';
+
+  /// LocalStorage key：MenuId
+  static const String _kMenuId = 'race_menu_id';
+
   RaceService({required SharedHttpClient client}) : _client = client;
 
+  /// 获取缓存的 JWT token
+  Future<String?> getAuthToken() async {
+    return await LocalStorage.getString(_kAuthToken);
+  }
+
+  /// 保存 JWT token
+  Future<void> setAuthToken(String token) async {
+    await LocalStorage.setString(_kAuthToken, token);
+  }
+
+  /// 清除 JWT token（用于重新登录）
+  Future<void> clearAuthToken() async {
+    await LocalStorage.remove(_kAuthToken);
+    await LocalStorage.remove(_kUserId);
+    await LocalStorage.remove(_kMenuId);
+  }
+
+  /// 是否已登录（有有效 token）
+  Future<bool> isLoggedIn() async {
+    final token = await getAuthToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  /// 拉取学科竞赛列表
   Future<RacePageResult> fetchCompetitions({
     int page = 1,
     int pageSize = 15,
@@ -30,20 +72,81 @@ class RaceService {
       if (cached != null) return cached;
     }
 
-    await _injectCookies();
-    final result = await _fetchViaWebView(page, pageSize);
-
+    final result = await _fetchViaApi(page, pageSize);
     DataCache().set(cacheKey, result);
     return result;
   }
 
-  Future<RacePageResult> _fetchViaWebView(int page, int pageSize) async {
-    final completer = Completer<RacePageResult>();
+  /// 走 API 调用
+  Future<RacePageResult> _fetchViaApi(int page, int pageSize) async {
+    final token = await getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('未登录 scjx2，请先登录');
+    }
+
+    final body = <String, dynamic>{
+      'currpage': page,
+      'pagesize': pageSize,
+    };
+
+    final menuId = await LocalStorage.getString(_kMenuId) ?? '';
+
+    // 构造签名头
+    final headers = _signer.buildHeaders(
+      data: body,
+      menuId: menuId,
+      authorization: token,
+    );
+
+    final uri = Uri.parse('$baseUrl/race/race/stuRace/listStuRacePage');
+    debugPrint('Race API: POST $uri page=$page pageSize=$pageSize');
+
+    final resp = await _client.postJson(
+      uri,
+      body: body,
+      headers: headers,
+    );
+
+    if (resp.statusCode != 200) {
+      // 401 表示 token 过期，需要重新登录
+      if (resp.statusCode == 401) {
+        await clearAuthToken();
+        throw Exception('登录已过期，请重新登录');
+      }
+      throw Exception('学科竞赛接口失败 (HTTP ${resp.statusCode})');
+    }
+
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    final code = json['code'];
+    if (code != 200) {
+      final msg = json['msg']?.toString() ?? '未知错误';
+      // 401 业务码也表示 token 过期
+      if (code == 401 || resp.body.contains('未登录') || resp.body.contains('token')) {
+        await clearAuthToken();
+      }
+      throw Exception('学科竞赛接口错误: $msg');
+    }
+
+    return RacePageResult.fromJson(json);
+  }
+
+  /// 通过 HeadlessInAppWebView 引导登录 zxcas，提取 JWT
+  ///
+  /// 流程：
+  /// 1. 加载 https://scjx2.yibinu.edu.cn/zxcas → 自动跳转到 authserver
+  /// 2. 如果已登录会自动回到 scjx2 主应用
+  /// 3. 等待主应用加载（路由到 /homeageStu）
+  /// 4. 等待 zxStorage.getItem('key1') 被设置（GetUserInfo action 触发）
+  /// 5. 从 window.sessionStorage 提取 JWT，缓存到 LocalStorage
+  ///
+  /// 返回是否成功获取到 token
+  Future<bool> bootstrapLogin({Duration timeout = const Duration(seconds: 90)}) async {
+    if (await isLoggedIn()) return true;
+
     InAppWebViewController? controller;
-    bool done = false;
 
     final headlessWebView = HeadlessInAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri('$baseUrl/zxcas')), // 走 CAS SSO → 主应用
+      initialUrlRequest: URLRequest(url: WebUri('$baseUrl/zxcas')),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         domStorageEnabled: true,
@@ -55,262 +158,96 @@ class RaceService {
       onWebViewCreated: (ctrl) {
         controller = ctrl;
       },
-      onLoadStop: (ctrl, url) {
-        final u = url?.toString() ?? '';
-        debugPrint('WV: ${u.length > 80 ? u.substring(0, 80) : u}');
-      },
     );
 
     await headlessWebView.run();
-
     try {
-      // ---- CAS SSO ----
+      // ---- 1. 等待 CAS 登录 + 主页加载 ----
+      bool reachedHome = false;
       for (int i = 0; i < 60; i++) {
         await Future.delayed(const Duration(milliseconds: 1000));
         final url = (await controller?.getUrl())?.toString() ?? '';
         if (url.contains('homeageStu')) {
-          debugPrint('Login OK after ${i + 1}s');
+          debugPrint('RaceService: reached home after ${i + 1}s');
+          reachedHome = true;
           break;
         }
       }
 
-      await Future.delayed(const Duration(seconds: 2));
-
-      // ---- 搜索页面 HTTP 客户端 + 直接调 RACE API ----
-      debugPrint('Searching HTTP client and calling API...');
-      
-      // 先搜索所有可能的 HTTP 客户端和签名函数
-      final searchJs = '''
-(function() {
-  try {
-    var results = [];
-    // 1. 搜索 window 上所有对象，找有 post 方法的
-    var checked = new Set();
-    var queue = [window];
-    while (queue.length > 0 && results.length < 10) {
-      var cur = queue.shift();
-      if (!cur || checked.has(cur)) continue;
-      checked.add(cur);
-      try {
-        if (typeof cur.post === 'function' && typeof cur.interceptors !== 'undefined') {
-          results.push('axios-like at window');
+      if (!reachedHome) {
+        final url = (await controller?.getUrl())?.toString() ?? '';
+        if (url.contains('authserver') || url.contains('casLoginForm')) {
+          debugPrint('RaceService: still on CAS login page');
+          return false;
         }
-        if (typeof cur.get === 'function' && typeof cur.post === 'function') {
-          results.push('http-client at window');
-          results.push('url:' + (cur.defaults ? (cur.defaults.baseURL || '') : ''));
-        }
-      } catch(e) {}
-      // 只搜索几层
-      if (checked.size > 500) break;
-    }
-    // 2. 检查 Vue 2
-    var appEl = document.querySelector('#app');
-    var vue2 = appEl ? (appEl.__vue__ || '') : '';
-    if (vue2) {
-      results.push('Vue2 found');
-      // 在 Vue 实例中找 \$http
-      if (vue2.\$http) results.push('has \$http');
-      if (vue2.\$axios) results.push('has \$axios');
-    }
-    // 3. 找 fetch 拦截器
-    if (window.fetch && window.fetch.toString && window.fetch.toString().indexOf('native code') < 0) {
-      results.push('fetch monkeypatched');
-    }
-    // 4. 搜索 axios 实例常见位置
-    var axiosCandidates = [
-      window.axios, window.\$http, window.\$axios, window.http,
-      window.Vue && window.Vue.http, window.Vue && window.Vue.axios
-    ];
-    for (var i = 0; i < axiosCandidates.length; i++) {
-      if (axiosCandidates[i] && typeof axiosCandidates[i].post === 'function') {
-        results.push('axios at index ' + i);
+        // 其他情况再等一会儿
+        await Future.delayed(const Duration(seconds: 3));
       }
-    }
-    return JSON.stringify(results);
-  } catch(e) { return JSON.stringify(['error: ' + e.message]); }
-})();
-''';
-      final search = await controller?.evaluateJavascript(source: searchJs);
-      debugPrint('Search results: $search');
 
-      // 不管找到没，直接用 window.fetch（如果被 SPA 覆写过就有拦截器）
+      // ---- 2. 确保进入主路由，触发 GetUserInfo ----
       await controller?.evaluateJavascript(source: '''
 (function() {
-  window.__race = '';
-  window.__fetchOrigin = window.fetch;
-  // 包装 fetch 来捕获 RACE API 响应
-  window.fetch = function() {
-    var url = arguments[0] || '';
-    var opts = arguments[1] || {};
-    return window.__fetchOrigin.apply(this, arguments).then(function(resp) {
-      try {
-        if (resp && (url.indexOf('listStuRacePage') > -1 || url.indexOf('getStuMenus') > -1)) {
-          resp.clone().text().then(function(t) {
-            if (t && t.length > 0) window.__race = t;
-          });
-        }
-      } catch(e) {}
-      return resp;
-    }).catch(function(e) { throw e; });
-  };
-  // 导航到 RACE 路由让 SPA 加载模块
-  window.location.hash = '/9001/modules/sjjx/race/stu/race/stage/list';
-  // 点击"学科竞赛"
-  setTimeout(function() {
-    try {
-      var all = document.querySelectorAll('a, button, div, li, span, [role=button], .el-menu-item');
-      for (var i = 0; i < all.length; i++) {
-        if (all[i].textContent && all[i].textContent.trim() === '学科竞赛' && all[i].offsetParent !== null) {
-          var evt = new MouseEvent('click', {bubbles: true, cancelable: true, view: window});
-          all[i].dispatchEvent(evt);
-          break;
-        }
-      }
-    } catch(e) {}
-  }, 3000);
+  try {
+    if (window.location.hash.indexOf('/homeageStu') < 0) {
+      window.location.hash = '/homeageStu';
+    }
+  } catch(e) {}
 })();
 ''');
+      await Future.delayed(const Duration(seconds: 2));
 
-      // ---- 等待 RACE 页面渲染完成 ----
-      debugPrint('Waiting for RACE page to render...');
-      for (int i = 0; i < 20; i++) {
-        await Future.delayed(const Duration(milliseconds: 1000));
-        final check = await controller?.evaluateJavascript(source: '''
+      // ---- 3. 反复尝试从 sessionStorage 提取 token ----
+      String? key1;
+      String? menuId;
+      String? userId;
+      for (int attempt = 0; attempt < 15; attempt++) {
+        final extract = await controller?.evaluateJavascript(source: '''
 (function() {
   try {
-    var t = document.body ? document.body.innerText || '' : '';
-    var hasTable = t.indexOf('竞赛名称') >= 0 || t.indexOf('学科竞赛信息列表') >= 0;
-    return JSON.stringify({len: t.length, hasTable: hasTable, url: window.location.href});
-  } catch(e) { return '{}'; }
-})();
-''');
-        final ck = check?.toString() ?? '';
-        if (ck.contains('"hasTable":true') || ck.contains('"len":')) {
-          debugPrint('Page state at ${i + 1}s: $ck');
-          if (ck.contains('"hasTable":true')) break;
-        }
-      }
-
-      // ---- 从 DOM 提取竞赛列表 ----
-      final extractJs = '''
-(function() {
-  try {
-    // 查找所有表格行
-    var rows = document.querySelectorAll('table tbody tr, .el-table__body tr, [class*="table"] tbody tr');
-    var list = [];
-    for (var r = 0; r < rows.length; r++) {
-      var cells = rows[r].querySelectorAll('td');
-      if (cells.length >= 3) {
-        var name = (cells[0].textContent || '').trim();
-        var dep = '';
-        var teacher = '';
-        if (cells.length >= 2) dep = (cells[1].textContent || '').trim();
-        if (cells.length >= 3) teacher = (cells[2].textContent || '').trim();
-        if (name && name.length > 4) {
-          list.push({name: name, teacher_name: teacher, dep_name: dep});
-        }
-      }
-    }
-    if (list.length > 0) return JSON.stringify({source:'table', data: list});
-
-    // 回退：按文本结构解析
-    var text = document.body ? document.body.innerText || '' : '';
-    var lines = text.split('\\n');
-    var parsed = [];
-    for (var i = 0; i < lines.length; i++) {
-      // 匹配竞赛名称行（以年份开头）
-      if (/^20\\d{2}/.test(lines[i].trim()) && lines[i].length > 10) {
-        var name = lines[i].trim();
-        var teacher = i + 2 < lines.length ? lines[i + 2].trim() : '';
-        var dep = i + 1 < lines.length ? lines[i + 1].trim() : '';
-        parsed.push({name: name, teacher_name: teacher, dep_name: dep});
-      }
-    }
-    if (parsed.length > 0) return JSON.stringify({source:'text', data: parsed});
-
-    return JSON.stringify({source:'raw', data: text.substring(0, 3000)});
+    var k = window.sessionStorage.getItem('key1') || '';
+    var m = window.sessionStorage.getItem('MenuId') || '';
+    var u = window.sessionStorage.getItem('user_id') || '';
+    return JSON.stringify({key1: k, menuId: m, userId: u});
   } catch(e) {
     return JSON.stringify({error: e.message});
   }
 })();
-''';
-      final extracted = await controller?.evaluateJavascript(source: extractJs);
-      final extStr = extracted?.toString() ?? '';
-      debugPrint('Extracted (${extStr.length} chars): ${extStr.length > 300 ? "${extStr.substring(0, 300)}..." : extStr}');
-
-      if (extracted is String && extracted.isNotEmpty) {
-        final result = jsonDecode(extracted) as Map<String, dynamic>;
-        if (result['error'] != null) {
-          completer.completeError(Exception(result['error']));
-        } else {
-          final data = result['data'];
-          if (data is List && data.isNotEmpty) {
-            final competitions = <RaceCompetition>[];
-            for (final item in data) {
-              if (item is Map) {
-                final map = Map<String, dynamic>.from(item);
-                competitions.add(RaceCompetition(
-                  name: map['name']?.toString() ?? '',
-                  teacherName: map['teacher_name']?.toString() ?? '',
-                  depName: map['dep_name']?.toString() ?? '',
-                  depCode: '', id: '',
-                  rowId: competitions.length + 1,
-                ));
-              }
+''');
+        if (extract is String && extract.isNotEmpty) {
+          try {
+            final m = jsonDecode(extract) as Map<String, dynamic>;
+            key1 = m['key1']?.toString();
+            menuId = m['menuId']?.toString();
+            userId = m['userId']?.toString();
+            if (key1 != null && key1.isNotEmpty) {
+              debugPrint('RaceService: got key1 (${key1.length} chars) on attempt ${attempt + 1}');
+              break;
             }
-            if (competitions.isNotEmpty) {
-              completer.complete(RacePageResult(
-                list: competitions,
-                totalCount: competitions.length,
-                totalPage: 1, currPage: 1,
-                pageSize: competitions.length,
-              ));
-              done = true;
-            }
-          }
+          } catch (_) {}
         }
+        await Future.delayed(const Duration(milliseconds: 800));
       }
 
-      if (!done) {
-        completer.completeError(Exception('未能从页面提取竞赛数据'));
+      if (key1 == null || key1.isEmpty) {
+        debugPrint('RaceService: failed to extract key1');
+        return false;
       }
 
-      return await completer.future.timeout(const Duration(seconds: 90));
+      // ---- 4. 缓存到 LocalStorage ----
+      await setAuthToken(key1);
+      if (menuId != null && menuId.isNotEmpty) {
+        await LocalStorage.setString(_kMenuId, menuId);
+      }
+      if (userId != null && userId.isNotEmpty) {
+        await LocalStorage.setString(_kUserId, userId);
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('RaceService.bootstrapLogin error: $e');
+      return false;
     } finally {
       await headlessWebView.dispose();
-    }
-  }
-
-  Future<void> _injectCookies() async {
-    try {
-      final allCookies = _client.getAllCookies();
-      final cm = CookieManager.instance();
-      for (final domain in [
-        'authserver.yibinu.edu.cn', 'scjx2.yibinu.edu.cn', 'yibinu.edu.cn',
-      ]) {
-        final cookies = allCookies[domain] ?? allCookies['.$domain'] ?? {};
-        for (final entry in cookies.entries) {
-          if (entry.value.isEmpty) continue;
-          await cm.setCookie(
-            url: WebUri('https://$domain/'),
-            name: entry.key, value: entry.value,
-            domain: domain, path: '/', isSecure: true,
-          );
-        }
-      }
-      final pc = allCookies['yibinu.edu.cn'];
-      if (pc != null) {
-        for (final entry in pc.entries) {
-          if (entry.value.isEmpty) continue;
-          await cm.setCookie(
-            url: WebUri('https://yibinu.edu.cn/'),
-            name: entry.key, value: entry.value,
-            domain: '.yibinu.edu.cn', path: '/', isSecure: true,
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Cookie injection error: $e');
     }
   }
 }

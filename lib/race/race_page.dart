@@ -71,9 +71,43 @@ class _RacePageState extends State<RacePage> {
         _isLoading = false;
       });
     } catch (e) {
+      // 如果未登录，自动引导登录
+      final msg = e.toString();
+      if (msg.contains('未登录 scjx2') || msg.contains('登录已过期')) {
+        await _tryBootstrap();
+        return;
+      }
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = msg.replaceFirst('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// 引导登录 scjx2，成功后重试加载
+  Future<void> _tryBootstrap() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final ok = await _service.bootstrapLogin();
+      if (!mounted) return;
+      if (ok) {
+        // 登录成功，重新加载
+        await _loadData();
+      } else {
+        setState(() {
+          _error = 'scjx2 登录失败，请前往 WebView 登录后再试';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '引导登录失败: $e';
         _isLoading = false;
       });
     }

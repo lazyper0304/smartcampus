@@ -3,11 +3,16 @@
 ## [1.0.6] - 2026-07-18
 
 ### ✨ 新增
-- **学科竞赛模块**：新建 `lib/race/` 模块，接入 `scjx2.yibinu.edu.cn` 竞赛系统
-  - 数据模型 `RaceCompetition` + 分页 `RacePageResult`
-  - API 服务 `RaceService`：先访问入口页触发 CAS SSO 认证，再调用 `listStuRacePage` 接口获取数据
-  - 列表页面支持下拉刷新、自动加载更多、错误重试
-  - 在「教务」分类注册入口，图标 🏆
+- **学科竞赛 API 模式**：通过分析 scjx2.yibinu.edu.cn RACE 系统前端 JavaScript 源码，逆向出 API 签名算法
+  - `signature`: HMAC-SHA512(`{timestamp}-{nonce}`, `zxtd_256-bit-secret-key-2025-8-7`)
+  - `zhxhsign`: HMAC-SHA256(序列化参数, `zhxintd201020301`)
+  - 新建 `race_signer.dart` 封装两个签名生成函数
+  - `RaceService` 改用 `SharedHttpClient.postJson` + 自构造签名头直接调用 `listStuRacePage` 接口，不再依赖 WebView DOM 提取
+  - 完整流程 Python 验证：返回 HTTP 200，totalCount=72，与前端数据一致
+- **zxcas 引导登录**：新增 `RaceService.bootstrapLogin()`，首次进入学科竞赛或登录过期时启动 HeadlessInAppWebView 走 CAS SSO，登录成功后从 `window.sessionStorage.getItem('key1')` 提取 JWT 缓存到 `LocalStorage`，后续纯 API 调用无需可见 WebView
+
+### 🎯 优化
+- **RaceService 完全重写**：去除原来复杂的「CAS SSO + Vue 路由跳转 + fetch 拦截器 + DOM 表格解析」长流程，改为「首次 WebView 登录 + 之后纯 HTTP API」的简洁方案
 - **调课/未安排课程独立页面**：新建 `course_changes_page.dart`，全屏页面替代原底部弹窗面板
   - 页面自带学期选择器，切换学期自动加载对应学期数据
   - Tab 式布局：调课/停课 + 未安排课程独立 Tab 切换
