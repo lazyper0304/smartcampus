@@ -42,19 +42,34 @@ class RaceApiSigner {
   /// 生成 zhxhsign
   ///
   /// 模拟前端 2fd1 模块的 u() + d() + g() 流程：
-  /// 1. 把 data 扁平化为 {key: [values]} 形式
-  /// 2. 按 localeCompare zh-CN 排序 key
-  /// 3. 拼成 key=value 格式（无分隔符）
-  /// 4. HMAC-SHA256(序列化字符串, "zhxintd201020301")
-  String generateZhxhSign(Map<String, dynamic>? data, [Map<String, dynamic>? params]) {
-    // 1. 扁平化到 {key: [values]}（同 2fd1 模块的 p/m 函数）
+  /// 1. 把 data 和 params 都扁平化合并到同一个 {key: [values]}（module-level n）
+  /// 2. 若合并后仍为空，用 authToken 作为 Authorization 兜底
+  /// 3. 按字典序排序 key
+  /// 4. 拼成 key=value 格式（无分隔符），values 数组内部也排序
+  /// 5. HMAC-SHA256(序列化字符串, "zhxintd201020301")，转大写
+  ///
+  /// 关键发现：`u()` 内部 `n = {}` 是对 module-level n 的赋值（非 var 声明），
+  /// `m()` 写的是 module-level n，所以 data 和 params 会合并到同一个 map。
+  String generateZhxhSign(
+    Map<String, dynamic>? data,
+    Map<String, dynamic>? params, {
+    String? authToken,
+  }) {
+    // 1. 扁平化合并到 {key: [values]}（同 2fd1 模块 module-level n）
     final flat = <String, List<String>>{};
     if (data != null) {
-      _flatten(data, '', flat);
+      _flatten(data, flat);
     }
-    // 2. 排序 key（localeCompare zh-CN 在 ASCII 字符串上等价于普通字典序）
+    if (params != null) {
+      _flatten(params, flat);
+    }
+    // 2. 兜底：若 data 和 params 都为空，用 Authorization 字段
+    if (flat.isEmpty && authToken != null && authToken.isNotEmpty) {
+      flat['Authorization'] = [authToken];
+    }
+    // 3. 排序 key
     final keys = flat.keys.toList()..sort();
-    // 3. 拼成 key=value 格式
+    // 4. 拼成 key=value 格式
     final buffer = StringBuffer();
     for (final k in keys) {
       final values = flat[k]!;
@@ -68,7 +83,7 @@ class RaceApiSigner {
         buffer.write('$k=');
       }
     }
-    // 4. HMAC-SHA256
+    // 5. HMAC-SHA256
     final hmac = Hmac(sha256, utf8.encode(_zhxhKey));
     final digest = hmac.convert(utf8.encode(buffer.toString()));
     return digest.toString().toUpperCase();
@@ -77,16 +92,15 @@ class RaceApiSigner {
   /// 递归把对象/数组扁平化到 {key: [values]}
   ///
   /// 简单值（string/number/bool/null）进入 list
-  /// 嵌套对象用 prefix 路径（但前端是直接用原始 key，不再加点号分隔）
-  /// 实际前端 2fd1 模块对嵌套对象的处理有 bug（写 module-level n 而非局部 n），
-  /// 实践中 API 调用都用扁平对象，无需关心
-  void _flatten(Object? value, String prefix, Map<String, List<String>> out) {
+  /// 嵌套对象：递归处理，prefix 路径（但前端实际不加点号分隔，直接用 leaf key）
+  /// 实践中 RACE API 调用都用扁平对象，无需关心
+  void _flatten(Object? value, Map<String, List<String>> out) {
     if (value == null) return;
     if (value is Map) {
       value.forEach((k, v) {
         final keyStr = k.toString();
         if (v is Map || v is List) {
-          _flatten(v, keyStr, out);
+          _flatten(v, out);
         } else {
           _addToBucket(out, keyStr, _stringify(v));
         }
@@ -94,16 +108,12 @@ class RaceApiSigner {
     } else if (value is List) {
       for (final item in value) {
         if (item is Map || item is List) {
-          _flatten(item, prefix, out);
-        } else {
-          _addToBucket(out, prefix, _stringify(item));
+          _flatten(item, out);
         }
-      }
-    } else {
-      if (prefix.isNotEmpty) {
-        _addToBucket(out, prefix, _stringify(value));
+        // 数组里的简单值不直接进 out（前端 m 数组分支用 prefix，调用处不传）
       }
     }
+    // 顶层简单值不会到达这里
   }
 
   void _addToBucket(Map<String, List<String>> out, String key, String value) {
@@ -147,13 +157,17 @@ class RaceApiSigner {
   /// - currentRoutePath: 前端路由路径
   /// - MenuId: 可选（前端从 sessionStorage 取）
   Map<String, String> buildHeaders({
-    required Map<String, dynamic>? data,
+    Map<String, dynamic>? data,
     Map<String, dynamic>? params,
     String? menuId,
     String? authorization,
   }) {
     final sig = generateSignature();
-    final zhxh = generateZhxhSign(data, params);
+    final zhxh = generateZhxhSign(
+      data,
+      params,
+      authToken: authorization,
+    );
     final random = DateTime.now().millisecondsSinceEpoch;
 
     final headers = <String, String>{

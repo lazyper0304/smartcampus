@@ -6,6 +6,7 @@ import '../core/simple_page.dart';
 import '../core/data_cache.dart';
 import 'race.dart';
 import 'race_service.dart';
+import 'race_detail_page.dart';
 
 /// 学科竞赛页面
 class RacePage extends StatefulWidget {
@@ -233,39 +234,57 @@ class _RacePageState extends State<RacePage> {
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: dividerColor(context), width: 0.5),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openDetail(race),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.emoji_events_rounded,
+                    color: Colors.amber.shade600, size: 22),
               ),
-              child: Icon(Icons.emoji_events_rounded,
-                  color: Colors.amber.shade600, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(race.name,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.bold),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 6),
-                  _buildInfoRow(Icons.person_outline, race.teacherName),
-                  const SizedBox(height: 2),
-                  _buildInfoRow(Icons.business_outlined, race.depName),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(race.name,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.bold),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 6),
+                    _buildInfoRow(Icons.person_outline, race.teacherName),
+                    const SizedBox(height: 2),
+                    _buildInfoRow(Icons.business_outlined, race.depName),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: textHint(context)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openDetail(RaceCompetition race) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RaceDetailPage(
+          client: widget.client,
+          raceId: race.id,
+          raceName: race.name,
         ),
       ),
     );

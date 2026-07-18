@@ -72,62 +72,96 @@ class RaceService {
       if (cached != null) return cached;
     }
 
-    final result = await _fetchViaApi(page, pageSize);
+    final body = <String, dynamic>{
+      'currpage': page,
+      'pagesize': pageSize,
+    };
+    final json = await _request(
+      path: '/race/race/stuRace/listStuRacePage',
+      data: body,
+    );
+    final result = RacePageResult.fromJson(json);
     DataCache().set(cacheKey, result);
     return result;
   }
 
-  /// 走 API 调用
-  Future<RacePageResult> _fetchViaApi(int page, int pageSize) async {
+  /// 拉取学科竞赛详情
+  Future<RaceDetail> fetchRaceDetail(String raceId) async {
+    final cacheKey = 'race_detail_$raceId';
+    final cached = DataCache().get<RaceDetail>(cacheKey);
+    if (cached != null) return cached;
+
+    final json = await _request(
+      path: '/race/race/stuRace/toRaceApply',
+      params: {'race_id': raceId},
+    );
+    final detail = RaceDetail.fromJson(json);
+    DataCache().set(cacheKey, detail);
+    return detail;
+  }
+
+  /// 通用 RACE API 请求
+  ///
+  /// - [path]: API 路径（不含域名）
+  /// - [data]: POST body 字典（可为 null）
+  /// - [params]: query string 字典（可为 null）
+  Future<Map<String, dynamic>> _request({
+    required String path,
+    Map<String, dynamic>? data,
+    Map<String, dynamic>? params,
+  }) async {
     final token = await getAuthToken();
     if (token == null || token.isEmpty) {
       throw Exception('未登录 scjx2，请先登录');
     }
 
-    final body = <String, dynamic>{
-      'currpage': page,
-      'pagesize': pageSize,
-    };
-
     final menuId = await LocalStorage.getString(_kMenuId) ?? '';
 
     // 构造签名头
     final headers = _signer.buildHeaders(
-      data: body,
+      data: data,
+      params: params,
       menuId: menuId,
       authorization: token,
     );
 
-    final uri = Uri.parse('$baseUrl/race/race/stuRace/listStuRacePage');
-    debugPrint('Race API: POST $uri page=$page pageSize=$pageSize');
+    // 拼 URL（带 query string）
+    final base = '$baseUrl$path';
+    final uri = params != null && params.isNotEmpty
+        ? Uri.parse(base).replace(queryParameters: {
+            for (final e in params.entries) e.key: e.value.toString(),
+          })
+        : Uri.parse(base);
+
+    debugPrint('Race API: POST $uri');
 
     final resp = await _client.postJson(
       uri,
-      body: body,
+      body: data ?? <String, dynamic>{},
       headers: headers,
     );
 
     if (resp.statusCode != 200) {
-      // 401 表示 token 过期，需要重新登录
       if (resp.statusCode == 401) {
         await clearAuthToken();
         throw Exception('登录已过期，请重新登录');
       }
-      throw Exception('学科竞赛接口失败 (HTTP ${resp.statusCode})');
+      throw Exception('RACE 接口失败 (HTTP ${resp.statusCode})');
     }
 
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final code = json['code'];
     if (code != 200) {
       final msg = json['msg']?.toString() ?? '未知错误';
-      // 401 业务码也表示 token 过期
-      if (code == 401 || resp.body.contains('未登录') || resp.body.contains('token')) {
+      if (code == 401 ||
+          resp.body.contains('未登录') ||
+          resp.body.contains('token')) {
         await clearAuthToken();
       }
-      throw Exception('学科竞赛接口错误: $msg');
+      throw Exception('RACE 接口错误: $msg');
     }
 
-    return RacePageResult.fromJson(json);
+    return json;
   }
 
   /// 通过 HeadlessInAppWebView 引导登录 zxcas，提取 JWT

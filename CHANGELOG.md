@@ -9,10 +9,15 @@
   - 新建 `race_signer.dart` 封装两个签名生成函数
   - `RaceService` 改用 `SharedHttpClient.postJson` + 自构造签名头直接调用 `listStuRacePage` 接口，不再依赖 WebView DOM 提取
   - 完整流程 Python 验证：返回 HTTP 200，totalCount=72，与前端数据一致
+- **学科竞赛详情页**：新建 `race_detail_page.dart`，点击列表项可进入详情
+  - 调 `toRaceApply?race_id=xxx` 接口获取完整信息
+  - 展示：竞赛名称、类型/级别/状态 Tag、教师信息、学院、主办单位、学年、是否分组、经费、子项列表、完整内容
+  - 下拉刷新、错误重试、未登录自动引导登录
 - **zxcas 引导登录**：新增 `RaceService.bootstrapLogin()`，首次进入学科竞赛或登录过期时启动 HeadlessInAppWebView 走 CAS SSO，登录成功后从 `window.sessionStorage.getItem('key1')` 提取 JWT 缓存到 `LocalStorage`，后续纯 API 调用无需可见 WebView
 
 ### 🎯 优化
 - **RaceService 完全重写**：去除原来复杂的「CAS SSO + Vue 路由跳转 + fetch 拦截器 + DOM 表格解析」长流程，改为「首次 WebView 登录 + 之后纯 HTTP API」的简洁方案
+- **zhxhsign 算法修正**：经端到端调试发现，前端 2fd1 模块中 `u()` 的 `n = {}` 是 module-level 赋值（非 var 声明），`m()` 写的是 module-level n，data 和 params 实际合并到同一个 map 计算签名
 - **调课/未安排课程独立页面**：新建 `course_changes_page.dart`，全屏页面替代原底部弹窗面板
   - 页面自带学期选择器，切换学期自动加载对应学期数据
   - Tab 式布局：调课/停课 + 未安排课程独立 Tab 切换

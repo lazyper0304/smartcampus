@@ -69,3 +69,152 @@ class RacePageResult {
     );
   }
 }
+
+/// 学科竞赛详情
+class RaceDetail {
+  final String id;
+  final String name;
+
+  /// 教师姓名
+  final String teacherName;
+
+  /// 教师工号
+  final String teacherNo;
+
+  /// 联系电话
+  final String mobile;
+
+  /// 学院名称
+  final String depName;
+
+  /// 学院代码
+  final String depCode;
+
+  /// 主办单位
+  final String hostDep;
+
+  /// 竞赛类型（A/B/C 类等）
+  final String typeName;
+
+  /// 级别（全国性/省级等）
+  final String levelHName;
+
+  /// 学年（如 2024-2025）
+  final String yearterm;
+
+  /// 比赛年份
+  final String year;
+
+  /// 报名开始时间
+  final String? beginTime;
+
+  /// 报名结束时间
+  final String? endTime;
+
+  /// 创建时间
+  final String creTime;
+
+  /// 更新时间
+  final String updateTime;
+
+  /// 详细描述/参赛须知
+  final String content;
+
+  /// 所需经费
+  final double outlay;
+
+  /// 是否可报名
+  final String havesub;
+
+  /// 发布状态
+  final String ispublishName;
+
+  /// 子项（多组别时）
+  final List<RaceSubItem> subs;
+
+  RaceDetail({
+    required this.id,
+    required this.name,
+    required this.teacherName,
+    required this.teacherNo,
+    required this.mobile,
+    required this.depName,
+    required this.depCode,
+    required this.hostDep,
+    required this.typeName,
+    required this.levelHName,
+    required this.yearterm,
+    required this.year,
+    required this.beginTime,
+    required this.endTime,
+    required this.creTime,
+    required this.updateTime,
+    required this.content,
+    required this.outlay,
+    required this.havesub,
+    required this.ispublishName,
+    required this.subs,
+  });
+
+  factory RaceDetail.fromJson(Map<String, dynamic> json) {
+    final subs = (json['subs'] as List? ?? [])
+        .map((e) => RaceSubItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return RaceDetail(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      teacherName: json['teacher_name']?.toString() ?? '',
+      teacherNo: json['teacher_no']?.toString() ?? '',
+      mobile: json['mobile']?.toString() ?? '',
+      depName: json['dep_name']?.toString() ?? '',
+      depCode: json['dep_code']?.toString() ?? '',
+      hostDep: json['host_dep']?.toString() ?? '',
+      typeName: json['type_name']?.toString() ?? '',
+      levelHName: json['level_h_name']?.toString() ?? '',
+      yearterm: json['yearterm']?.toString() ?? '',
+      year: json['year']?.toString() ?? '',
+      beginTime: json['begin_time']?.toString(),
+      endTime: json['end_time']?.toString(),
+      creTime: json['cre_time']?.toString() ?? '',
+      updateTime: json['update_time']?.toString() ?? '',
+      content: json['content']?.toString() ?? '',
+      outlay: (json['outlay'] as num?)?.toDouble() ?? 0.0,
+      havesub: json['havesub']?.toString() ?? '否',
+      ispublishName: json['ispublish_name']?.toString() ?? '',
+      subs: subs,
+    );
+  }
+}
+
+/// 竞赛子项（如分组别）
+class RaceSubItem {
+  final String id;
+  final String name;
+  final String raceId;
+  final String isteam;
+  final String isteamName;
+  final double entryfee;
+  final String? isPay;
+
+  RaceSubItem({
+    required this.id,
+    required this.name,
+    required this.raceId,
+    required this.isteam,
+    required this.isteamName,
+    required this.entryfee,
+    required this.isPay,
+  });
+
+  factory RaceSubItem.fromJson(Map<String, dynamic> json) {
+    return RaceSubItem(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      raceId: json['race_id']?.toString() ?? '',
+      isteam: json['isteam']?.toString() ?? '0',
+      isteamName: json['isteam_name']?.toString() ?? '',
+      entryfee: (json['entryfee'] as num?)?.toDouble() ?? 0.0,
+      isPay: json['is_pay']?.toString(),
+    );
+  }
+}
