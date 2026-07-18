@@ -455,6 +455,49 @@ class _CourseTablePageState extends State<CourseTablePage> {
     setState(() => _currentWeek = _todayWeek);
   }
 
+  void _showSemesterPicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: textHint(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text('选择学期', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            ..._semesters.map((s) => ListTile(
+                  title: Text(s.mc),
+                  trailing: s.dm == _selectedSemester
+                      ? Icon(Icons.check, color: accentColorNotifier.value)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (s.dm != _selectedSemester) {
+                      _switchSemester(s.dm);
+                    }
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showCourseDetail(Course course) {
     final dayLabels = ['', '一', '二', '三', '四', '五', '六', '日'];
     showModalBottomSheet(
@@ -715,13 +758,58 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
     return Column(
       children: [
-        // 顶部工具条
-        _isWeeklyView ? _buildWeekBar() : _buildSemesterBar(),
+        // 学期选择器（周课表/学期课表共享）
+        _buildSemesterSelector(),
+        // 周课表导航（仅周课表模式）
+        if (_isWeeklyView) _buildWeekBar(),
         // 主内容
         Expanded(
           child: _isWeeklyView ? _buildWeeklyView() : _buildSemesterView(),
         ),
       ],
+    );
+  }
+
+  /// 学期选择器（共享栏）
+  Widget _buildSemesterSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: dividerColor(context))),
+      ),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 8),
+            child: Text('学期', style: TextStyle(fontSize: 13, color: accentColorNotifier.value.withValues(alpha: 0.6))),
+          ),
+          if (_isLoadingSemester)
+            const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Expanded(
+              child: SmoothSelect<String>(
+                value: _selectedSemester,
+                hint: Text('选择学期', style: TextStyle(color: accentColorNotifier.value.withValues(alpha: 0.4))),
+                style: smoothStyle(context),
+                highlight: smoothHighlight(context),
+                menuMaxHeight: 300,
+                items: _semesters.map((s) {
+                  return SmoothSelectItem<String>(
+                    value: s.dm,
+                    child: Text(s.mc, style: TextStyle(color: textPrimary(context))),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  if (v != null) _switchSemester(v);
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1005,7 +1093,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
                           fontSize: 9 * textScale,
                           color: isToday
                               ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).scaffoldBackgroundColor,
+                              : Colors.black87,
                         ),
                       ),
                   ],
