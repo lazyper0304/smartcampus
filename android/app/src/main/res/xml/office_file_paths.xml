@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- getTemporaryDirectory() 在 Android 上映射到应用缓存目录，
+         不同 ROM / 构建可能落在内部或外部缓存，两者均覆盖整棵缓存树 -->
+    <cache-path
+        name="office_cache"
+        path="." />
+    <external-cache-path
+        name="office_ext_cache"
+        path="." />
+</paths>

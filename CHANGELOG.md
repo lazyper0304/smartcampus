@@ -1,5 +1,80 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### ✨ 新增
+- **办公网服务（原生解析，非 WebView）**：首页应用网格「服务」分类新增「办公网」入口，改用原生解析渲染，不再套壳 WebView
+  - 入口 `lib/office/office_home_page.dart`：以 Tab 形式呈现四个栏目（上级文件 / 党委系统 / 行政系统 / 教学教辅，对应 `b_id=14/15/16/17`）
+  - `lib/office/office_service.dart`：原生 HTTP 抓取 + **GBK 解码**（`gbk_codec`），正则解析列表与详情；`fetchColumn(bId, {offset})` 支持分页（`offset` 每页 +20），`_parseNextOffset()` 扫描分页栏判断是否存在下一页；结果缓存至 `DataCache`（TTL 1 天，按 `office_col_${bId}_${offset}` 分页缓存）
+    - 列表项分两类：`detail.asp?n_id=NN`（HTML 文章，原生解析标题/日期/作者/正文/附件）与 `showdoc.asp?id=NN`（直接返回 PDF 二进制流，视为文件）
+    - 详情正文容器为 `<td class="content">`，段落为 `<P>` 块，附件链接（.pdf/.docx 等）提取为可点击条目
+  - `lib/office/office_list_page.dart`：列表 UI（loading / error / 重试 / **上拉加载下一页（offset 每页 +20 无限滚动）** / 文件项以 PDF 图标标注）
+  - `lib/office/office_detail_page.dart`：详情 UI（标题 + 日期 + 作者 + 段落 + 附件卡片）
+  - 交互规则：`detail.asp` 文章 → 原生详情页；`showdoc.asp` 文件与详情附件 → 通过 `url_launcher` 调起外部应用/浏览器打开（不进入应用内 WebView）
+  - 目标站点 `http://off.yibinu.edu.cn` 为老式 ASP 架构、`gb2312` 编码、仅 http 明文、无 CAS 统一认证的公开办公门户
+  - iOS 端 `Info.plist` 已配置 `NSAppTransportSecurity` 例外放行 `off.yibinu.edu.cn` 的 http 明文加载；Android 端 `usesCleartextTraffic="true"` 已支持
+
+### ✨ 新增（办公网站内搜索）
+- **办公网站内搜索**：`OfficeService.search(keyword, {offset})` 调 `search.asp`，关键词按 **GBK 字节** 做百分号编码（`张` → `%D5%C5`，非 UTF-8），`Submit=%CB%D1`（查）为站点真实字节；结果 GBK 解码后按新正则解析（`<A HREF="detail.asp?n_id=NN">标题</A>` 后跟 `[YYYY-M-D]`，标题内 `<font color=red><b>关键词</b></font>` 高亮需去标签）
+  - 分页步长 **offset +15**（与栏目列表的 +20 不同）；`_parseNextOffset()` 泛化为同时匹配 `list_b.asp` 与 `search.asp` 分页栏、返回**真实**下一页 offset（不再写死步长）
+  - 新增 `lib/office/office_search_page.dart`：独立全屏搜索结果页（`SimplePage` + `Scaffold` + AppBar 内联搜索框，body 复用 `OfficeListPage(searchKeyword:)`）
+  - `lib/office/office_home_page.dart`：AppBar 增加搜索图标，点击弹输入框，确认后 push `OfficeSearchResultsPage`
+  - `lib/office/office_list_page.dart`：`OfficeListPage` 构造函数新增可选 `searchKeyword`（与 `bId` 二选一），`_load`/`_loadNextPage` 在搜索模式下改调 `search()`，卡片/滚动/分页 UI 完全复用
+  - 经 Python 实测：搜索 张 在 `offset=0 / 15` 返回不同 15 条、0 重叠，确认 +15 步长；GBK 编码与站点真实链接逐字节一致
+
+### ✨ 新增（办公网文件预览）
+- **办公网所有文件可点击预览**：新建 `lib/office/office_file_preview_page.dart` 作为统一文件预览入口，列表文件项（`showdoc.asp`）与详情页附件共用。
+  - **PDF（含 `showdoc.asp` 直接返回的二进制流）**：进入即自动下载到 `path_provider` 临时目录，用 `flutter_pdfview` 的 `PDFView(filePath:)` 在应用内渲染，支持翻页/缩放；AppBar 提供「用其他应用打开」入口。
+  - **DOCX / XLSX / PPT / ZIP / TXT 等**：移动端无可靠应用内渲染器，改为展示文件信息卡（类型图标 + 文件名 + 来源 URL）并提供「下载并用其他应用打开」按钮（`launchUrl` external，如 WPS）。
+  - 文件类型按扩展名判定（`_extensionOf` + `_typeLabel`/`_typeIcon`），`showdoc.asp` 默认视为 PDF；下载带进度显示与失败重试。
+- `lib/office/office_detail_page.dart`：附件卡片点击由直接 `launchUrl` 外部打开改为 push 预览页；移除不再使用的 `url_launcher` 导入。
+
+### ✨ 新增（第二课堂 · 独立登录）
+- **教务新增「第二课堂」入口**：`erke.yibinu.edu.cn` 与「智慧校园 / CAS」**完全独立**——独立账号密码登录、独立 JWT token，仅校园内网可访问，故入口卡同样挂「校园网」角标。
+  - 新建 `lib/second_classroom/erke_models.dart`：数据模型 `ErkeProfile`（学院/班级/姓名/学号）、`ErkeReportItem`（分类学分）、`ErkeTranscriptItem`（单条活动记录）、`ErkeTranscript`（汇总 + 按分类聚合）。
+  - 新建 `lib/second_classroom/erke_service.dart`：`ErkeService.login(username, password)` POST `prod-api/login`（JSON：`{"username":..,"password":..}`）返回 `token`；`fetchTranscript(username, token)` GET `prod-api/transcript/item/{username}` 带 `Authorization: Bearer <token>`，`401/403` 抛 `ErkeAuthExpiredException`。直接用 `http` 包（不经 CAS 的 `SharedHttpClient`）。
+  - 新建 `lib/second_classroom/erke_login_page.dart`：**独立登录页**（SimplePage + 学号/密码表单 + 显隐密码），成功后把 `token`/`username` 存入 `LocalStorage`（`erke_token`/`erke_username`），pop(true)。明确提示「与智慧校园相互独立、仅校园网可访问」。
+  - 新建 `lib/second_classroom/erke_page.dart`：主页读取本地 token 决定登录态；未登录/过期 → 居中引导卡「登录第二课堂」；已登录 → 学生信息卡（姓名/学院/班级 + 总学分 + 活动数）、分类学分网格（2×2）、活动明细按分类折叠（`SmoothExpansionTile`）。AppBar 提供「退出登录」清除 token。
+  - `lib/home/app_data.dart`：教务分类新增 `AppEntry(icon: Icons.assignment_ind_rounded, name: '第二课堂', badge: OfficeCampusCornerBadge(), pageBuilder: ErkeLoginPage)`（点击卡片直接进入登录页）。
+
+### 🎨 UI 优化（第二课堂登录页）
+- **点击卡片直接进登录页，去掉中间过渡页**：`app_data.dart` 第二课堂入口由 `ErkePage` 改为 `ErkeLoginPage`；登录成功用 `Navigator.pushReplacement(ErkePage)`（返回即退出模块，无中间页）；`ErkePage` 的 token 失效兜底（`_openLogin`）与「退出登录」也改为 `pushReplacement(ErkeLoginPage)`，杜绝页面堆叠。
+- **新增初始密码提示**：登录页加主题色描边提示框，明确「初始密码格式：学号 + @10641 + Yibin（例：240105118@10641Yibin）」。
+- **新增「记住密码」**：登录页加勾选框；勾选且登录成功 → 本地保存密码（`erke_password`）；取消 → 清除。进入登录页时若有已存密码则**自动预填账号密码但不自动登录**（用户仍需点「登录」）。「退出登录」仅清除 `erke_token`，保留已记住的账号密码，下次进入仍预填。
+- `flutter analyze lib/home/app_data.dart lib/second_classroom` → **No issues found**。
+
+### 🎨 UI 优化（办公网内网标识）
+- **办公网入口卡标注「校园网」标识**：办公网（off.yibinu.edu.cn）仅能在校内网/内网环境访问与打开。用户要求仅在该应用「服务」网格的**入口卡**上提示，故标识只加在入口卡，列表卡片与详情页不加。
+  - 新建 `lib/office/office_widgets.dart`：
+    - `OfficeCampusCornerBadge`：网格入口卡**右上角**的实心小胶囊（`Icons.lan_rounded` + 「校园网」白字），不占用卡片主体布局，跟随主题色。
+    - `OfficeCampusBadge`（行内胶囊，含 Tooltip「需连接校园内网（off.yibinu.edu.cn）才能访问」），暂未使用，保留备用。
+  - `lib/home/app_data.dart`：`AppEntry` 新增可选 `badge` 字段；办公网条目挂 `OfficeCampusCornerBadge()`。
+  - `lib/home/main_screen.dart`：`_buildAppCard` 用 `Stack` 包裹 `Card`，当 `entry.badge != null` 时在右上角（`top:4, right:4`）渲染该角标；顺手移除一处未使用的 `data_cache.dart` 导入。
+  - 回退：移除此前加在 `office_list_page.dart` 列表卡片与 `office_detail_page.dart` 详情页头部的 `OfficeCampusBadge`（用户要求只保留入口卡标识），并删除两文件对应的 `office_widgets` 导入。
+- `lib/office/office_list_page.dart`：文件项（`item.isFile`）点击由直接 `launchUrl` 改为 push 预览页；移除不再使用的 `url_launcher` 导入。
+
+### 🐛 Bug 修复（办公网文件预览页崩溃）
+- **`RenderFlex overflowed by 1140px` 崩溃**：预览页的错误态 `Column`（`_buildError`）为不可滚动的固定列，当错误信息较长时超出视口触发 Flutter 布局异常。`_buildOtherFile`（非 PDF 文件信息页）同理。
+  - 修复：`_buildError` 改为 `LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight)` 结构，内容超长时可滚动且短内容仍垂直居中；`_buildOtherFile` 外层 `Padding` 改为 `SingleChildScrollView`。
+- **PDF 原生 `result_code:408 / found=0` 加载失败**：根因是下载到的内容并非合法 PDF（服务端返回非 200 / HTML 错误页 / 空文件），但代码仍把该路径交给 `PDFView`，原生 PDF 引擎无法打开文件。
+  - 修复：`_download` 新增两道校验——① HTTP 状态码必须 `== 200`，否则抛友好错误；② PDF 写入后校验文件头 4 字节为 `%PDF` 且大小 `> 0`，不合法则抛「下载的内容不是有效的 PDF 文件（可能需校内网络访问权限，或链接已失效）」。校验失败不走 `PDFView`，从根本上避免原生崩溃。
+  - 顺带将本地临时文件名改为**纯 ASCII 时间戳**（`office_${micros}.pdf`），去掉中文路径，规避部分 Android 原生 PDF 引擎对 UTF-8 路径的拒绝（日志 `servname:(null)... found=0` 即文件打不开的表现）。
+- **`FileUriExposedException`（非 PDF 文件点开即崩）**：点 DOCX/XLSX/PPT/ZIP 等「下载并用其他应用打开」时，原直接用 `url_launcher` 以 `file://` URI 拉起外部应用，触发 Android 7+ 的 `FileUriExposedException`（日志 `file:///data/.../cache/office_xxx.docx exposed beyond app through Intent.getData()`）。
+  - 根因：Android 7+ 禁止通过 Intent 暴露 `file://` URI，必须经 `FileProvider` 包装为 `content://` 并授予 `FLAG_GRANT_READ_URI_PERMISSION`，而 `url_launcher` 不会加该权限。
+  - 修复：新增原生 `MethodChannel`（`com.smartcampus.smartcampus/file` 的 `openFile`）——在 `MainActivity.kt` 注册，内部用 `FileProvider.getUriForFile` 生成 `content://` 并带授权 flag 调起 `ACTION_VIEW`；`AndroidManifest.xml` 新增 `androidx.core.content.FileProvider` provider（`${applicationId}.fileprovider` + `res/xml/office_file_paths.xml`，覆盖内部与外部缓存目录）；Dart 侧 `_openFileWithSystem` 通过 channel 调用，并对 `NO_APP`（无 WPS 等）/ `NO_FILE` 给出友好提示。PDF 应用内渲染路径不受影响（flutter_pdfview 直接读本地路径，不走 Intent）。
+
+### 🐛 Bug 修复
+- **办公网分页 URL 补齐 `god` 参数**：原 `fetchColumn` 请求 `list_b.asp?b_id=XX&offset=N`（无 god）。实测服务端忽略 `god`、仅认 `offset`，但站点自身生成的链接均带 `&god=offset+1`。为彻底贴合站点链接格式、消除歧义，现请求 URL 显式携带 `&god=${offset+1}`。分页步进逻辑（`nextOffset = currentOffset + 20`，顺序翻页）经实测正确，无漏页/重复。
+- **办公网详情附件获取不到（两类根因）**：以 `detail.asp?n_id=35303` 为例，附件 `<a href="wordfile/2026file/关于张皓岚等结束任职试用期的通知.pdf">` 此前取不到。
+  - 根因①（漏检）：原解析只扫描 `<td class="content">` 内的 `<P>` 块，而该附件链接**直接裸置于 content td 内**（无 `<P>` 包裹），导致整条被跳过。现改为先对**整个 content td HTML** 全量扫描 `<A HREF>` 附件链接（按 href 去重），`<P>` 段落段仅抽取正文文本。
+  - 根因②（URL 未编码）：附件 href 含**原始中文路径**（`关于张皓岚等…pdf`），直接丢给 `launchUrl` 浏览器无法解析。新增 `_encodeUrl()` 对路径各段做 UTF-8 百分号编码（已编码段 `%XX` 跳过避免二次编码），`_resolve()` 统一经它返回，生成的 URL 与站点真实可打开链接逐字节一致（已 Python 校验：`wordfile/2026file/%E5%85%B3…pdf`）。
+  - 顺带去除 `_isAttachment()` 中重复的 `filedown` 判断行。
+
+## [1.0.9] - 2026-07-19
+
+### 🎯 优化
+- 版本号从 1.0.8 升级到 1.0.9（同步更新 `pubspec.yaml` / `VERSION` / `lib/core/version.dart` / `android/local.properties`，`versionCode` 由 1 递增至 2）
+
 ## [1.0.8] - 2026-07-18
 
 ### 🎯 优化

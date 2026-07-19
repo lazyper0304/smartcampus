@@ -9,6 +9,8 @@ import '../calendar/calendar_page.dart';
 import '../jiaocai/jiaocai_page.dart';
 import '../news/news_list_page.dart';
 import '../news/column_list_page.dart';
+import '../office/office_home_page.dart';
+import '../office/office_widgets.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
@@ -19,6 +21,7 @@ import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
 import '../vrmap/vrmap_page.dart';
 import '../race/race_page.dart';
+import '../second_classroom/erke_login_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -29,12 +32,15 @@ class AppEntry {
   final String name;
   final AppCategory category;
   final Widget Function(BuildContext, SharedHttpClient, String) pageBuilder;
+  /// 可选角标（如「校园网」内网标识），显示在网格入口卡的右上角
+  final Widget? badge;
 
   const AppEntry({
     required this.icon,
     required this.name,
     required this.category,
     required this.pageBuilder,
+    this.badge,
   });
 }
 
@@ -61,6 +67,9 @@ final List<AppEntry> allApps = [
     pageBuilder: (ctx, c, uid) => const DepartmentsPage()),
   AppEntry(icon: Icons.emoji_events_rounded, name: '学科竞赛', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => RacePage(client: c)),
+  AppEntry(icon: Icons.assignment_ind_rounded, name: '第二课堂', category: AppCategory.jiaowu,
+    badge: const OfficeCampusCornerBadge(),
+    pageBuilder: (ctx, c, uid) => const ErkeLoginPage()),
 
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,
@@ -75,6 +84,9 @@ final List<AppEntry> allApps = [
     pageBuilder: (ctx, c, uid) => const SafetyPage()),
   AppEntry(icon: Icons.map_rounded, name: 'VR地图', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const VrmapPage()),
+  AppEntry(icon: Icons.business_center_rounded, name: '办公网', category: AppCategory.service,
+    badge: const OfficeCampusCornerBadge(),
+    pageBuilder: (ctx, c, uid) => const OfficeHomePage()),
 
   // ── 资讯 ──
   AppEntry(icon: Icons.newspaper_rounded, name: '校园新闻', category: AppCategory.news,

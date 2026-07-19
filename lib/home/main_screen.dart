@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/theme_utils.dart';
-import '../core/data_cache.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
 import '../settings/settings_page.dart';
@@ -368,38 +367,50 @@ class _AppsPageState extends State<_AppsPage> {
         final page = entry.pageBuilder(context, widget.client, widget.userId);
         pushPage(context, page);
       },
-      child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: _accentBlue.withValues(alpha: 0.1)),
-          ),
-          child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: _accentBlue.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(entry.icon, color: _accentBlue, size: 20),
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: _accentBlue.withValues(alpha: 0.1)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _accentBlue.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      entry.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+                    child: Icon(entry.icon, color: _accentBlue, size: 20),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    entry.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
+            ),
+          ),
+          if (entry.badge != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: entry.badge!,
+            ),
+        ],
       ),
     );
   }
