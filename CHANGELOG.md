@@ -77,6 +77,10 @@
 - **注入器增强**：`Scjx2ApiService._injectEhallCookiesToWebView` 兜底扫描所有 cookie 桶确保 CASTGC 进入注入集合，并对 `CASTGC` 以 `isSecure:true` + `isHttpOnly:true` 注入（与学工注入器一致）。注入前后打印 `Scjx2: CASTGC present/missing` 便于验证。学工注入器（已带 `isSecure`）因此被顺带修好。
 - 验证：`flutter analyze lib/auth/cas_login_service.dart lib/scjx2/scjx2_api_service.dart` → No issues found。
 
+### 🐛 Bug 修复（首页「今日课程」误显示已结课周次的课程）
+- **根因**：`home_dashboard.dart` 的 `_todayWeek` 在 `initState` 被错误赋值为 `DateTime.now().weekday`（星期几，1-7），随后却被当作「教学周次」用于过滤 `c.weeks.contains(_todayWeek)`。学期进入第 21 周（`dqzc.do` 返回 `ZC=21`）后，真实教学周次 21 不在任何课程的 `weeks` 列表里，但星期的数字（如周三=3）几乎必然落在课程 `weeks`（通常 1-18）中，于是仍把当天课程当作「有课」显示。周课表页（`course_page.dart`）的同类变量 `_todayWeek` 正确取自 `fetchCurrentWeek().week`，唯独首页漏了这一步。
+- **修复**：`_loadTodayCourses` 先调用 `service.fetchCurrentWeek()` 取得真实教学周次（失败则回退为 0，仅按星期过滤），再按「`c.day == 今天星期` && `c.weeks.contains(真实教学周次)`」过滤。学期结束后第 21 周不再命中任何课程，正确显示「今天没有课程」。字段由误导性的 `_todayWeek` 重命名为 `_currentWeek`。
+
 ## [1.0.9] - 2026-07-19
 
 ### 🎯 优化

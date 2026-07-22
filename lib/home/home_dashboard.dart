@@ -37,12 +37,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
   List<NewsItem>? _newsItems;
   bool _isLoadingCourses = true;
   bool _isLoadingNews = true;
-  int _todayWeek = 0;
+  int _currentWeek = 0;
 
   @override
   void initState() {
     super.initState();
-    _todayWeek = DateTime.now().weekday;
     _loadData();
   }
 
@@ -61,15 +60,31 @@ class _HomeDashboardState extends State<HomeDashboard> {
         client: widget.client,
         userId: widget.userId,
       );
+      // 先获取真实当前教学周（来自 dqzc.do），用于按周次过滤。
+      // 注意：必须是「教学周次」而非「星期几」（DateTime.weekday 是 1-7）。
+      int currentWeek = 0;
+      try {
+        currentWeek = (await service.fetchCurrentWeek()).week;
+      } catch (_) {
+        currentWeek = 0;
+      }
       final courses = await service.fetchCourses();
       if (!mounted) return;
 
       final today = DateTime.now().weekday; // 1=Mon, 7=Sun
-      final todayCourses =
-          courses.where((c) => c.day == today && c.weeks.contains(_todayWeek)).toList();
+      final todayCourses = courses.where((c) {
+        // 先按星期几过滤
+        if (c.day != today) return false;
+        // 无法确定周次时回退为只按星期过滤（避免误显示空）；
+        // 否则必须命中当前教学周才显示。学期结束后的第 21 周不会命中，
+        // 从而正确显示「今天没有课程」。
+        if (currentWeek == 0) return true;
+        return c.weeks.contains(currentWeek);
+      }).toList();
 
       setState(() {
         _todayCourses = todayCourses;
+        _currentWeek = currentWeek;
         _isLoadingCourses = false;
       });
     } catch (_) {
@@ -161,9 +176,24 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         style: TextStyle(
                             fontSize: 17, fontWeight: FontWeight.bold)),
                   ),
-                  Text('周${['', '一', '二', '三', '四', '五', '六', '日'][DateTime.now().weekday]}',
-                      style: TextStyle(
-                          fontSize: 13, color: textSecondary(context))),
+                  Builder(builder: (context) {
+                    final weekdayLabel = [
+                      '',
+                      '一',
+                      '二',
+                      '三',
+                      '四',
+                      '五',
+                      '六',
+                      '日'
+                    ][DateTime.now().weekday];
+                    final weekLabel = _currentWeek > 0
+                        ? '第$_currentWeek周 · 周$weekdayLabel'
+                        : '周$weekdayLabel';
+                    return Text(weekLabel,
+                        style: TextStyle(
+                            fontSize: 13, color: textSecondary(context)));
+                  }),
                 ],
               ),
               const SizedBox(height: 16),
