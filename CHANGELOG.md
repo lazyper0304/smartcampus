@@ -70,6 +70,13 @@
   - 根因②（URL 未编码）：附件 href 含**原始中文路径**（`关于张皓岚等…pdf`），直接丢给 `launchUrl` 浏览器无法解析。新增 `_encodeUrl()` 对路径各段做 UTF-8 百分号编码（已编码段 `%XX` 跳过避免二次编码），`_resolve()` 统一经它返回，生成的 URL 与站点真实可打开链接逐字节一致（已 Python 校验：`wordfile/2026file/%E5%85%B3…pdf`）。
   - 顺带去除 `_isAttachment()` 中重复的 `filedown` 判断行。
 
+### 🐛 Bug 修复（学科竞赛 / 学工 SSO 多数失败、偶发成功）
+- **根因**：scjx2（学科竞赛）/ 学工 走 CAS SSO 自动登录，必须携带有效 `CASTGC`（TGC）authserver 才会放行；而 `CasLoginService` 全程用 `http://` 登录，浏览器 / HttpClient 会拒存 `Secure` 的 `CASTGC`，导致 WebView 永远停在 CAS 登录页（偶发成功仅因系统残留的历史 CASTGC）。
+  - 此前计划的「https 补登录捕获 CASTGC」方案从未落地，记忆中记为「已修复」与代码实际不符。
+- **修复**：`CasLoginService.login()` 在主流程（http）成功后，新增 https 补登录步骤（`_captureCastgcOverHttps`），用同一账号密码走一次完整 https 登录，从 302 响应的 `Set-Cookie: CASTGC=...; Secure; HttpOnly` 抓取 TGC；`SharedHttpClient._send` 自动解析并随 `saved_cookies` 持久化，同时显式落到 `yibinu.edu.cn` / `authserver.yibinu.edu.cn` 桶供注入器读取。该步骤包 try/catch，失败不影响 ehall 主流程。
+- **注入器增强**：`Scjx2ApiService._injectEhallCookiesToWebView` 兜底扫描所有 cookie 桶确保 CASTGC 进入注入集合，并对 `CASTGC` 以 `isSecure:true` + `isHttpOnly:true` 注入（与学工注入器一致）。注入前后打印 `Scjx2: CASTGC present/missing` 便于验证。学工注入器（已带 `isSecure`）因此被顺带修好。
+- 验证：`flutter analyze lib/auth/cas_login_service.dart lib/scjx2/scjx2_api_service.dart` → No issues found。
+
 ## [1.0.9] - 2026-07-19
 
 ### 🎯 优化

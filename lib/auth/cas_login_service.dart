@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:html/parser.dart' as html_parser;
 
@@ -168,6 +169,137 @@ class CasLoginService {
         },
       );
     } catch (_) {}
+    // ── 8. https 补登录：捕获 Secure 的 CASTGC（scjx2 / 学工 SSO 必需）──
+    // http 登录时客户端（HttpClient/浏览器）会拒存 Secure cookie，
+    // 故 authserver 下发的 CASTGC 永远拿不到 → scjx2/学工 无法 SSO 自动放行。
+    // 这里在同一账号下用 https 再跑一次完整登录，把 302 响应里的
+    // `Set-Cookie: CASTGC=...; Secure; HttpOnly` 写入 SharedHttpClient
+    // （_send 自动解析并随 saved_cookies 持久化），并显式落到注入器读取的桶。
+    // 失败不影响 ehall 主流程（仅 scjx2/学工 退化为手动登录）。
+    try {
+      await _captureCastgcOverHttps(username, password);
+    } catch (e) {
+      debugPrint('CAS https CASTGC capture failed (non-fatal): $e');
+    }
+  }
+
+  /// 用 https 再跑一次 CAS 登录，专门捕获 Secure 的 CASTGC（TGC）。
+  ///
+  /// http 登录时客户端（HttpClient/浏览器）会拒存 Secure cookie，
+  /// 故 authserver 下发的 CASTGC 永远到不了客户端；而 scjx2 / 学工 的
+  /// CAS SSO 必须携带有效 CASTGC 才能自动放行。
+  /// 本方法在同一账号密码下走一次完整 https 登录
+  /// （GET 登录页取隐藏字段/盐 → AES 加密 → POST noRedirect），
+  /// 302 响应里的 `Set-Cookie: CASTGC=...; Secure; HttpOnly` 会被
+  /// [SharedHttpClient._send] 自动解析并持久化；最后显式落到
+  /// `yibinu.edu.cn` / `authserver.yibinu.edu.cn` 桶，供注入器读取。
+  ///
+  /// 返回抓到的 CASTGC 值；未抓到返回 null。任何异常均向上抛出，
+  /// 由调用方 [login] 包 try/catch 兜底（不影响 ehall 主流程）。
+  Future<String?> _captureCastgcOverHttps(String username, String password) async {
+    const desktopUA =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    final uri = Uri.parse(yibinLoginUrl.replaceFirst('http://', 'https://'));
+    final host = uri.host; // authserver.yibinu.edu.cn
+
+    // 1. GET https 登录页（取隐藏字段 + 加密盐）
+    final resp = await client.get(uri, headers: _htmlHeaders(host, desktopUA));
+    final doc = html_parser.parse(resp.body);
+    final form = doc.getElementById('casLoginForm');
+    if (form == null) {
+      debugPrint('CASTGC capture: no casLoginForm on https login page');
+      return null;
+    }
+
+    // 2. 提取隐藏字段（lt / execution / _eventId 等）
+    final params = <String, String>{};
+    for (final input in form.getElementsByTagName('input')) {
+      final name = input.attributes['name'] ?? '';
+      if (name.isEmpty || name == 'rememberMe') continue;
+      var val = input.attributes['value'] ?? '';
+      if (name == 'username') val = username;
+      params[name] = val;
+    }
+
+    // 3. 获取加密盐（https）
+    String salt = 'E5b2IYX5TT1D79TA'; // 默认 fallback
+    final saltMatch =
+        RegExp(r'var pwdDefaultEncryptSalt = "(.+?)";').firstMatch(resp.body);
+    if (saltMatch != null) salt = saltMatch.group(1)!;
+    try {
+      final needResp = await client.get(
+        Uri.parse('https://$host/authserver/needCaptcha.html'
+            '?username=$username&pwdEncrypt2=pwdEncryptSalt'),
+        headers: _htmlHeaders(host, desktopUA),
+      );
+      if (needResp.body.contains('::::')) {
+        salt = needResp.body.split('::::')[1];
+      }
+    } catch (_) {
+      // 盐获取失败时沿用页面默认值
+    }
+
+    // 4. AES 加密密码
+    params['password'] = _encryptAES(password, salt);
+    params.remove('rememberMe');
+
+    // 5. POST（noRedirect）拿 302 里的 CASTGC；非 302 则走验证码重试
+    final captchaService = CaptchaService(client);
+    var postResp = await client.postForm(
+      uri,
+      body: params,
+      headers: _htmlHeaders(host, desktopUA),
+      noRedirect: true,
+    );
+
+    if (postResp.statusCode != 302) {
+      // 可能需要验证码：用 https 验证码地址走 OCR 重试
+      final httpsCaptchaUrl = 'https://$host/authserver/captcha.html';
+      for (int attempt = 0; attempt < 10; attempt++) {
+        try {
+          final code = await captchaService.recognize(captchaUrl: httpsCaptchaUrl);
+          params['captchaResponse'] = code;
+          final r = await client.postForm(
+            uri,
+            body: params,
+            headers: _htmlHeaders(host, desktopUA),
+            noRedirect: true,
+          );
+          if (r.statusCode == 302) {
+            postResp = r;
+            break;
+          }
+          if (r.body.contains('无效的验证码')) continue;
+          postResp = r;
+          break;
+        } catch (_) {
+          // OCR/网络异常则继续重试
+        }
+      }
+    }
+
+    // 6. 从客户端 cookie 存储中抓取 CASTGC（_send 已自动解析 Set-Cookie）
+    final all = client.getAllCookies();
+    String? castgc;
+    for (final bucket in all.values) {
+      final v = bucket['CASTGC'];
+      if (v != null && v.isNotEmpty) {
+        castgc = v;
+        break;
+      }
+    }
+
+    if (castgc != null && castgc.isNotEmpty) {
+      // 显式落到注入器读取的桶（无前导点，匹配 scjx2 / 学工）
+      client.setCookiesForDomain('yibinu.edu.cn', {'CASTGC': castgc});
+      client.setCookiesForDomain('authserver.yibinu.edu.cn', {'CASTGC': castgc});
+      debugPrint('CASTGC capture: found and persisted via https login');
+    } else {
+      debugPrint('CASTGC capture: NOT found after https login (status=${postResp.statusCode})');
+    }
+    return castgc;
   }
 
   /// 带验证码登录（最多重试 10 次）

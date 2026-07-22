@@ -426,21 +426,38 @@ class Scjx2ApiService {
       // authserver 自己产生的 cookie 也可能有
       final authCookies = allCookies['authserver.yibinu.edu.cn'] ?? {};
 
+      // 兜底：CASTGC 可能落在带前导点的桶(.yibinu.edu.cn)或其他桶，
+      // 必须确保它进入注入集合（authserver 凭 CASTGC 才放行 SSO）。
+      String? castgc;
+      for (final bucket in allCookies.values) {
+        final v = bucket['CASTGC'];
+        if (v != null && v.isNotEmpty) {
+          castgc = v;
+          break;
+        }
+      }
+
       // 合并：yibinu 父域 cookie 优先
       final merged = <String, String>{};
       merged.addAll(yibinuCookies);
       merged.addAll(ehallCookies);
       merged.addAll(authCookies);
+      if (castgc != null && castgc.isNotEmpty) {
+        merged['CASTGC'] = castgc;
+      }
 
       if (merged.isEmpty) {
         debugPrint('Scjx2: no ehall cookies to inject (user not logged in)');
         return;
       }
 
-      debugPrint('Scjx2: injecting ${merged.length} cookies to WebView');
+      debugPrint('Scjx2: injecting ${merged.length} cookies to WebView'
+          '${castgc != null && castgc.isNotEmpty ? " (CASTGC present)" : " (CASTGC missing)"}');
       int ok = 0;
       for (final e in merged.entries) {
-        // 注入到 .yibinu.edu.cn（父域）让 authserver / scjx2 都能用
+        // CASTGC 是 Secure/HttpOnly 的 TGC，必须带 isSecure 注入，
+        // 否则 WebView 在 https 请求 authserver 时不会携带它 → SSO 失败。
+        final isCastgc = e.key == 'CASTGC';
         try {
           await cookieManager.setCookie(
             url: WebUri('https://authserver.yibinu.edu.cn'),
@@ -448,6 +465,8 @@ class Scjx2ApiService {
             value: e.value,
             domain: '.yibinu.edu.cn',
             path: '/',
+            isSecure: isCastgc,
+            isHttpOnly: isCastgc,
           );
           ok++;
         } catch (err) {
@@ -455,6 +474,7 @@ class Scjx2ApiService {
         }
       }
       debugPrint('Scjx2: injected $ok/${merged.length} cookies');
+      debugPrint('Scjx2: CASTGC ${castgc != null && castgc.isNotEmpty ? "present" : "missing"}');
 
       // 验证一下 authserver 域的 cookie 是否真的写入了
       final verify = await cookieManager.getCookies(
