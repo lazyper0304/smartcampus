@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/http_client.dart';
 import '../course/course_page.dart';
+import '../course/all_class_schedule_page.dart';
 import '../exam/exam_page.dart';
 import '../grade/score_page.dart';
 import '../graduation/graduation_page.dart';
@@ -49,6 +50,8 @@ final List<AppEntry> allApps = [
   // ── 教务 ──
   AppEntry(icon: Icons.calendar_month_rounded, name: '课程表', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => CourseTablePage(client: c, userId: uid)),
+  AppEntry(icon: Icons.groups_rounded, name: '全校课表', category: AppCategory.jiaowu,
+    pageBuilder: (ctx, c, uid) => AllClassSchedulePage(client: c, userId: uid)),
   AppEntry(icon: Icons.assessment_rounded, name: '成绩查询', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => ScorePage(client: c, userId: uid)),
   AppEntry(icon: Icons.event_note_rounded, name: '考试安排', category: AppCategory.jiaowu,

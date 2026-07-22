@@ -18,7 +18,7 @@ String formatPeriodTime(int period, {bool short = false}) {
   final times = periodTimeRanges[period];
   if (times == null) return period.toString();
   if (short) {
-    return '${times[0]}';
+    return times[0];
   }
   return '${times[0]}-${times[1]}';
 }
@@ -397,4 +397,196 @@ class CurrentWeekInfo {
   final DateTime firstMonday;
 
   CurrentWeekInfo({required this.week, required this.firstMonday});
+}
+
+/// 全校班级（kcbcx / bjkcb 模块 bjcx.do 返回）
+class SchoolClass {
+  final String bjdm; // 班级代码
+  final String bjmc; // 班级名称，如 "计算机学院25级15班"
+  final String yxdm; // 学院代码
+  final String yxmc; // 学院名称（YXDM_DISPLAY）
+  final String zydm; // 专业代码
+  final String zymc; // 专业名称（ZYDM_DISPLAY）
+  final String nj; // 年级，如 "2025"
+  final String njDisplay; // 年级显示，如 "2025级"
+  final int sjrs; // 实际人数
+  final int csrs; // 人数（容量）
+  final bool sfypk; // 是否已排课
+
+  const SchoolClass({
+    required this.bjdm,
+    required this.bjmc,
+    this.yxdm = '',
+    this.yxmc = '',
+    this.zydm = '',
+    this.zymc = '',
+    this.nj = '',
+    this.njDisplay = '',
+    this.sjrs = 0,
+    this.csrs = 0,
+    this.sfypk = false,
+  });
+
+  factory SchoolClass.fromJson(Map<String, dynamic> json) {
+    final sfypkRaw = json['SFYPK'];
+    return SchoolClass(
+      bjdm: json['BJDM']?.toString() ?? '',
+      bjmc: json['BJMC']?.toString() ?? '',
+      yxdm: json['YXDM']?.toString() ?? '',
+      yxmc: json['YXDM_DISPLAY']?.toString() ?? '',
+      zydm: json['ZYDM']?.toString() ?? '',
+      zymc: json['ZYDM_DISPLAY']?.toString() ?? '',
+      nj: json['NJ']?.toString() ?? '',
+      njDisplay: json['NJ_DISPLAY']?.toString() ?? '',
+      sjrs: int.tryParse(json['SJRS']?.toString() ?? '0') ?? 0,
+      csrs: int.tryParse(json['CSRS']?.toString() ?? '0') ?? 0,
+      sfypk: sfypkRaw == 1 || sfypkRaw?.toString() == '1',
+    );
+  }
+}
+
+/// 班级课表学期信息（cxxljc.do 返回）：总周次 + 开学日期
+class ClassSemesterInfo {
+  final int totalWeeks; // 总教学周次（ZZC）
+  final String startDateStr; // 开学日期字符串，如 "2026-03-06 00:00:00"
+
+  const ClassSemesterInfo({this.totalWeeks = 0, this.startDateStr = ''});
+}
+
+/// 班级调/停/补课程记录（bjkcb 模块 bjdkkc.do 返回）
+class ClassCourseChange {
+  final String courseName;
+  final String changeType; // 调课 / 停课 / 补课
+  final String teacher; // 生效教师（新值优先）
+  final String room; // 生效教室（新值优先）
+  final int day; // 生效星期（1-7，新值优先）
+  final List<int> sections; // 生效节次
+  final List<int> weeks; // 生效周次
+  final String weekText; // 生效周次文本（如 "6周" / "15-18周"）
+  final String? originalWeekText;
+  final String? originalRoom;
+  final String? originalTeacher;
+  final String? newRoom;
+  final String? newTeacher;
+
+  const ClassCourseChange({
+    required this.courseName,
+    required this.changeType,
+    this.teacher = '',
+    this.room = '',
+    this.day = 0,
+    this.sections = const [],
+    this.weeks = const [],
+    this.weekText = '',
+    this.originalWeekText,
+    this.originalRoom,
+    this.originalTeacher,
+    this.newRoom,
+    this.newTeacher,
+  });
+
+  String get sectionRangesCompact {
+    if (sections.isEmpty) return '';
+    final sorted = [...sections]..sort();
+    final ranges = <String>[];
+    int? start;
+    int? prev;
+    for (final s in sorted) {
+      if (start == null) {
+        start = s;
+        prev = s;
+      } else if (s == prev! + 1) {
+        prev = s;
+      } else {
+        ranges.add(start == prev ? '$start' : '$start-$prev');
+        start = s;
+        prev = s;
+      }
+    }
+    if (start != null) {
+      ranges.add(start == prev ? '$start' : '$start-$prev');
+    }
+    return ranges.map((r) => '$r节').join(',');
+  }
+
+  factory ClassCourseChange.fromJson(Map<String, dynamic> json) {
+    final type = json['TKLXDM_DISPLAY']?.toString() ?? '';
+
+    final newDay = int.tryParse(json['XSKXQ']?.toString() ?? '0') ?? 0;
+    final day = newDay > 0
+        ? newDay
+        : int.tryParse(json['SKXQ']?.toString() ?? '0') ?? 0;
+
+    final ksjc = int.tryParse(
+        json['XKSJC']?.toString().isNotEmpty == true
+            ? json['XKSJC'].toString()
+            : json['KSJC']?.toString() ?? '0') ??
+        0;
+    final jsjc = int.tryParse(
+        json['XJSJC']?.toString().isNotEmpty == true
+            ? json['XJSJC'].toString()
+            : json['JSJC']?.toString() ?? '0') ??
+        0;
+    final sections = <int>[];
+    for (int s = ksjc; s <= jsjc && s > 0; s++) {
+      sections.add(s);
+    }
+
+    final newBitmap =
+        json['XSKZC']?.toString().isNotEmpty == true ? json['XSKZC'].toString() : null;
+    final bitmap = newBitmap ?? json['SKZC']?.toString() ?? '';
+    final weeks = <int>[];
+    if (bitmap.isNotEmpty && RegExp(r'^[01]+$').hasMatch(bitmap)) {
+      for (int i = 0; i < bitmap.length; i++) {
+        if (bitmap[i] == '1') weeks.add(i + 1);
+      }
+    } else {
+      final txt = (json['XZCMC']?.toString().isNotEmpty == true
+              ? json['XZCMC'].toString()
+              : json['ZCMC']?.toString() ?? '')
+          .replaceAll('周', '');
+      for (final part in txt.split(',')) {
+        final clean = part.trim();
+        if (clean.contains('-')) {
+          final range = clean.replaceAll(RegExp(r'[^\d\-]'), '').split('-');
+          if (range.length == 2) {
+            final start = int.tryParse(range[0]) ?? 1;
+            final end = int.tryParse(range[1]) ?? start;
+            for (int w = start; w <= end; w++) {
+              weeks.add(w);
+            }
+          }
+        } else if (clean.isNotEmpty) {
+          final w = int.tryParse(clean.replaceAll(RegExp(r'\D'), ''));
+          if (w != null) weeks.add(w);
+        }
+      }
+    }
+
+    final weekText = (json['XZCMC']?.toString().isNotEmpty == true
+            ? json['XZCMC'].toString()
+            : json['ZCMC']?.toString() ?? '');
+    final teacher = (json['XSKJS']?.toString().isNotEmpty == true
+            ? json['XSKJS'].toString()
+            : json['YSKJS']?.toString() ?? '');
+    final room = (json['XJASMC']?.toString().isNotEmpty == true
+            ? json['XJASMC'].toString()
+            : json['JASMC']?.toString() ?? '');
+
+    return ClassCourseChange(
+      courseName: json['KCM']?.toString() ?? '',
+      changeType: type,
+      teacher: teacher,
+      room: room,
+      day: day,
+      sections: sections,
+      weeks: weeks,
+      weekText: weekText,
+      originalWeekText: json['ZCMC']?.toString(),
+      originalRoom: json['JASMC']?.toString(),
+      originalTeacher: json['YSKJS']?.toString(),
+      newRoom: json['XJASMC']?.toString(),
+      newTeacher: json['XSKJS']?.toString(),
+    );
+  }
 }

@@ -448,6 +448,323 @@ class CourseService {
   /// 引导登录 scjx2（实验教学需要）
   Future<bool> bootstrapScjx2() => _scjx2.bootstrapLogin();
 
+  // ==================== 全校课表查询（kcbcx / bjkcb 模块） ====================
+
+  /// 当前学期代码（对外可读）
+  String get defaultXnxqdm => _calcXnxqdm();
+
+  /// 建立 kcbcx（全校课表查询）模块会话
+  ///
+  /// 与 wdkb 模块类似：先走入口分组列表（appId=4766960573884517），
+  /// 再 GET kcbcx 首页以建立模块级会话（后续 POST 需要）。
+  Future<void> ensureKcbcxSession() async {
+    final host = _host;
+    try {
+      final resp = await client.get(
+        Uri.parse('$baseUrl/appMultiGroupEntranceList'
+            '?r_t=${DateTime.now().millisecondsSinceEpoch}'
+            '&appId=4766960573884517&param='),
+        headers: {
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'Host': host,
+          'Referer':
+              '$baseUrl/jwapp/sys/kcbcx/*default/index.do',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      );
+      if (resp.statusCode == 200) {
+        final j = jsonDecode(resp.body) as Map<String, dynamic>;
+        final data = j['data'];
+        if (data is Map) {
+          final gl = data['groupList'];
+          if (gl is List && gl.isNotEmpty) {
+            final first = gl[0];
+            if (first is Map) {
+              final targetUrl = first['targetUrl']?.toString();
+              if (targetUrl != null && targetUrl.isNotEmpty) {
+                await client.get(Uri.parse(targetUrl));
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    try {
+      await client.get(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/*default/index.do'),
+        headers: {
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+          'Host': host,
+          'Upgrade-Insecure-Requests': '1',
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// 获取全校班级列表（bjcx.do）
+  ///
+  /// 默认 pageSize=200 循环拉取全量并缓存，便于客户端搜索/学院筛选。
+  Future<List<SchoolClass>> fetchAllClasses({
+    String? xnxqdm,
+    int pageSize = 200,
+    bool forceRefresh = false,
+  }) async {
+    xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'all_classes_$xnxqdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<SchoolClass>>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    await ensureKcbcxSession();
+
+    final classes = <SchoolClass>[];
+    int page = 1;
+    int total = 0;
+    while (true) {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/bjcx.do'),
+        body: {
+          'XNXQDM': xnxqdm,
+          'SFSY': '1',
+          'SFYPK': '1',
+          '*order': '-NJ,+YXPX,+ZYPX,+PX',
+          'pageSize': pageSize.toString(),
+          'pageNumber': page.toString(),
+        },
+        headers: _formHeadersKcbcx(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode != 200) break;
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (json['code']?.toString() != '0') break;
+      final datas = json['datas'];
+      if (datas is! Map) break;
+      final module = datas['bjcx'];
+      if (module is! Map) break;
+      final rows = module['rows'];
+      if (rows is! List || rows.isEmpty) break;
+      classes.addAll(rows
+          .map((r) => SchoolClass.fromJson(r as Map<String, dynamic>)));
+      total = int.tryParse(module['totalSize']?.toString() ?? '0') ?? 0;
+      if (classes.length >= total) break;
+      page++;
+    }
+    DataCache().set(cacheKey, classes);
+    return classes;
+  }
+
+  /// 获取指定班级的周课表（bjkcb.do）
+  ///
+  /// 返回的 row 字段（SKZC/SKXQ/KSJC/JSJC/KCM/SKJS/JASMC）与
+  /// [Course.fromJson] 完全兼容，直接复用。
+  Future<List<Course>> fetchClassSchedule({
+    required String bjdm,
+    String? xnxqdm,
+    bool forceRefresh = false,
+  }) async {
+    xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'class_schedule_${xnxqdm}_$bjdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<Course>>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    await ensureKcbcxSession();
+    final resp = await client.postForm(
+      Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/bjkcb.do'),
+      body: {'XNXQDM': xnxqdm, 'BJDM': bjdm},
+      headers: _formHeadersKcbcx(host),
+      noRedirect: true,
+    );
+    if (resp.statusCode == 302) {
+      throw Exception('会话已过期，请重新登录（HTTP 302）');
+    }
+    if (resp.statusCode != 200) {
+      throw Exception('获取班级课表失败：HTTP ${resp.statusCode}');
+    }
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (json['code']?.toString() != '0') {
+      throw Exception('API 返回错误：${json['code']}');
+    }
+    final datas = json['datas'];
+    if (datas is! Map) return [];
+    final module = datas['bjkcb'];
+    if (module is! Map) return [];
+    final rows = module['rows'];
+    if (rows is! List) return [];
+    final courses = <Course>[];
+    for (int i = 0; i < rows.length; i++) {
+      courses.add(Course.fromJson(rows[i] as Map<String, dynamic>,
+          colorIndex: i));
+    }
+    DataCache().set(cacheKey, courses);
+    return courses;
+  }
+
+  /// 获取班级未排课程（bjwpkc.do）：仅有课程信息，无具体时间地点
+  Future<List<UnarrangedCourse>> fetchClassUnarranged({
+    required String bjdm,
+    String? xnxqdm,
+    bool forceRefresh = false,
+  }) async {
+    xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'class_unarranged_${xnxqdm}_$bjdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<UnarrangedCourse>>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    await ensureKcbcxSession();
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/bjwpkc.do'),
+        body: {'XNXQDM': xnxqdm, 'BJDM': bjdm},
+        headers: _formHeadersKcbcx(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode != 200) return [];
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'];
+      if (datas is! Map) return [];
+      final module = datas['bjwpkc'];
+      if (module is! Map) return [];
+      final rows = module['rows'];
+      if (rows is! List) return [];
+      final result = rows
+          .map((r) => UnarrangedCourse.fromJson(r as Map<String, dynamic>))
+          .toList();
+      DataCache().set(cacheKey, result);
+      return result;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 获取班级调/停/补课程记录（bjdkkc.do）
+  Future<List<ClassCourseChange>> fetchClassChanges({
+    required String bjdm,
+    String? xnxqdm,
+    bool forceRefresh = false,
+  }) async {
+    xnxqdm ??= _calcXnxqdm();
+    final cacheKey = 'class_changes_${xnxqdm}_$bjdm';
+    if (!forceRefresh) {
+      final cached = DataCache().get<List<ClassCourseChange>>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    await ensureKcbcxSession();
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/bjdkkc.do'),
+        body: {'XNXQDM': xnxqdm, 'BJDM': bjdm},
+        headers: _formHeadersKcbcx(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode != 200) return [];
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final datas = json['datas'];
+      if (datas is! Map) return [];
+      final module = datas['bjdkkc'];
+      if (module is! Map) return [];
+      final rows = module['rows'];
+      if (rows is! List) return [];
+      final result = rows
+          .map((r) => ClassCourseChange.fromJson(r as Map<String, dynamic>))
+          .toList();
+      DataCache().set(cacheKey, result);
+      return result;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 获取班级课表学期信息：总周次 + 开学日期（cxxljc.do，xskcb 模块）
+  Future<ClassSemesterInfo> fetchClassSemesterInfo(String xnxqdm,
+      {bool forceRefresh = false}) async {
+    const cacheKey = 'class_semester_info';
+    if (!forceRefresh) {
+      final cached = DataCache().get<ClassSemesterInfo>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    final xnq = _parseXnxq(xnxqdm);
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/xskcb/cxxljc.do'),
+        body: {'XN': xnq[0], 'XQ': xnq[1]},
+        headers: _formHeadersKcbcx(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body) as Map<String, dynamic>;
+        final datas = json['datas'];
+        if (datas is Map) {
+          final m = datas['cxxljc'];
+          if (m is Map) {
+            final rows = m['rows'];
+            if (rows is List && rows.isNotEmpty) {
+              final row = rows[0] as Map<String, dynamic>;
+              final info = ClassSemesterInfo(
+                totalWeeks:
+                    int.tryParse(row['ZZC']?.toString() ?? '0') ?? 0,
+                startDateStr: row['XQKSRQ']?.toString() ?? '',
+              );
+              DataCache().set(cacheKey, info);
+              return info;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return const ClassSemesterInfo();
+  }
+
+  /// 获取当前教学周次（dqzc.do，bjkcb 模块），用于班级课表默认高亮
+  Future<int> fetchClassCurrentWeek(String xnxqdm,
+      {bool forceRefresh = false}) async {
+    const cacheKey = 'class_current_week';
+    if (!forceRefresh) {
+      final cached = DataCache().get<int>(cacheKey);
+      if (cached != null) return cached;
+    }
+    final host = _host;
+    final xnq = _parseXnxq(xnxqdm);
+    final today = DateTime.now();
+    try {
+      final resp = await client.postForm(
+        Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/dqzc.do'),
+        body: {
+          'XN': xnq[0],
+          'XQ': xnq[1],
+          'RQ': '${today.year}-${today.month}-${today.day}',
+        },
+        headers: _formHeadersKcbcx(host),
+        noRedirect: true,
+      );
+      if (resp.statusCode == 200) {
+        final json = jsonDecode(resp.body) as Map<String, dynamic>;
+        final datas = json['datas'];
+        if (datas is Map) {
+          final m = datas['dqzc'];
+          if (m is Map) {
+            final rows = m['rows'];
+            if (rows is List && rows.isNotEmpty) {
+              final zc = int.tryParse(
+                      (rows[0] as Map)['ZC']?.toString() ?? '0') ??
+                  1;
+              DataCache().set(cacheKey, zc);
+              return zc;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return 1;
+  }
+
   // ==================== 内部工具 ====================
 
   Future<HttpResponse?> _silentPost(
@@ -517,6 +834,16 @@ class CourseService {
         'Origin': 'https://ehall.yibinu.edu.cn',
         'Referer':
             'https://ehall.yibinu.edu.cn/jwapp/sys/wdkb/*default/index.do',
+        'X-Requested-With': 'XMLHttpRequest',
+      };
+
+  /// kcbcx 模块的表单请求头（Referer 指向 kcbcx 首页）
+  Map<String, String> _formHeadersKcbcx(String host) => {
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Host': host,
+        'Origin': 'https://ehall.yibinu.edu.cn',
+        'Referer':
+            'https://ehall.yibinu.edu.cn/jwapp/sys/kcbcx/*default/index.do',
         'X-Requested-With': 'XMLHttpRequest',
       };
 

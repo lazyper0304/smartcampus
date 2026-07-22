@@ -29,6 +29,15 @@
   - 文件类型按扩展名判定（`_extensionOf` + `_typeLabel`/`_typeIcon`），`showdoc.asp` 默认视为 PDF；下载带进度显示与失败重试。
 - `lib/office/office_detail_page.dart`：附件卡片点击由直接 `launchUrl` 外部打开改为 push 预览页；移除不再使用的 `url_launcher` 导入。
 
+### ✨ 新增（全校课表查询）
+- **教务新增「全校课表」入口**：浏览/搜索全校所有班级并查看其周课表、未排课程、调停补记录。对应 ehall 教务 `kcbcx`（课程表查询）应用、`bjkcb`（班级课表）模块，入口 `appId=4766960573884517`。
+  - 新建 `lib/course/course.dart` 数据模型：`SchoolClass`（班级，解析 `BJDM`/`BJMC`/`YXDM_DISPLAY`/`ZYDM_DISPLAY`/`NJ`/`SJRS`/`CSRS`/`SFYPK`）、`ClassSemesterInfo`（学期信息，`totalWeeks`←`ZZC`、`startDateStr`←`XQKSRQ`）、`ClassCourseChange`（调停补记录，字段优先级「新值 > 旧值」：`XSKXQ`/`XSKZC`/`XSKJS`/`XJASMC` 存在时优先，否则 `SKXQ`/`SKZC`/`YSKJS`/`JASMC`）。
+  - 新建 `lib/course/course_service.dart` kcbcx 模块方法：`ensureKcbcxSession()`（appId 入口流程 + kcbcx 首页 GET）、`fetchAllClasses()`（循环分页全量拉取 `bjcx.do`，缓存 `all_classes_$xnxqdm`）、`fetchClassSchedule()`（`bjkcb.do`，复用现有 `Course.fromJson`，缓存 `class_schedule_${xnxqdm}_$bjdm`）、`fetchClassUnarranged()`（`bjwpkc.do`）、`fetchClassChanges()`（`bjdkkc.do`）、`fetchClassSemesterInfo()`（`cxxljc.do`）、`fetchClassCurrentWeek()`（`dqzc.do`）；新增 `_formHeadersKcbcx(host)` 头构造器（Referer 指向 kcbcx 首页）。
+  - 抽出可复用课表网格组件 `lib/course/course_grid.dart`：导出 `kDayLabels`、`generateCourseColors`、`tagBadgeColor`、`showCourseDetailSheet`、`CourseWeekBar`；`CourseScheduleGrid`（按当前周过滤的课程列表渲染周网格，含表头/背景行/卡片/滑动切周），供个人课表页与全校课表页共用。
+  - 重构 `lib/course/course_page.dart`：删除私有的网格/配色/详情逻辑，改用 `CourseScheduleGrid`（个人课表 UI 与行为不变）。
+  - 新建 `lib/course/all_class_schedule_page.dart`：列表态（学期选择 + 搜索框 + 学院筛选 chips + 班级卡片显示已排课/未排课与人数）；详情态（点进班级并行拉取课表/未排课/调停补/学期信息/当前周 → `CourseWeekBar` + `CourseScheduleGrid` + 未排课程列表 + 调停补列表）。
+  - `lib/home/app_data.dart`：教务分类新增 `AppEntry(icon: Icons.groups_rounded, name: '全校课表', pageBuilder: AllClassSchedulePage)`。
+
 ### ✨ 新增（第二课堂 · 独立登录）
 - **教务新增「第二课堂」入口**：`erke.yibinu.edu.cn` 与「智慧校园 / CAS」**完全独立**——独立账号密码登录、独立 JWT token，仅校园内网可访问，故入口卡同样挂「校园网」角标。
   - 新建 `lib/second_classroom/erke_models.dart`：数据模型 `ErkeProfile`（学院/班级/姓名/学号）、`ErkeReportItem`（分类学分）、`ErkeTranscriptItem`（单条活动记录）、`ErkeTranscript`（汇总 + 按分类聚合）。
@@ -64,6 +73,7 @@
   - 修复：新增原生 `MethodChannel`（`com.smartcampus.smartcampus/file` 的 `openFile`）——在 `MainActivity.kt` 注册，内部用 `FileProvider.getUriForFile` 生成 `content://` 并带授权 flag 调起 `ACTION_VIEW`；`AndroidManifest.xml` 新增 `androidx.core.content.FileProvider` provider（`${applicationId}.fileprovider` + `res/xml/office_file_paths.xml`，覆盖内部与外部缓存目录）；Dart 侧 `_openFileWithSystem` 通过 channel 调用，并对 `NO_APP`（无 WPS 等）/ `NO_FILE` 给出友好提示。PDF 应用内渲染路径不受影响（flutter_pdfview 直接读本地路径，不走 Intent）。
 
 ### 🐛 Bug 修复
+- **全校课表列表态「无法切换学期」**：`AllClassSchedulePage._loadSemestersAndClasses()` 内部无条件执行 `_listXnxqdm = _service.defaultXnxqdm`，覆盖掉学期选择 `onChanged` 刚写入的 `_listXnxqdm = v`，下拉框选完即被重置回默认学期，表现为「无法切换」。修复：方法新增可选 `xnxqdm` 参数，仅首次（`_listXnxqdm` 为空）回落默认值；`onChanged` 改为 `if (v != null) _loadSemestersAndClasses(xnxqdm: v)`。详情态 `_buildDetailSemesterBar` 逻辑本身正确（设 `_detailXnxqdm` 后调 `_openClass`，无重置），不受影响。
 - **办公网分页 URL 补齐 `god` 参数**：原 `fetchColumn` 请求 `list_b.asp?b_id=XX&offset=N`（无 god）。实测服务端忽略 `god`、仅认 `offset`，但站点自身生成的链接均带 `&god=offset+1`。为彻底贴合站点链接格式、消除歧义，现请求 URL 显式携带 `&god=${offset+1}`。分页步进逻辑（`nextOffset = currentOffset + 20`，顺序翻页）经实测正确，无漏页/重复。
 - **办公网详情附件获取不到（两类根因）**：以 `detail.asp?n_id=35303` 为例，附件 `<a href="wordfile/2026file/关于张皓岚等结束任职试用期的通知.pdf">` 此前取不到。
   - 根因①（漏检）：原解析只扫描 `<td class="content">` 内的 `<P>` 块，而该附件链接**直接裸置于 content td 内**（无 `<P>` 包裹），导致整条被跳过。现改为先对**整个 content td HTML** 全量扫描 `<A HREF>` 附件链接（按 href 去重），`<P>` 段落段仅抽取正文文本。
