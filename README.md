@@ -63,7 +63,6 @@
 - **url_launcher** —— 拉起外部应用（QQ、`mqqapi://` 协议、电话等）
 - **CAS 单点登录 + Cookie 会话管理** —— 统一认证登录
 - **本地存储** —— 账号凭据、会话 Cookie、游客态标记均仅存于本机
-- （Android）**深信服 aTrust VPN SDK** —— 校园内网访问
 
 ---
 
