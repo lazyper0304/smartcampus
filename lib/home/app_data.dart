@@ -12,6 +12,7 @@ import '../news/news_list_page.dart';
 import '../news/column_list_page.dart';
 import '../office/office_home_page.dart';
 import '../office/office_widgets.dart';
+import '../news/webview_page.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
@@ -35,6 +36,8 @@ class AppEntry {
   final Widget Function(BuildContext, SharedHttpClient, String) pageBuilder;
   /// 可选角标（如「校园网」内网标识），显示在网格入口卡的右上角
   final Widget? badge;
+  /// 是否需要登录才能使用（游客模式下拦截并引导登录）
+  final bool requiresLogin;
 
   const AppEntry({
     required this.icon,
@@ -42,6 +45,7 @@ class AppEntry {
     required this.category,
     required this.pageBuilder,
     this.badge,
+    this.requiresLogin = false,
   });
 }
 
@@ -49,29 +53,38 @@ class AppEntry {
 final List<AppEntry> allApps = [
   // ── 教务 ──
   AppEntry(icon: Icons.calendar_month_rounded, name: '课程表', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => CourseTablePage(client: c, userId: uid)),
   AppEntry(icon: Icons.groups_rounded, name: '全校课表', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => AllClassSchedulePage(client: c, userId: uid)),
   AppEntry(icon: Icons.assessment_rounded, name: '成绩查询', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => ScorePage(client: c, userId: uid)),
   AppEntry(icon: Icons.event_note_rounded, name: '考试安排', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => ExamPage(client: c)),
   AppEntry(icon: Icons.auto_stories_rounded, name: '学业完成', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => GraduationPage(client: c)),
   AppEntry(icon: Icons.calendar_view_month_rounded, name: '校历服务', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => const CalendarPage()),
   AppEntry(icon: Icons.school_rounded, name: '综合素质', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => ZhszPage(client: c)),
   AppEntry(icon: Icons.menu_book_rounded, name: '教材查询', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => JiaocaiPage(client: c, userId: uid)),
   AppEntry(icon: Icons.account_tree_rounded, name: '教学单位', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => const UnitsPage()),
   AppEntry(icon: Icons.domain_rounded, name: '职能部门', category: AppCategory.jiaowu,
     pageBuilder: (ctx, c, uid) => const DepartmentsPage()),
   AppEntry(icon: Icons.emoji_events_rounded, name: '学科竞赛', category: AppCategory.jiaowu,
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => RacePage(client: c)),
   AppEntry(icon: Icons.assignment_ind_rounded, name: '第二课堂', category: AppCategory.jiaowu,
     badge: const OfficeCampusCornerBadge(),
+    requiresLogin: true,
     pageBuilder: (ctx, c, uid) => const ErkeLoginPage()),
 
   // ── 服务 ──
@@ -90,6 +103,11 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.business_center_rounded, name: '办公网', category: AppCategory.service,
     badge: const OfficeCampusCornerBadge(),
     pageBuilder: (ctx, c, uid) => const OfficeHomePage()),
+  AppEntry(icon: Icons.forum_rounded, name: 'QQ频道', category: AppCategory.service,
+    pageBuilder: (ctx, c, uid) => const WebViewPage(
+      url: 'https://pd.qq.com/s/bq4dam2kg',
+      title: 'QQ频道',
+    )),
 
   // ── 资讯 ──
   AppEntry(icon: Icons.newspaper_rounded, name: '校园新闻', category: AppCategory.news,

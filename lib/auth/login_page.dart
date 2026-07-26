@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/guest_mode.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../home/main_screen.dart';
@@ -83,11 +84,14 @@ class _LoginPageState extends State<LoginPage> {
       await _saveCredentials();
       await _authService.client.saveCookies();
       await LocalStorage.setString('saved_username', _usernameController.text.trim());
+      // 正常登录成功，退出游客模式
+      await GuestMode.exit();
 
       if (!mounted) return;
 
       // 有缓存则直接进主页面（cookie 失效也不重新获取）
       final cached = await StudentInfoManager.getCached();
+      if (!mounted) return;
       if (cached != null) {
         replacePage(
           context,
@@ -106,6 +110,17 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     }
+  }
+
+  /// 游客登录：无需账号密码，仅可使用无需登录的功能
+  Future<void> _handleGuestLogin() async {
+    if (_isLoading) return;
+    await GuestMode.enter();
+    if (!mounted) return;
+    replacePage(
+      context,
+      MainScreen(client: _authService.client, userId: ''),
+    );
   }
 
   @override
@@ -282,6 +297,48 @@ class _LoginPageState extends State<LoginPage> {
               child: Text(
                 '使用统一认证登录',
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.withValues(alpha: 0.2))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('或',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                ),
+                Expanded(child: Divider(color: Colors.grey.withValues(alpha: 0.2))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : _handleGuestLogin,
+                icon: Icon(Icons.person_outline_rounded,
+                    size: 18, color: _accentBlue),
+                label: Text(
+                  '游客登录',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _accentBlue,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: _accentBlue.withValues(alpha: 0.4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '游客模式仅可使用无需登录的功能',
+                style: TextStyle(fontSize: 11, color: Colors.grey[400]),
               ),
             ),
           ],

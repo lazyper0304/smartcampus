@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'auth/login_page.dart';
+import 'core/guest_mode.dart';
 import 'core/http_client.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
@@ -353,6 +354,14 @@ class _SplashPageState extends State<SplashPage>
     await Future.delayed(const Duration(milliseconds: 800));
     final client = SharedHttpClient();
     await client.loadCookies();
+    await GuestMode.load();
+
+    // 游客模式：跳过会话校验，直接进入首页（仅可用免登录功能）
+    if (GuestMode.active) {
+      if (!mounted) return;
+      replacePage(context, MainScreen(client: client, userId: ''));
+      return;
+    }
 
     final isValid = await client.verifySession();
 

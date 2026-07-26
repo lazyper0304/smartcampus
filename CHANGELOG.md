@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 🔧 重构
+- 版本号升级至 `1.1.0`：同步更新根目录 `VERSION`、`pubspec.yaml` 的 `version: 1.1.0+2`，及 `lib/core/version.dart` 的 `appVersion`（关于页/设置页展示的版本号）。
+
+### ✨ 新增（游客登录）
+- **登录页新增「游客登录」入口**：无需账号密码即可进入应用，仅可使用无需登录的功能（校历服务、教学单位、职能部门、电费、校车、就业、网络服务、校园安全、VR 地图、办公网、全部资讯栏目等）。
+  - 新建 `lib/core/guest_mode.dart`：游客态全局状态（内存标记 + `LocalStorage` key `guest_mode` 持久化），提供 `load()/enter()/exit()`。
+  - 新建 `lib/core/guest_guard.dart`：`showGuestLoginDialog()` 统一拦截弹窗（「需要登录」提示 + 取消/去登录），去登录时退出游客态并跳转登录页。
+  - `lib/home/app_data.dart`：`AppEntry` 新增 `requiresLogin` 字段，9 个需登录功能（课程表、全校课表、成绩查询、考试安排、学业完成、综合素质、教材查询、学科竞赛、第二课堂）标记为 `true`。
+  - `lib/home/main_screen.dart`：游客态下需登录入口置灰 + 右上角锁角标，点击弹「需要登录」引导弹窗而不进入页面。
+  - `lib/home/home_dashboard.dart`：游客态跳过课程接口调用，「今日课程」卡片显示「游客模式下无法查看课程」+「去登录」按钮；校园新闻正常可用。
+  - `lib/settings/settings_page.dart`：游客态个人信息卡替换为「游客模式」占位卡（点击去登录）；「退出登录」替换为「登录账号」（保留已记住的凭据）；正常退出登录时同步清除游客标记。
+  - `lib/auth/login_page.dart`：登录卡片底部新增「游客登录」按钮；统一认证登录成功时自动退出游客模式。
+  - `lib/main.dart`：`SplashPage` 启动时恢复游客标记，游客态跳过 Cookie 会话校验直接进首页。
+
+### ✨ 新增（QQ 频道）
+- **QQ 频道入口（内置 WebView）**：首页应用网格「服务」分类新增「QQ频道」入口，点击通过内置 WebView（复用 `lib/news/webview_page.dart` 的通用 `WebViewPage`）打开 `https://pd.qq.com/s/bq4dam2kg`；公开链接无需登录，游客模式亦可访问。
+- **「加入频道」拉起 QQ 客户端**：`WebViewPage` 新增 `shouldOverrideUrlLoading`，拦截非 `http(s)` 的自定义协议（如 QQ 频道页内的 `mqqapi://`），自动通过 `url_launcher` 调起 QQ 客户端并加入频道，避免 WebView 因无法解析该协议而报错；对纯 `http(s)` 页面（如 VR 地图）无副作用。
+- **返回手势回退浏览历史**：`WebViewPage` 改用 `PopScope(canPop: false)` 包裹，系统返回手势/返回键优先调用 `controller.goBack()` 回退 WebView 内部历史，仅当已到首页（无历史）时才退出页面，避免直接返回应用网格界面。
+
 ### ✨ 新增
 - **办公网服务（原生解析，非 WebView）**：首页应用网格「服务」分类新增「办公网」入口，改用原生解析渲染，不再套壳 WebView
   - 入口 `lib/office/office_home_page.dart`：以 Tab 形式呈现四个栏目（上级文件 / 党委系统 / 行政系统 / 教学教辅，对应 `b_id=14/15/16/17`）

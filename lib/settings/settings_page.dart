@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../auth/login_page.dart';
+import '../core/guest_mode.dart';
 import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
@@ -92,14 +93,24 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.logout_rounded,
-                      title: '退出登录',
-                      subtitle: '清除登录状态，返回登录页面',
-                      color: Colors.red,
-                      onTap: () => _logout(context),
-                    ),
+                    if (GuestMode.active)
+                      _buildSettingTile(
+                        context,
+                        icon: Icons.login_rounded,
+                        title: '登录账号',
+                        subtitle: '当前为游客模式，登录后可使用全部功能',
+                        color: accentColorNotifier.value,
+                        onTap: () => _goLogin(context),
+                      )
+                    else
+                      _buildSettingTile(
+                        context,
+                        icon: Icons.logout_rounded,
+                        title: '退出登录',
+                        subtitle: '清除登录状态，返回登录页面',
+                        color: Colors.red,
+                        onTap: () => _logout(context),
+                      ),
                   ],
                 ),
               ),
@@ -133,6 +144,51 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 个人信息卡片：有数据展示学生信息，无数据显示占位鼓励手动获取
   Widget _buildInfoCard(BuildContext context) {
+    // 游客模式：显示游客占位卡片，点击前往登录
+    if (GuestMode.active) {
+      return GestureDetector(
+        onTap: () => _goLogin(context),
+        child: Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(13),
+                    color: Colors.grey.withValues(alpha: 0.08),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+                  ),
+                  child: Icon(Icons.person_outline_rounded,
+                      color: Colors.grey.shade400, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('游客模式',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 3),
+                      Text('登录后可查看个人信息并使用全部功能',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.login_rounded, color: Colors.grey.shade400, size: 22),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // 首次加载且无缓存
     if (_loadingInfo && _studentInfo == null) {
       return Card(
@@ -339,7 +395,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
 
+  /// 游客模式：退出游客态前往登录页（保留已记住的凭据）
+  Future<void> _goLogin(BuildContext context) async {
+    await GuestMode.exit();
+    if (!context.mounted) return;
+    pushAndClear(context, const LoginPage());
+  }
+
   Future<void> _logout(BuildContext context) async {
+    await GuestMode.exit();
     await StudentInfoManager.clearCache();
     await LocalStorage.remove('username');
     await LocalStorage.remove('password');

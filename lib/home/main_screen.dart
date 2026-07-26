@@ -8,6 +8,8 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
+import '../core/guest_mode.dart';
+import '../core/guest_guard.dart';
 import '../settings/settings_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
@@ -361,8 +363,13 @@ class _AppsPageState extends State<_AppsPage> {
   }
 
   Widget _buildAppCard(AppEntry entry) {
+    final guestLocked = GuestMode.active && entry.requiresLogin;
     return GestureDetector(
       onTap: () {
+        if (guestLocked) {
+          showGuestLoginDialog(context, featureName: entry.name);
+          return;
+        }
         _recordUsage(entry.name);
         final page = entry.pageBuilder(context, widget.client, widget.userId);
         pushPage(context, page);
@@ -387,10 +394,13 @@ class _AppsPageState extends State<_AppsPage> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: _accentBlue.withValues(alpha: 0.08),
+                      color: guestLocked
+                          ? Colors.grey.withValues(alpha: 0.08)
+                          : _accentBlue.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(entry.icon, color: _accentBlue, size: 20),
+                    child: Icon(entry.icon,
+                        color: guestLocked ? Colors.grey : _accentBlue, size: 20),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -398,13 +408,30 @@ class _AppsPageState extends State<_AppsPage> {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: guestLocked ? Colors.grey : null,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          if (entry.badge != null)
+          if (guestLocked)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.lock_rounded, size: 12, color: Colors.grey),
+              ),
+            )
+          else if (entry.badge != null)
             Positioned(
               top: 4,
               right: 4,

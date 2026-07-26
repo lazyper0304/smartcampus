@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/guest_mode.dart';
+import '../core/guest_guard.dart';
 import '../course/course.dart';
 import '../course/course_service.dart';
 import '../course/course_page.dart';
@@ -54,6 +56,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Future<void> _loadTodayCourses() async {
+    // 游客模式：课程数据需登录，直接跳过加载
+    if (GuestMode.active) {
+      if (mounted) setState(() => _isLoadingCourses = false);
+      return;
+    }
     try {
       // 复用主 client 的 cookie
       final service = CourseService(
@@ -197,7 +204,29 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (_isLoadingCourses)
+              if (GuestMode.active)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Icon(Icons.lock_outline_rounded,
+                            size: 40, color: textHint(context)),
+                        const SizedBox(height: 8),
+                        Text('游客模式下无法查看课程',
+                            style: TextStyle(color: textHint(context))),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.login_rounded, size: 18),
+                          label: const Text('去登录'),
+                          onPressed: () => showGuestLoginDialog(
+                              context, featureName: '课程表'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_isLoadingCourses)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
