@@ -7,6 +7,7 @@ import '../core/guest_mode.dart';
 import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
+import '../core/responsive.dart';
 import '../core/version.dart';
 import '../core/http_client.dart';
 import '../xuegong/student_info_detail_page.dart';
@@ -57,6 +58,10 @@ class _SettingsPageState extends State<SettingsPage> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              MaxWidthContent(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               // ── 个人信息卡片（始终显示） ──
               _buildInfoCard(context),
               const SizedBox(height: 16),
@@ -135,11 +140,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     onTap: () => pushPage(context, const AboutPage()),
                   ),
                 ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
     }
 
   /// 个人信息卡片：有数据展示学生信息，无数据显示占位鼓励手动获取

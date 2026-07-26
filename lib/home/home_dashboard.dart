@@ -14,6 +14,7 @@ import '../news/news_detail_page.dart';
 import '../news/news_list_page.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
+import '../core/responsive.dart';
 import '../main.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -129,9 +130,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _buildTodayCoursesCard(context),
-                const SizedBox(height: 16),
-                _buildNewsCard(context),
+                MaxWidthContent(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTodayCoursesCard(context),
+                      const SizedBox(height: 16),
+                      _buildNewsCard(context),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

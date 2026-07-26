@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### 🎯 优化（横屏 / Windows 桌面适配）
+- **响应式布局框架**：新增 `lib/core/responsive.dart`，提供 `isWideScreen()`（断点 600，对应 Material 3 compact→expanded）、`appGridColumns()`（按可用宽度 3→6 列）、`MaxWidthContent`（宽屏下居中并约束最大宽度，窄屏无副作用）。
+- **主壳导航自适应**（`lib/home/main_screen.dart`）：窗口宽度 ≥ 600 时，底部浮动玻璃导航栏（`GlassTabBar.bottom`）自动切换为玻璃风格**侧边导航栏（Rail）**（自建 `ClipRRect + BackdropFilter` 毛玻璃侧栏 + 选中态高亮），充分利用横屏/桌面横向空间；底部栏在宽屏下置空。
+- **应用网格列数自适应**：应用页网格列数随可用宽度从 3 列递增至 6 列（横屏/桌面展示更多应用），内边距随宽屏收敛（顶部 56→28、底部 120→32），内容最大宽度约束为 1200 居中。
+- **列表页宽屏约束**：首页（`home_dashboard.dart`）与设置页（`settings_page.dart`）的内容居中并限制最大宽度（760），避免超宽屏下卡片被拉伸过宽。
+- **Windows 原生最小窗口尺寸**（`windows/runner/flutter_window.cpp`）：新增 `WM_GETMINMAXINFO` 处理，最小窗口尺寸设为 600×680，桌面端窗口缩放下限更合理（同时保证侧边导航布局始终生效）。
+- **Web 端方向放开**（`web/manifest.json`）：`orientation` 由 `portrait-primary` 改为 `any`，PWA 在横屏下不再被强制竖屏。
+
 ### 📝 文档
 - 重写 `README.md`：替换 Flutter 默认模板，补充项目简介、功能特性（教务/服务/资讯三类）、游客模式说明、技术栈、快速开始、项目结构、开源协议与声明链接，版本徽章标注 `1.1.0`。
 

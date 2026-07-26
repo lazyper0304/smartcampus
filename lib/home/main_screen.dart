@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/responsive.dart';
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
@@ -21,6 +23,19 @@ Color get _accentBlue => accentColorNotifier.value;
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
+
+/// 侧边导航（宽屏 / 横屏 / 桌面）的标签页定义。
+class _RailTabDef {
+  final IconData icon;
+  final String label;
+  const _RailTabDef(this.icon, this.label);
+}
+
+const List<_RailTabDef> _railDefs = [
+  _RailTabDef(Icons.home_rounded, '首页'),
+  _RailTabDef(Icons.apps_rounded, '应用'),
+  _RailTabDef(Icons.settings_rounded, '设置'),
+];
 
 class MainScreen extends StatefulWidget {
   final SharedHttpClient client;
@@ -44,6 +59,7 @@ class _MainScreenState extends State<MainScreen> {
     final defaultBg = _isDark(context)
         ? Color.lerp(_accentBlue, const Color(0xFF1A1A2E), 0.85)!
         : Color.lerp(_accentBlue, Colors.white, 0.9)!;
+    final isWide = isWideScreen(context);
 
     return ValueListenableBuilder<String?>(
       valueListenable: backgroundNotifier,
@@ -65,26 +81,49 @@ class _MainScreenState extends State<MainScreen> {
               : Container(color: defaultBg),
           statusBarStyle: GlassStatusBarStyle.auto,
           contentAwareBrightness: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          HomeDashboard(
-            key: const ValueKey('home'),
-            client: widget.client,
-            userId: widget.userId,
-          ),
-          _AppsPage(
-            key: const ValueKey('apps'),
-            client: widget.client,
-            userId: widget.userId,
-          ),
-          SettingsPage(
-            key: const ValueKey('settings'),
-            client: widget.client,
-          ),
-        ],
-      ),
-      bottomBar: Theme(
+          body: isWide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSideRail(context),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _currentIndex,
+                        children: _buildPages(),
+                      ),
+                    ),
+                  ],
+                )
+              : IndexedStack(
+                  index: _currentIndex,
+                  children: _buildPages(),
+                ),
+      bottomBar: isWide ? null : _buildBottomTabBar(),
+    );
+      },
+    );
+  }
+
+  /// 三个主页面（首页 / 应用 / 设置），在底部栏与侧边栏两种布局中复用。
+  List<Widget> _buildPages() => [
+        HomeDashboard(
+          key: const ValueKey('home'),
+          client: widget.client,
+          userId: widget.userId,
+        ),
+        _AppsPage(
+          key: const ValueKey('apps'),
+          client: widget.client,
+          userId: widget.userId,
+        ),
+        SettingsPage(
+          key: const ValueKey('settings'),
+          client: widget.client,
+        ),
+      ];
+
+  /// 紧凑布局（手机竖屏）下的浮动玻璃底部导航栏。
+  Widget _buildBottomTabBar() => Theme(
         data: ThemeData(
           colorScheme: ColorScheme.fromSeed(
             seedColor: _accentBlue,
@@ -119,9 +158,85 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
+      );
+
+  /// 宽屏 / 横屏 / 桌面下的玻璃风格侧边导航栏（替代底部栏）。
+  Widget _buildSideRail(BuildContext context) {
+    final isDark = _isDark(context);
+    return SizedBox(
+      width: kRailWidth,
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              color: (isDark ? const Color(0xFF1A1A2E) : Colors.white)
+                  .withValues(alpha: 0.45),
+              border: Border(
+                right: BorderSide(
+                  color: (isDark ? Colors.white : _accentBlue).withValues(alpha: 0.12),
+                ),
+              ),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 28),
+                ...List.generate(
+                  _railDefs.length,
+                  (i) => _buildRailItem(context, i),
+                ),
+                const Spacer(),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
       ),
     );
-      },
+  }
+
+  /// 侧边栏单个标签项。
+  Widget _buildRailItem(BuildContext context, int i) {
+    final selected = i == _currentIndex;
+    final def = _railDefs[i];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => setState(() => _currentIndex = i),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: selected
+                  ? _accentBlue.withValues(alpha: 0.16)
+                  : Colors.transparent,
+              border: selected
+                  ? Border.all(color: _accentBlue.withValues(alpha: 0.3))
+                  : null,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(def.icon,
+                    size: 24,
+                    color: selected ? _accentBlue : textSecondary(context)),
+                const SizedBox(height: 6),
+                Text(
+                  def.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    color: selected ? _accentBlue : textSecondary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -225,32 +340,38 @@ class _AppsPageState extends State<_AppsPage> {
   @override
   Widget build(BuildContext context) {
     final apps = _filteredApps;
+    final isWide = isWideScreen(context);
+    final topPad = isWide ? 28.0 : 56.0;
+    final bottomPad = isWide ? 32.0 : 120.0;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 56, 20, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 搜索框（独立渐显）
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut,
-            builder: (context, value, child) {
-              return Opacity(
-                opacity: value,
-                child: child,
-              );
-            },
-            child: _buildSearchBar(),
-          ),
-          const SizedBox(height: 20),
-          // 分类标签
-          _buildTabBar(),
-          const SizedBox(height: 20),
-          // 应用网格
-          _buildContent(apps),
-        ],
+      padding: EdgeInsets.fromLTRB(20, topPad, 20, bottomPad),
+      child: MaxWidthContent(
+        maxWidth: kGridMaxWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 搜索框（独立渐显）
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: child,
+                );
+              },
+              child: _buildSearchBar(),
+            ),
+            const SizedBox(height: 20),
+            // 分类标签
+            _buildTabBar(),
+            const SizedBox(height: 20),
+            // 应用网格
+            _buildContent(apps),
+          ],
+        ),
       ),
     );
   }
@@ -274,12 +395,17 @@ class _AppsPageState extends State<_AppsPage> {
         ),
       );
     }
+    // 根据可用宽度自适应列数：横屏 / 桌面宽屏下展示更多列，避免浪费空间。
+    final isWide = isWideScreen(context);
+    final width = MediaQuery.of(context).size.width;
+    final available = width - (isWide ? kRailWidth : 0.0) - 40;
+    final columns = appGridColumns(available);
     return GridView.builder(
       key: ValueKey('tab_$_tabIndex'),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
         childAspectRatio: 0.85,
