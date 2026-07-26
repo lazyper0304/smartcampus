@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'auth/login_page.dart';
@@ -153,16 +152,19 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 进后台：仅保存 Cookie，不强制关闭 App，保证进程保留在后台、可随时返回。
+    // Cookie 落盘由此处 + 每次请求后 3s 防抖（_scheduleSave）共同保证。
     if (state == AppLifecycleState.paused) {
-      _saveAndExit();
+      _saveCookiesOnBackground();
+    } else if (state == AppLifecycleState.detached) {
+      // 进程即将被销毁时的兜底保存（不阻塞，失败忽略）
+      _client?.saveCookies().catchError((_) {});
     }
   }
 
-  Future<void> _saveAndExit() async {
+  /// 进后台时保存 Cookie（保留 App 在后台，不再调用 SystemNavigator.pop）
+  Future<void> _saveCookiesOnBackground() async {
     await _client?.saveCookies();
-    if (mounted) {
-      await SystemNavigator.pop();
-    }
   }
 
   @override

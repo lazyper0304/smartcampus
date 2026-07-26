@@ -92,46 +92,10 @@ jobs:
           compression-level: 0
           if-no-files-found: error
 
-  windows:
-    name: 🪟 Build Windows
-    if: github.event_name != 'workflow_dispatch' || always()
-    needs: [auto-tag]
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-
-      - name: Read version
-        id: version
-        shell: bash
-        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-
-      - name: Verify Flutter
-        run: flutter doctor -v
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Build Windows (release)
-        run: flutter build windows --release
-
-      - name: Upload Windows build
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-release
-          path: build/windows/x64/runner/Release/
-          compression-level: 6
-          if-no-files-found: error
-
   release:
     name: 🚀 Publish Release
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && always())
-    needs: [android, windows]
+    needs: [android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -145,12 +109,6 @@ jobs:
           name: android-apks
           path: release/android
 
-      - name: Download Windows build
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-release
-          path: release/windows
-
       - name: Rename artifacts
         shell: bash
         run: |
@@ -161,9 +119,6 @@ jobs:
               mv "$f" "release/android/宜院宾果-v${VERSION}-${abi}.apk"
             fi
           done
-          cd release/windows
-          7z a -tzip "../宜院宾果-v${VERSION}-windows.zip" ./*
-          cd ../..
           ls -la release/
 
       - name: Create Release
@@ -181,5 +136,4 @@ jobs:
           gh release create "$TAG" \
             --title "宜院宾果 v${VERSION}" \
             --notes-file release-notes.md \
-            release/android/*.apk \
-            release/*.zip
+            release/android/*.apk

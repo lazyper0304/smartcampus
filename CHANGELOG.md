@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 🐛 Bug 修复（后台保活与 Cookie 持久化）
+- **App 进后台不再被强制关闭**：`lib/main.dart` 的 `didChangeAppLifecycleState` 在 `paused`（进后台）时原本会调用 `SystemNavigator.pop()` 直接 `finish()` 掉 Activity，导致 App 一旦切到后台就被杀、从最近任务消失。现改为进后台**仅保存 Cookie、不再关闭 App**，进程保留在后台可随时返回（即"不自动删除后台"）。
+- **Cookie 自动保存保障**：保留 `SharedHttpClient.saveCookies()`（落盘到 `LocalStorage`，含 ehall 精简版），并在 `detached`（进程即将销毁）时追加一次兜底保存；配合每次请求后 3 秒防抖自动保存，会话在后台/被杀后仍能恢复。WebView 自身 SSO Cookie 由 `flutter_inappwebview` 持久化存储，不受影响。
+
 ### 🎯 优化（横屏 / Windows 桌面适配）
 - **响应式布局框架**：新增 `lib/core/responsive.dart`，提供 `isWideScreen()`（断点 600，对应 Material 3 compact→expanded）、`appGridColumns()`（按可用宽度 3→6 列）、`MaxWidthContent`（宽屏下居中并约束最大宽度，窄屏无副作用）。
 - **主壳导航自适应**（`lib/home/main_screen.dart`）：窗口宽度 ≥ 600 时，底部浮动玻璃导航栏（`GlassTabBar.bottom`）自动切换为玻璃风格**侧边导航栏（Rail）**（自建 `ClipRRect + BackdropFilter` 毛玻璃侧栏 + 选中态高亮），充分利用横屏/桌面横向空间；底部栏在宽屏下置空。
