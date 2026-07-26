@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### ✨ 新增（开源声明）
+- 新增 `LICENSE`（MIT 许可证）与 `开源声明.md`（中文开源声明）：声明本项目为宜宾学院智慧校园**第三方非官方**客户端，仅供学习交流、数据版权归学校所有、账号仅本地存储不上传第三方、使用风险自负等免责条款。
+- `pubspec.yaml` 补充 `homepage`/`repository`/`issue_tracker`/`license: MIT` 元数据，完善开源包信息。
+
 ### 🔧 重构
 - 版本号升级至 `1.1.0`：同步更新根目录 `VERSION`、`pubspec.yaml` 的 `version: 1.1.0+2`，及 `lib/core/version.dart` 的 `appVersion`（关于页/设置页展示的版本号）。
 

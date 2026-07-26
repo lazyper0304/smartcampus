@@ -1,8 +1,14 @@
 name: smartcampus
-description: "A new Flutter project."
+description: "宜宾学院智慧校园第三方非官方客户端（Flutter）。"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# 开源仓库与许可证信息
+homepage: https://github.com/lazyper0304/smartcampus
+repository: https://github.com/lazyper0304/smartcampus
+issue_tracker: https://github.com/lazyper0304/smartcampus/issues
+license: MIT
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
