@@ -93,6 +93,14 @@ flutter_launcher_icons:
   adaptive_icon_background: "#0b1a94"
   adaptive_icon_foreground: "assets/icon.png"
 
+dependency_overrides:
+  # 锁定 jni 到 1.0.0：绕过 dart-lang/jni 1.0.1（构建当天发布）的回归
+  # —— 其 android/build.gradle 第 84 行仍调用 kotlin {} DSL，与
+  # settings.gradle.kts 锁定的 Kotlin Gradle Plugin 2.3.20 不兼容，
+  # 导致 CI `:jni` 项目评估报 "Could not find method kotlin()"。
+  # jni 自 0.11.0 起已移除对 kotlin_gradle_plugin 的依赖，1.0.0 不会触发该问题。
+  jni: 1.0.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

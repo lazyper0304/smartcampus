@@ -2,6 +2,10 @@
 
 ## [1.1.2]
 
+### 🐛 Bug 修复（CI 构建失败：jni 1.0.1 回归）
+- **修复 Android Release 构建失败**：`flutter build apk --release` 在 Gradle 评估 `:jni` 项目时失败，报 `Could not find method kotlin()`（位于 `jni-1.0.1/android/build.gradle` 第 84 行）。根因为 dart-lang/jni `1.0.1`（构建当天发布）的 `android/build.gradle` 仍调用 `kotlin {}` DSL，与 `settings.gradle.kts` 锁定的 Kotlin Gradle Plugin `2.3.20` 不兼容；而 jni 自 `0.11.0` 起已移除对 `kotlin_gradle_plugin` 的依赖。
+- **修复方式**：在 `pubspec.yaml` 增加 `dependency_overrides`，将 `jni` 锁定为 `1.0.0`（该版本不触发 `kotlin()` 调用）。不动 Kotlin / AGP / Gradle 版本链，避免引入新的兼容问题。
+
 ### ✨ 新增（VR地图 B区）
 - **VR地图新增「B区」查看**：`lib/vrmap/vrmap_page.dart` 的校区列表新增 B区 全景入口（`https://vr.douhuiai.com/v/ffbf5ea3eu05_1-1785058130.html`）。AppBar 右侧「切换校区」菜单基于列表动态生成，新增后自动出现 B区 选项，无需改动其余 UI。
 
