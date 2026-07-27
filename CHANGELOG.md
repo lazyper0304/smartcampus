@@ -1,6 +1,9 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.1.2]
+
+### ✨ 新增（VR地图 B区）
+- **VR地图新增「B区」查看**：`lib/vrmap/vrmap_page.dart` 的校区列表新增 B区 全景入口（`https://vr.douhuiai.com/v/ffbf5ea3eu05_1-1785058130.html`）。AppBar 右侧「切换校区」菜单基于列表动态生成，新增后自动出现 B区 选项，无需改动其余 UI。
 
 ### 🐛 Bug 修复（后台保活与 Cookie 持久化）
 - **App 进后台不再被强制关闭**：`lib/main.dart` 的 `didChangeAppLifecycleState` 在 `paused`（进后台）时原本会调用 `SystemNavigator.pop()` 直接 `finish()` 掉 Activity，导致 App 一旦切到后台就被杀、从最近任务消失。现改为进后台**仅保存 Cookie、不再关闭 App**，进程保留在后台可随时返回（即"不自动删除后台"）。

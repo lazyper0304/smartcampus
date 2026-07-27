@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-/// VR 地图页面 — 支持 A区 / 临港校区切换
+/// VR 地图页面 — 支持 A区 / B区 / 临港校区切换
 class VrmapPage extends StatefulWidget {
   const VrmapPage({super.key});
 
@@ -19,6 +19,7 @@ class _CampusVr {
 
 const _campuses = [
   _CampusVr(name: 'A区', url: 'https://vr.douhuiai.com/v/3jb8i06blq9kd5-1779006271.html'),
+  _CampusVr(name: 'B区', url: 'https://vr.douhuiai.com/v/ffbf5ea3eu05_1-1785058130.html'),
   _CampusVr(name: '临港', url: 'https://vr.douhuiai.com/v/jc4w9o1e6b5449-1779864933.html'),
 ];
 
