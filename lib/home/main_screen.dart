@@ -342,7 +342,7 @@ class _AppsPageState extends State<_AppsPage> {
     final apps = _filteredApps;
     final isWide = isWideScreen(context);
     final topPad = isWide ? 28.0 : 56.0;
-    final bottomPad = isWide ? 32.0 : 120.0;
+    final bottomPad = bottomBarSafePadding(context);
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(20, topPad, 20, bottomPad),

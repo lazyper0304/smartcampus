@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import 'auth/auth_service.dart';
 import 'auth/login_page.dart';
 import 'core/guest_mode.dart';
 import 'core/http_client.dart';
@@ -384,6 +385,20 @@ class _SplashPageState extends State<SplashPage>
       if (!mounted) return;
       replacePage(context, MainScreen(client: client, userId: savedUser));
     } else {
+      // 会话失效：若用户"记住密码"且存有凭据，先尝试自动重登（静默续期）
+      final autoAuth = AuthService(sharedClient: client);
+      if (await autoAuth.autoRelogin()) {
+        if (!mounted) return;
+        final savedUser = await LocalStorage.getString('saved_username') ?? '';
+        final cached = await StudentInfoManager.getCached();
+        if (!mounted) return;
+        if (cached == null) {
+          replacePage(context, FetchInfoPage(client: client));
+        } else {
+          replacePage(context, MainScreen(client: client, userId: savedUser));
+        }
+        return;
+      }
       replacePage(context, const LoginPage());
     }
   }

@@ -12,8 +12,9 @@ import '../core/version.dart';
 import '../core/http_client.dart';
 import '../xuegong/student_info_detail_page.dart';
 import '../xuegong/student_info_manager.dart';
-import 'about_page.dart';
 import 'appearance_page.dart';
+import 'privacy_policy_page.dart';
+import 'update/update_dialogs.dart';
 import '../main.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -55,8 +56,11 @@ class _SettingsPageState extends State<SettingsPage> {
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         body: SafeArea(
+          // 底部浮动玻璃导航栏为浮层，不占布局空间，交由 ListView 的
+          // bottom padding 统一避让，此处关闭 SafeArea 底部避免重复留白。
+          bottom: false,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomBarSafePadding(context)),
             children: [
               MaxWidthContent(
                 child: Column(
@@ -131,15 +135,49 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(14),
                   side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
                 ),
-                child: _buildSettingTile(
-                    context,
-                    icon: Icons.info_outline_rounded,
-                    title: '关于',
-                    subtitle: '版本 $appVersion',
-                    color: accentColorNotifier.value,
-                    onTap: () => pushPage(context, const AboutPage()),
-                  ),
+                child: Column(
+                  children: [
+                    _buildSettingTile(
+                      context,
+                      icon: Icons.privacy_tip_outlined,
+                      title: '隐私协议',
+                      subtitle: '了解我们如何保护您的数据',
+                      color: Colors.green.shade600,
+                      onTap: () => pushPage(context, const PrivacyPolicyPage()),
+                    ),
+                    Divider(height: 1, indent: 16, endIndent: 16,
+                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
+                    _buildSettingTile(
+                      context,
+                      icon: Icons.update_rounded,
+                      title: '检查更新',
+                      subtitle: '当前版本 v$appVersion',
+                      color: accentColorNotifier.value,
+                      onTap: () => showUpdateCheckFlow(context),
+                    ),
+                    Divider(height: 1, indent: 16, endIndent: 16,
+                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
+                    _buildSettingTile(
+                      context,
+                      icon: Icons.history_rounded,
+                      title: '更新日志',
+                      subtitle: '查看版本更新记录',
+                      color: Colors.teal,
+                      onTap: () => showChangelogFlow(context),
+                    ),
+                    Divider(height: 1, indent: 16, endIndent: 16,
+                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
+                    _buildSettingTile(
+                      context,
+                      icon: Icons.person_rounded,
+                      title: '作者',
+                      subtitle: 'lazy波斯猫',
+                      color: Colors.orange,
+                      onTap: null,
+                    ),
+                  ],
                 ),
+              ),
                   ],
                 ),
               ),
@@ -370,7 +408,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildSettingTile(BuildContext context, {
     required IconData icon, required String title,
-    required String subtitle, required Color color, required VoidCallback onTap,
+    required String subtitle, required Color color, VoidCallback? onTap,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -395,7 +433,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: textHint(context), size: 20),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded, color: textHint(context), size: 20),
           ],
         ),
       ),
@@ -422,4 +461,5 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!context.mounted) return;
     pushAndClear(context, const LoginPage());
   }
+
 }

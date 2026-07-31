@@ -13,9 +13,23 @@ const double kContentMaxWidth = 760.0;
 /// 应用网格页在宽屏下的最大内容宽度（允许比列表页更宽以容纳更多列）。
 const double kGridMaxWidth = 1200.0;
 
+/// 窄屏下浮动玻璃底部导航栏（`GlassTabBar.bottom`）需要的滚动内容底部留白。
+///
+/// 该导航栏是**浮层**，不占据布局空间，会直接盖住滚动内容的尾部。
+/// 因此所有可滚动的主页面（首页 / 应用 / 设置）都必须预留这段底部 padding，
+/// 否则最后一张卡片会被遮挡且无法滑出。
+const double kBottomBarSafePadding = 120.0;
+
+/// 宽屏（侧边 Rail）下不存在底部浮动栏，仅保留常规呼吸空间。
+const double kBottomSafePaddingWide = 32.0;
+
 /// 是否为宽屏（横屏 / 平板 / 桌面）。
 bool isWideScreen(BuildContext context) =>
     MediaQuery.of(context).size.width >= kWideBreakpoint;
+
+/// 主页面滚动内容应使用的底部留白：窄屏避让浮动导航栏，宽屏用常规间距。
+double bottomBarSafePadding(BuildContext context) =>
+    isWideScreen(context) ? kBottomSafePaddingWide : kBottomBarSafePadding;
 
 /// 根据「可用宽度」计算应用网格列数，自适应横屏与桌面宽屏。
 int appGridColumns(double availableWidth) {

@@ -125,10 +125,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         body: SafeArea(
+          // 底部浮动玻璃导航栏为浮层，由 ListView 的 bottom padding 统一避让。
+          bottom: false,
           child: RefreshIndicator(
             onRefresh: () { DataCache().invalidateAll(); return _loadData(); },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomBarSafePadding(context)),
               children: [
                 MaxWidthContent(
                   child: Column(

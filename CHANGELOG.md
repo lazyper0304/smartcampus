@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🐛 Bug 修复（scjx2 学科竞赛：缓存/cookie 累积导致刷新循环）
+- **根因**：WebView 缓存与 cookie 累积后触发学校 CAS 风控，登录流程陷入重定向刷新循环（网页一直在刷新、进不去），表现为「首次能获取、后续拉不到」。手动清理 WebView 缓存（尤其 cookie）即可恢复。
+- **修复**（`lib/scjx2/scjx2_api_service.dart` 的 `bootstrapLogin`）：
+  - 引导登录前**硬重置 WebView 状态**：`CookieManager.deleteAllCookies()` 全清 + `InAppWebViewController.clearAllCache()` 清 HTTP 缓存，随后重新注入 ehall SSO cookie（CASTGC），相当于每次都「清缓存再登录」。
+  - **重定向回环检测**：`onLoadStart` 统计 4s 内加载次数，≥6 次即判定为刷新回环，立即二次硬重置 + 重新注入 SSO + 重载破环（最多在等待循环前 10 秒内触发一次）。
+
+### ✨ 新增（自动登录 / 会话静默续期）
+- 新增 `AuthService.autoRelogin()`：当检测到会话 cookie 失效时，自动用已保存的账号密码（需用户勾选"记住密码"）走 `CasLoginService` 完整真实登录链路重新登录，刷新 ehall 会话并 https 补 CASTGC；比注入 cookie 可靠（Chromium 常忽略注入的 Secure/HttpOnly cookie）。无凭据或登录失败则降级为手动登录页。
+- 接入**启动会话校验**（`lib/main.dart` `_checkSession`）：`verifySession()` 失效且存有凭据时先静默自动重登，成功直接进入主页，避免每次启动都手动输密码。
+- 接入 **scjx2 运行时 401/404**（`lib/scjx2/scjx2_api_service.dart` `request` 的 HTTP 401/404 与 JSON code=401 两处）：会话过期先自动重登刷新 ehall 会话，再走 WebView SSO 引导，提升学科竞赛等模块的容错。
+
+### ✨ 新增（隐私协议）
+- 设置「关于」区新增「隐私协议」入口，跳转独立 `PrivacyPolicyPage`（`lib/settings/privacy_policy_page.dart`）。
+- 内容涵盖：账号密码仅本机沙盒存储、不上传第三方服务器；会话凭证仅用于访问学校官方接口；课表/成绩/竞赛等数据版权归学校；第三方非官方客户端声明；可随时退出登录清除本地数据；免责声明。
+
+### 🎨 UI 优化（设置「关于」区扁平化，移除关于子页）
+- 将原「关于」子页中的**检查更新 / 更新日志 / 作者**三项上移至设置页「关于」区，与「隐私协议」并列展示，无需再进入二级页面。
+- **移除「关于」入口与 `AboutPage`**：内容已全部并入设置页，二级页面成为冗余，删除 `lib/settings/about_page.dart` 及对应设置项；版本号改由「检查更新」的副标题呈现（`当前版本 v$appVersion`）。
+- 「关于」区最终为 4 项：隐私协议 / 检查更新 / 更新日志 / 作者。
+- `lib/settings/settings_page.dart`：迁入 `_checkUpdate` / `_showChangelog` / `_compareVersion` / `_showSnack` / `_openUrl` 实现，并补充 `dart:convert`、`http`、`url_launcher` 依赖。
+- `_buildSettingTile` 的 `onTap` 参数改为可空（`VoidCallback?`），传 `null` 时自动隐藏右侧箭头，用于「作者」这类纯展示项。
+
+### 🔧 重构（设置页更新逻辑模块化，抽离至 lib/settings/update/）
+- **动机**：此前「关于」区扁平化时把检查更新 / 更新日志 / 版本比较 / 外链跳转等逻辑内联进 `SettingsPage` 巨型 `State` 类，导致设置页约 720 行、更新逻辑与 UI 强耦合、难以复用与单测。
+- **拆分**：新增独立模块 `lib/settings/update/`，与设置页彻底解耦：
+  - `update_models.dart`：纯数据模型 `UpdateCheckResult` / `ReleaseInfo`，与 UI 无关。
+  - `update_service.dart`：`UpdateService` 静态方法 `checkForUpdate()` / `fetchReleases()` / `compareVersion()`，封装 GitHub Releases API 请求、版本号比较、APK 下载地址解析（`UpdateException` 统一异常）；纯逻辑、无 `BuildContext` 依赖，可独立单测。
+  - `update_dialogs.dart`：`showUpdateCheckFlow(context)` / `showChangelogFlow(context)` 两个入口流程，内部封装 loading 弹窗、发现新版本 / 已是最新提示、更新日志对话框与外链跳转；`_showSnack` / `_openUrl` 随更新逻辑一并迁出。
+- **设置页收敛**：`settings_page.dart` 删除内联的 `_checkUpdate` / `_showChangelog` / `_compareVersion` / `_showSnack` / `_openUrl` 及 `http` / `url_launcher` / `dart:convert` 依赖，仅保留两处 `onTap` 调用（`showUpdateCheckFlow(context)` / `showChangelogFlow(context)`），行数由约 720 降至约 460，行为完全一致。`accentColorNotifier` 经 `main.dart` 引入（与原设置页来源一致）。
+
+### 🐛 Bug 修复（设置页 / 首页底部内容被浮动导航栏遮挡）
+- **问题**：窄屏下的浮动玻璃导航栏 `GlassTabBar.bottom` 是**浮层**、不占布局空间，而设置页 `ListView` 底部内边距仅 16、首页仅 24，导致「关于」区最后几项被导航栏盖住且无法继续上滑露出。
+- **修复**：`lib/core/responsive.dart` 新增公共常量与工具方法 `kBottomBarSafePadding`(120) / `kBottomSafePaddingWide`(32) / `bottomBarSafePadding(context)`，统一计算滚动内容的底部避让留白（宽屏走侧边 Rail、无底部浮栏，仅保留常规间距）。
+- 设置页（`settings_page.dart`）与首页（`home_dashboard.dart`）的 `ListView` 底部内边距改用该方法；同时将外层 `SafeArea` 设为 `bottom: false`，避免系统手势区插入与避让留白重复叠加。
+- 应用页（`main_screen.dart`）原先硬编码的 `isWide ? 32.0 : 120.0` 一并改为复用 `bottomBarSafePadding(context)`，消除魔数重复。
+
 ## [1.1.2]
 
 ### 🐛 Bug 修复（CI 构建失败：jni 1.0.1 回归）

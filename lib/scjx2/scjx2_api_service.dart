@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide LocalStorag
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
+import '../auth/auth_service.dart';
 import 'scjx2_signer.dart';
 
 /// scjx2.yibinu.edu.cn 通用 API 客户端
@@ -156,6 +157,12 @@ class Scjx2ApiService {
     if (resp.statusCode != 200) {
       // 401 (JWT 过期) 或 404 (scjx2 域 cookie 失效) 都触发重新登录
       if ((resp.statusCode == 401 || resp.statusCode == 404) && retryCount < 1) {
+        // 先尝试用已存账号密码自动重登，刷新 ehall 会话（CASTGC），
+        // 让 bootstrapLogin 的 WebView SSO 能正常放行；失败也不影响后续降级。
+        try {
+          final auth = AuthService(sharedClient: _client);
+          await auth.autoRelogin();
+        } catch (_) {}
         await clearAuthToken(moduleId: moduleId);
         final ok = await bootstrapLogin(moduleId: moduleId);
         if (ok) {
@@ -179,6 +186,11 @@ class Scjx2ApiService {
     if (code != 200) {
       final msg = json['msg']?.toString() ?? '未知错误';
       if (code == 401 && retryCount < 1) {
+        // 同 HTTP 401：先自动重登刷新 ehall 会话，再走 WebView SSO
+        try {
+          final auth = AuthService(sharedClient: _client);
+          await auth.autoRelogin();
+        } catch (_) {}
         await clearAuthToken(moduleId: moduleId);
         final ok = await bootstrapLogin(moduleId: moduleId);
         if (ok) {
@@ -223,25 +235,15 @@ class Scjx2ApiService {
     InAppWebViewController? controller;
     final cookieManager = CookieManager.instance();
 
-    // 0. 清空 scjx2 域的旧 cookie（避免上一次的 teach/race session 干扰）
-    //    只清 scjx2 域，保留 ehall / authserver 域（CAS SSO 依赖）
+    // 0. 重置 WebView 累积状态，打破 CAS 重定向回环 / 学校风控
+    //    实测：cookie + 缓存累积后网页会陷入刷新循环（进不去），清缓存即恢复。
+    //    只清 scjx2 域不够，必须连 CAS/authserver 侧 cookie + HTTP 缓存一起清。
+    //    随后 _injectEhallCookiesToWebView 会重新注入 ehall SSO cookie，全清安全。
     try {
-      final scjx2Cookies = await cookieManager.getCookies(
-        url: WebUri('https://scjx2.yibinu.edu.cn'),
-      );
-      for (final c in scjx2Cookies) {
-        await cookieManager.deleteCookie(
-          url: WebUri('https://scjx2.yibinu.edu.cn'),
-          name: c.name,
-          domain: c.domain ?? 'scjx2.yibinu.edu.cn',
-          path: c.path ?? '/',
-        );
-      }
-      if (scjx2Cookies.isNotEmpty) {
-        debugPrint('Scjx2: cleared ${scjx2Cookies.length} old scjx2 cookies');
-      }
+      await cookieManager.deleteAllCookies();
+      debugPrint('Scjx2: reset - deleted all WebView cookies');
     } catch (e) {
-      debugPrint('Scjx2: failed to clear old scjx2 cookies: $e');
+      debugPrint('Scjx2: failed to delete all cookies: $e');
     }
 
     // 1. 注入 ehall 已有的 cookie 到 WebView
@@ -250,6 +252,11 @@ class Scjx2ApiService {
     final entryUrl = _moduleEntry[moduleId] ?? _moduleEntry['race']!;
     final modulePath = _modulePath[moduleId] ?? '/RACE/';
     debugPrint('Scjx2: bootstrap for module=$moduleId, entry=$entryUrl');
+
+    // 重定向回环检测：统计 4s 内 onLoadStart 次数，超阈值即判定为刷新循环。
+    // 正常 CAS SSO 虽有几次重定向，但间隔较松；刷新回环是同一组 URL 高频自重载。
+    final loadTimestamps = <DateTime>[];
+    var loopDetected = false;
 
     final headlessWebView = HeadlessInAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(entryUrl)),
@@ -264,10 +271,29 @@ class Scjx2ApiService {
       ),
       onWebViewCreated: (ctrl) async {
         controller = ctrl;
+        // 清 HTTP 缓存（用户反馈清缓存可破风控刷新循环）
+        try {
+          await InAppWebViewController.clearAllCache();
+          debugPrint('Scjx2: cleared WebView HTTP cache');
+        } catch (e) {
+          debugPrint('Scjx2: failed to clear cache: $e');
+        }
         await Future.delayed(const Duration(milliseconds: 200));
         await _injectEhallCookiesToWebView(cookieManager);
         await Future.delayed(const Duration(milliseconds: 100));
         await ctrl.loadUrl(urlRequest: URLRequest(url: WebUri(entryUrl)));
+      },
+      onLoadStart: (ctrl, url) {
+        final now = DateTime.now();
+        loadTimestamps.removeWhere(
+          (t) => now.difference(t).inMilliseconds > 4000,
+        );
+        loadTimestamps.add(now);
+        if (loadTimestamps.length >= 6) {
+          loopDetected = true;
+          debugPrint('Scjx2: REFRESH LOOP detected '
+              '(${loadTimestamps.length} loads in 4s) url=$url');
+        }
       },
     );
 
@@ -277,6 +303,24 @@ class Scjx2ApiService {
       bool reachedHome = false;
       for (int i = 0; i < 30; i++) {
         await Future.delayed(const Duration(milliseconds: 1000));
+
+        // 检测到刷新回环：硬重置一次（清缓存 + 全清 cookie + 重新注入 SSO + 重载）。
+        // 这正是用户手动"清理缓存（尤其 cookie）"能恢复的原理。
+        if (loopDetected && i < 10) {
+          debugPrint('Scjx2: breaking refresh loop - hard reset + reload');
+          loopDetected = false;
+          loadTimestamps.clear();
+          try {
+            await InAppWebViewController.clearAllCache();
+            await cookieManager.deleteAllCookies();
+          } catch (e) {
+            debugPrint('Scjx2: loop reset error: $e');
+          }
+          await _injectEhallCookiesToWebView(cookieManager);
+          await controller?.reload();
+          continue;
+        }
+
         final url = (await controller?.getUrl())?.toString() ?? '';
         if (url.contains('homeageStu')) {
           debugPrint('Scjx2: reached default home after ${i + 1}s');
