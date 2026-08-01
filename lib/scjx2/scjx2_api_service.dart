@@ -232,6 +232,27 @@ class Scjx2ApiService {
     // 该模块已有 token 且未过期就直接用
     if (await isLoggedIn(moduleId: moduleId)) return true;
 
+    // 第一次尝试：用当前 _client 持久化的 cookie 注入 WebView。
+    if (await _bootstrapOnce(moduleId)) return true;
+
+    // 首次失败：持久化的 CASTGC / ehall 会话多半已在服务端过期，
+    // _client 里是"死 cookie"，注入 WebView 只会触发 CAS 重定向回环
+    // （这正是"清掉应用数据重新登录就好、过段时间又坏"的根因）。
+    // 用已存账号密码静默重登刷新 _client，再重试一次。
+    try {
+      final auth = AuthService(sharedClient: _client);
+      if (await auth.autoRelogin()) {
+        await clearAuthToken(moduleId: moduleId);
+        return await _bootstrapOnce(moduleId);
+      }
+    } catch (_) {
+      debugPrint('Scjx2: autoRelogin during bootstrap failed');
+    }
+    return false;
+  }
+
+  /// 单次引导登录尝试（不含自动重登重试）。逻辑详见 [bootstrapLogin]。
+  Future<bool> _bootstrapOnce(String moduleId) async {
     InAppWebViewController? controller;
     final cookieManager = CookieManager.instance();
 
@@ -257,6 +278,7 @@ class Scjx2ApiService {
     // 正常 CAS SSO 虽有几次重定向，但间隔较松；刷新回环是同一组 URL 高频自重载。
     final loadTimestamps = <DateTime>[];
     var loopDetected = false;
+    var didLoopReset = false;
 
     final headlessWebView = HeadlessInAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(entryUrl)),
@@ -306,19 +328,31 @@ class Scjx2ApiService {
 
         // 检测到刷新回环：硬重置一次（清缓存 + 全清 cookie + 重新注入 SSO + 重载）。
         // 这正是用户手动"清理缓存（尤其 cookie）"能恢复的原理。
-        if (loopDetected && i < 10) {
-          debugPrint('Scjx2: breaking refresh loop - hard reset + reload');
-          loopDetected = false;
-          loadTimestamps.clear();
-          try {
-            await InAppWebViewController.clearAllCache();
-            await cookieManager.deleteAllCookies();
-          } catch (e) {
-            debugPrint('Scjx2: loop reset error: $e');
+        if (loopDetected) {
+          if (!didLoopReset) {
+            didLoopReset = true;
+            loopDetected = false;
+            loadTimestamps.clear();
+            // 仅尝试一次重置：清缓存 + 全清 cookie + 重新注入 SSO + 重载。
+            // 这正是用户手动"清理缓存（尤其 cookie）"能恢复的原理。
+            debugPrint('Scjx2: breaking refresh loop - hard reset + reload');
+            try {
+              await InAppWebViewController.clearAllCache();
+              await cookieManager.deleteAllCookies();
+            } catch (e) {
+              debugPrint('Scjx2: loop reset error: $e');
+            }
+            await _injectEhallCookiesToWebView(cookieManager);
+            await controller?.reload();
+            continue;
+          } else {
+            // 已重置过一次仍在回环 → 证明不是缓存问题，而是注入的 cookie 已失效
+            // （服务端已过期）。标记失败，交回 bootstrapLogin 走自动重登刷新。
+            debugPrint('Scjx2: loop persists after reset - stale credential, '
+                'abort to outer autoRelogin');
+            reachedHome = false;
+            break;
           }
-          await _injectEhallCookiesToWebView(cookieManager);
-          await controller?.reload();
-          continue;
         }
 
         final url = (await controller?.getUrl())?.toString() ?? '';

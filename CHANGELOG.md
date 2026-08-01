@@ -2,11 +2,12 @@
 
 ## [Unreleased]
 
-### 🐛 Bug 修复（scjx2 学科竞赛：缓存/cookie 累积导致刷新循环）
-- **根因**：WebView 缓存与 cookie 累积后触发学校 CAS 风控，登录流程陷入重定向刷新循环（网页一直在刷新、进不去），表现为「首次能获取、后续拉不到」。手动清理 WebView 缓存（尤其 cookie）即可恢复。
-- **修复**（`lib/scjx2/scjx2_api_service.dart` 的 `bootstrapLogin`）：
-  - 引导登录前**硬重置 WebView 状态**：`CookieManager.deleteAllCookies()` 全清 + `InAppWebViewController.clearAllCache()` 清 HTTP 缓存，随后重新注入 ehall SSO cookie（CASTGC），相当于每次都「清缓存再登录」。
-  - **重定向回环检测**：`onLoadStart` 统计 4s 内加载次数，≥6 次即判定为刷新回环，立即二次硬重置 + 重新注入 SSO + 重载破环（最多在等待循环前 10 秒内触发一次）。
+### 🐛 Bug 修复（scjx2 学科竞赛：会话票据过期导致刷新循环 / 获取失败）
+- **根因（修正）**：此前判定为「WebView 缓存累积触发风控」并不完整。真正主因是 `_client` 持久化到 LocalStorage 的 `CASTGC`（CAS 票据）/ehall 会话在**服务端有 TTL**，过期后本地仍以"永久有效"的 cookie 保存；`bootstrapLogin` 每次都把这份额外**已失效的"死 cookie"**注回 WebView → 触发 CAS 重定向刷新回环，表现为「首次能获取、用一段时间后拉不到，清掉应用数据重登就好」。上一轮的最小修复只清了 WebView 瞬时缓存、却把同一份死 cookie 又注回，故未能根治。
+- **修复**（`lib/scjx2/scjx2_api_service.dart`）：
+  - 为 `bootstrapLogin` 增加**自愈合**：首轮用现有 cookie 注入 WebView 失败（命中刷新回环）后，调用 `AuthService.autoRelogin()` 用已存账号密码静默重登，刷新 `_client` 拿到与"清数据重登"完全相同的新 `CASTGC`，清掉旧 token 后用新 cookie 重试一次——即把"手动重登就好"自动化。
+  - **刷新回环检测改为只重置一次**：检测到回环先硬重置（清缓存 + 全清 cookie + 重新注入 SSO + 重载）一次；若仍回环则判定为 cookie 已失效，立即中止本轮、交由外层自动重登刷新，避免拿过期 cookie 反复空转。
+  - 注：`autoRelogin` 仅在用户勾选"记住密码"时生效；若未勾选则降级为手动重新登录（race 页已给出"登录失败，请前往 WebView 登录"提示）。
 
 ### ✨ 新增（自动登录 / 会话静默续期）
 - 新增 `AuthService.autoRelogin()`：当检测到会话 cookie 失效时，自动用已保存的账号密码（需用户勾选"记住密码"）走 `CasLoginService` 完整真实登录链路重新登录，刷新 ehall 会话并 https 补 CASTGC；比注入 cookie 可靠（Chromium 常忽略注入的 Secure/HttpOnly cookie）。无凭据或登录失败则降级为手动登录页。
