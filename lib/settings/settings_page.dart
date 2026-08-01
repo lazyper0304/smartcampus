@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/login_page.dart';
 import '../core/guest_mode.dart';
@@ -139,6 +141,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     _buildSettingTile(
                       context,
+                      icon: Icons.forum_rounded,
+                      title: '交流群',
+                      subtitle: '加入 QQ 群【宜院宾果】',
+                      color: Colors.blue,
+                      onTap: () => _openQQGroup(context),
+                    ),
+                    Divider(height: 1, indent: 16, endIndent: 16,
+                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
+                    _buildSettingTile(
+                      context,
                       icon: Icons.privacy_tip_outlined,
                       title: '隐私协议',
                       subtitle: '了解我们如何保护您的数据',
@@ -187,6 +199,38 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     }
+
+  /// QQ 交流群链接（qm.qq.com 官方群推广页）
+  static const String _qqGroupUrl = 'https://qm.qq.com/q/miOeBHKlRS';
+
+  /// 打开交流群：Android 优先用 intent 直接拉起 QQ 客户端，
+  /// QQ 未安装或其它平台降级为浏览器打开。
+  Future<void> _openQQGroup(BuildContext context) async {
+    Uri uri;
+    if (Platform.isAndroid) {
+      // intent scheme 指定 QQ 包名拉起；未安装时 fallback 到浏览器
+      uri = Uri.parse(
+        'intent://qm.qq.com/q/miOeBHKlRS#Intent;'
+        'scheme=https;package=com.tencent.mobileqq;'
+        'S.browser_fallback_url=${Uri.encodeComponent(_qqGroupUrl)};end',
+      );
+    } else {
+      uri = Uri.parse(_qqGroupUrl);
+    }
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) {
+        await launchUrl(Uri.parse(_qqGroupUrl),
+            mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      // intent 拉起失败（QQ 未安装等）→ 浏览器兜底
+      try {
+        await launchUrl(Uri.parse(_qqGroupUrl),
+            mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
+  }
 
   /// 个人信息卡片：有数据展示学生信息，无数据显示占位鼓励手动获取
   Widget _buildInfoCard(BuildContext context) {

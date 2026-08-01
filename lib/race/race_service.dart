@@ -16,6 +16,10 @@ class RaceService {
   static const String currentRoutePath =
       '/9001/modules/sjjx/race/stu/race/stage/list';
 
+  /// "我的竞赛"页路由路径（用于签名头，抓包自 listMyRacePage）
+  static const String myRaceRoutePath =
+      '/9001/modules/sjjx/race/stu/race/myRace/list';
+
   RaceService({required SharedHttpClient client})
       : _scjx2 = Scjx2ApiService(client: client);
 
@@ -73,6 +77,56 @@ class RaceService {
       moduleId: moduleId,
     );
     final detail = RaceDetail.fromJson(json);
+    DataCache().set(cacheKey, detail);
+    return detail;
+  }
+
+  /// 拉取"我的竞赛"列表（分页）
+  ///
+  /// 接口：`POST /race/race/stuRace/listMyRacePage`
+  Future<MyRacePageResult> fetchMyRaces({
+    int page = 1,
+    int pageSize = 15,
+    bool forceRefresh = false,
+  }) async {
+    final cacheKey = 'my_race_list_${page}_$pageSize';
+    if (!forceRefresh) {
+      final cached = DataCache().get<MyRacePageResult>(cacheKey);
+      if (cached != null) return cached;
+    }
+
+    final body = <String, dynamic>{
+      'currpage': page,
+      'pagesize': pageSize,
+    };
+    final json = await _scjx2.request(
+      path: '/race/race/stuRace/listMyRacePage',
+      data: body,
+      currentRoutePath: myRaceRoutePath,
+      apiName: 'RACE',
+      moduleId: moduleId,
+    );
+    final result = MyRacePageResult.fromJson(json);
+    DataCache().set(cacheKey, result);
+    return result;
+  }
+
+  /// 拉取"我的竞赛"团队详情
+  ///
+  /// 接口：`POST /race/race/raceTeam/queryById?id=<teamId>`（空 body，id 走 query）
+  Future<MyRaceDetail> fetchMyRaceDetail(String teamId) async {
+    final cacheKey = 'my_race_detail_$teamId';
+    final cached = DataCache().get<MyRaceDetail>(cacheKey);
+    if (cached != null) return cached;
+
+    final json = await _scjx2.request(
+      path: '/race/race/raceTeam/queryById',
+      params: {'id': teamId},
+      currentRoutePath: myRaceRoutePath,
+      apiName: 'RACE',
+      moduleId: moduleId,
+    );
+    final detail = MyRaceDetail.fromJson(json);
     DataCache().set(cacheKey, detail);
     return detail;
   }

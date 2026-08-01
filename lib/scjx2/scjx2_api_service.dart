@@ -36,11 +36,12 @@ class Scjx2ApiService {
   /// 各模块入口 URL
   /// 注意：先访问 zxcas（公共 CAS SSO 入口）→ authserver 用 ehall session
   /// ticket 跳回 scjx2 → scjx2 Set-Cookie → 跳到默认模块主页（一般是 RACE）
-  /// → 然后 navigate 到目标模块（race / teach / grad）触发该模块的 GetUserInfo
+  /// → 然后 navigate 到目标模块（race / teach / grad / srtp）触发该模块的 GetUserInfo
   static const Map<String, String> _moduleEntry = {
     'race': '$baseUrl/zxcas',
     'teach': '$baseUrl/zxcas',
     'grad': '$baseUrl/zxcas',
+    'srtp': '$baseUrl/zxcas',
   };
 
   /// 加载 zxcas 跳到 home 后，需要 navigate 到目标模块再触发 GetUserInfo
@@ -48,6 +49,7 @@ class Scjx2ApiService {
     'race': '/RACE/',
     'teach': '/TEACH/',
     'grad': '/GRAD/',
+    'srtp': '/SRTP/',
   };
 
   /// 各模块检测 home 用的 hash 标识
@@ -55,6 +57,7 @@ class Scjx2ApiService {
     'race': 'homeageStu',
     'teach': 'homeageStu',
     'grad': 'homeageStu',
+    'srtp': 'homeageStu',
   };
 
   /// LocalStorage key：zxcas 登录时设置的 user_id

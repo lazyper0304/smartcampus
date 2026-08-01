@@ -23,6 +23,7 @@ import '../network/network_service_page.dart';
 import '../safety/safety_page.dart';
 import '../vrmap/vrmap_page.dart';
 import '../race/race_page.dart';
+import '../srtp/srtp_page.dart';
 import '../second_classroom/erke_login_page.dart';
 
 /// 应用分类
@@ -82,6 +83,9 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.emoji_events_rounded, name: '学科竞赛', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => RacePage(client: c)),
+  AppEntry(icon: Icons.rocket_launch_rounded, name: '创新创业', category: AppCategory.jiaowu,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => SrtpPage(client: c)),
   AppEntry(icon: Icons.assignment_ind_rounded, name: '第二课堂', category: AppCategory.jiaowu,
     badge: const OfficeCampusCornerBadge(),
     requiresLogin: true,

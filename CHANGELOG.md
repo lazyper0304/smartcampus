@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### 🔧 版本号升级至 1.1.3
+- 同步更新根目录 `VERSION`、`pubspec.yaml`（`version: 1.1.3+5`，build 4→5）、`lib/core/version.dart`（`appVersion`）、README 徽章。
+
+### ✨ 新增（设置「关于」区交流群入口）
+- 设置「关于」区新增「交流群」项（`lib/settings/settings_page.dart`），点击加入 QQ 群【宜院宾果】。
+- **拉起策略**：Android 用 `intent://` scheme 指定 `com.tencent.mobileqq` 包名**直接拉起 QQ**（带 `browser_fallback_url`，QQ 未安装时自动回退浏览器）；其它平台（Windows 桌面等）直接 `launchUrl` 打开 `https://qm.qq.com/q/miOeBHKlRS`；拉起异常时兜底浏览器打开。
+
+### ✨ 新增（scjx2 大学生创新创业训练计划「SRTP」）
+- 应用网格「教务」区新增「大学生创新创业」入口（`lib/home/app_data.dart`，`Icons.rocket_launch_rounded`），进入「我参与的项目」。
+- `lib/scjx2/scjx2_api_service.dart` 模块表新增 `srtp`（入口 `zxcas`、模块路径 `/SRTP/`、home 标记 `homeageStu`），使 `bootstrapLogin(moduleId: 'srtp')` 能走完整 SSO 引导，token 独立缓存（`scjx2_srtp_token`）。
+- 新增 `lib/srtp/` 模块：`srtp.dart`（模型：`SrtpProjectItem` / `SrtpProjectPageResult` / `SrtpProjectDetail` / `SrtpStu` / `SrtpTea` / `SrtpAudit` / `SrtpResult` / `SrtpBudget`）、`srtp_service.dart`（`fetchMyJoinedProjects` / `fetchProjectDetail`，复用 `Scjx2ApiService.request` 签名与 401 重登兜底）、`srtp_page.dart`（列表四态+分页，阶段标签 申报/中期/结题 + 状态色点 已终止/申报中/已结题）、`srtp_detail_page.dart`（项目简介、成员含负责人标记、指导教师、经费预算/明细、审核记录时间线、成果、项目文件与基本信息）。
+- 接口：`POST /srtp/srtp/myProject/listIsMeJoinProjectsPage`（首屏 body `{}` 与抓包一致，加载更多带 `{currpage,pagesize}`）、`POST /srtp/srtp/common/stuProjectShow`（body 含固定 `include` 串 + `stage:0` + `role:'other'`，`currentRoutePath=/12001/modules/srtp/stu/joinProject`）。
+
+### 🐛 Bug 修复（SRTP 详情加载失败：数字字段 String/num 类型不稳定）
+- **问题**：结题/终止项目点开详情报 `type 'String' is not a subtype of type 'num?' in type cast`，加载失败。
+- **根因**：`stuProjectShow` 响应的 `budget[].cost`（及可能存在的 `spend[].cost`）返回的是**字符串** `"1000"`，而顶层 `cost`/`confirm_cost` 返回的是**数字** `20000`；`SrtpBudget.fromJson` 用 `as num?` 强转导致 TypeError。无预算明细的申报中项目不受影响。
+- **修复**（`lib/srtp/srtp.dart`）：新增 `_toDouble()` 兼容 num 与字符串的安全解析，应用于 `SrtpProjectDetail.cost` / `confirmCost` / `SrtpBudget.cost` 三处，替换 `as num?` 强转。
+
+### ✨ 新增（SRTP「我申请的项目」+ 页面双 Tab 化）
+- 「大学生创新创业」页改为**双 Tab**（`lib/srtp/srtp_page.dart`）：「我参与的项目」/「我申请的项目」，各自独立四态 + 分页状态机（`AutomaticKeepAliveClientMixin` 保持切换状态），共享阶段/状态标签组件（申报/中期/结题、已终止/申报中/已结题）。
+- 新增接口 `POST /srtp/srtp/myProject/listProjectProgressPage`（body 首屏 `{}` 与抓包一致，加载更多带分页参数；`currentRoutePath=/12001/modules/srtp/stu/myProject`），`SrtpService.fetchMyAppliedProjects()`；模型新增 `SrtpAppliedProjectItem` / `SrtpAppliedProjectPageResult`（列表项自带 `summary`/`dep_name`/`project_no`/`apply_date`/`stu_name` 等，卡片直接展示简介/负责人/学院/申请时间，`cost` 走 `_toDouble`）。
+- 详情页 `SrtpDetailPage` 构造参数改为基础字段（`projectId`/`projectName`/`planName`/`stage`/`state`/`routePath`），兼容参与/申请两种列表项；`SrtpService.fetchProjectDetail` 增加 `routePath` 可选参数（参与页与申请页的 currentRoutePath 不同，不参与 HMAC 仅透传）。
+
+### 🎨 UI 优化（药丸胶囊式分段切换）
+- 新增公共组件 `lib/core/pill_tab_bar.dart`（`PillTabBar`）：整体圆角胶囊轨道（主题色浅底）+ 内部实心主题色滑块（`AnimatedAlign` 平滑滑动）+ 白色加粗选中文字，支持任意数量标签，与 `TabController` 双向同步（点击 / TabBarView 手势滑动）。
+- **SRTP 页**：TabBar 改为 `PillTabBar`（我参与的项目 / 我申请的项目）。
+- **学科竞赛页**（`lib/race/race_page.dart`）：重构为双 Tab ——「学科竞赛」列表（原逻辑迁至 `_RaceListTab`，keep-alive）+「我的竞赛」（复用 `MyRacePage` 新增 `embedded` 嵌入模式，隐藏自身 AppBar 避免嵌套标题栏），切换用同一 `PillTabBar`；原 AppBar「我的竞赛」入口按钮移除（已由 Tab 承担），标题固定为「学科竞赛」。
+- SRTP 入口名与页面标题由「大学生创新创业」精简为「创新创业」。
+
+### ✨ 新增（scjx2 学科竞赛「我的竞赛」）
+- 学科竞赛页（`lib/race/race_page.dart`）AppBar 新增「我的竞赛」入口，进入 `lib/race/my_race_page.dart`：分页列表（下拉刷新 + 滚动加载更多 + 空态/错误态 + 引导登录兜底），卡片展示作品名 / 竞赛名 / 承办学院 / 学年 / 团队标记，并按审核状态着色标签（通过=绿 / 驳回=红 / 审核中=橙）。
+- 列表接口 `POST /race/race/stuRace/listMyRacePage`（body `{currpage, pagesize}`，`currentRoutePath` 取抓包值 `/9001/modules/sjjx/race/stu/race/myRace/list`）。
+- 新增「我的竞赛」详情页 `lib/race/my_race_detail_page.dart`：接口 `POST /race/race/raceTeam/queryById?id=<teamId>`（空 body、id 走 query），展示作品/竞赛信息、团队成员（排名徽标、队长标记、学号、专业班级）、指导教师（工号、排名）、审核意见时间线（教师、状态、时间、意见，含竖线连接）、报名附件与报名信息。
+- `lib/race/race.dart` 新增模型：`MyRaceItem` / `MyRacePageResult` / `MyRaceDetail` / `MyRaceOpinion` / `MyRaceTeamStu` / `MyRaceTeamTch`（手写 fromJson 兜底解析）。
+- `lib/race/race_service.dart` 新增 `fetchMyRaces()` / `fetchMyRaceDetail()`，沿用 `Scjx2ApiService.request` 统一签名与 401 自动重登/引导登录兜底，带 `DataCache` 缓存与 `forceRefresh`。
+
 ### 🐛 Bug 修复（scjx2 学科竞赛：会话票据过期导致刷新循环 / 获取失败）
 - **根因（修正）**：此前判定为「WebView 缓存累积触发风控」并不完整。真正主因是 `_client` 持久化到 LocalStorage 的 `CASTGC`（CAS 票据）/ehall 会话在**服务端有 TTL**，过期后本地仍以"永久有效"的 cookie 保存；`bootstrapLogin` 每次都把这份额外**已失效的"死 cookie"**注回 WebView → 触发 CAS 重定向刷新回环，表现为「首次能获取、用一段时间后拉不到，清掉应用数据重登就好」。上一轮的最小修复只清了 WebView 瞬时缓存、却把同一份死 cookie 又注回，故未能根治。
 - **修复**（`lib/scjx2/scjx2_api_service.dart`）：
