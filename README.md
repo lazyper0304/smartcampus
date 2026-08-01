@@ -1,7 +1,7 @@
 # 宜宾学院智慧校园 · SmartCampus
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.3-blue" alt="version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B" alt="flutter">
 </p>
