@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+### 🔧 版本号升级至 1.1.4
+- `VERSION` / `pubspec.yaml`（1.1.4+6）/ `lib/core/version.dart` 三处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1。
+
+### 🐛 修复（课表周次错位：2026-2027-1 第一周未排课）
+- **症状**：2026-2027 第 1 学期「第 2 周」显示为 9/21，实际应为 9/14（第一周 9/7 未返校、课表从第 2 周起排）。
+- **根因（实测服务端确认）**：`cxxljc.do` 返回 `XQKSRQ=2026-09-09`（所在周周一=9/7）、课程 `SKZC` 最小周次=2（第 1 周无课）；但 `dqzc.do` 在寒暑假返回**负 ZC**（8/2 实测 `ZC=-6`），原 `fetchCurrentWeek` 用 ZC 反推 `firstMonday = 今天-(ZC-1)*7-...` 得到 9/14 → 第 2 周显示 9/21，整体错位一周。
+- **修复**：
+  - `lib/course/course_service.dart` `fetchCurrentWeek`：`firstMonday` 改为**优先取校历 `XQKSRQ` 所在周的周一**（9/9 周三→9/7 周一），不再用负 ZC 反推；`ZC<1` 时 clamp 到第 1 周；`fetchSemesterCalendar` 缓存 key 加学期后缀（防跨学期污染）。
+  - `fetchClassCurrentWeek`（kcbcx 全校课表）：`ZC<1` clamp 到第 1 周。
+  - `lib/course/all_class_schedule_page.dart`：班级课表 `firstMonday` 同样优先取 `XQKSRQ` 所在周周一。
+- 顺带说明：2026-2027-1 总周数 ZZC=20，课程实际 2~19 周（第 1 周空、第 19 周结束）。
+
+### ✨ 新增（空闲教室查询）
+- 新增「空闲教室」应用入口（教务分类，需登录），基于 ehall jwapp「空闲教室」模块，按 学期+周次+星期（+教学楼）实时查询空闲教室。
+- 新模块 `lib/kxjas/`（严格模块化：Model / Service / Page 三层）：
+  - `kxjas.dart`：`KxjasBuilding`（教学楼）、`KxjasClassroom`（教室，含 JC1~JC20 占用节次解析、座位数）、`KxjasPeriod`（大节/时段）、`KxjasPageResult`（分页结果），手写 fromJson 兜底解析；
+  - `kxjas_service.dart`：`ensureSession`（GET index.do 预热）、`fetchBuildings`（jxlcx.do 循环拉全量+缓存）、`fetchPeriods`（cxjcqk.do 大节列表+缓存）、`fetchFreeClassrooms`（cxjsqk.do，querySetting 组装 JXLDM 教学楼 / DJ 大节过滤）、`fetchCurrentWeek`（dqzc.do）；
+  - `kxjas_page.dart`：星期 chips（默认今天）+ 周次下拉（默认当前教学周）+ 教学楼下拉（默认全部）+ 大节 chips（默认全部节次，1-2节/3-4节/5-6节/7-8节/9-11节）+ 查询按钮；四态 + 分页无限滚动 + 下拉刷新；教室卡片展示类型/楼层/座位与「空闲」标签。
+- 🎨 空闲教室筛选区顶部新增**当前学期只读展示**（「2025-2026 学年 第 2 学期」，取自 `KxjasService.defaultXnxqdm`），不可选择。
+- `lib/home/app_data.dart` 注册 `KxjasPage` 入口。
+
+### 🐛 修复（登录失败提示：自定义友好文案，不再抛 HTML 片段）
+- **问题**：账号/密码错误时 CAS 返回登录页 HTML（HTTP 200），异常消息拼了 HTML 片段（`登录失败（HTTP 200）：<!DOCTYPE html>...`），显示给用户不友好。
+- **修复**（`lib/auth/cas_login_service.dart`）：
+  - 新增 `LoginRejectedException`（业务性登录拒绝，不重试；`toString` 返回友好文案）；
+  - 新增 `_extractLoginError()`：解析失败页 HTML 提取 `#tips`/`.login-error-tip` 等错误提示；取不到时关键词兜底（账号或密码错误 / 验证码错误 / 账号已停用或不存在 / 登录失败请重试）；
+  - `_checkLoginResponse` 与 `_loginWithCaptcha` 改为抛 `LoginRejectedException(友好文案)`，验证码错误仍重试、账号密码错误立即停止。
+
+### 🔧 恢复「登录需先获取到个人信息再进入界面」
+- **恢复** `lib/splash/fetch_info_page.dart`（FetchInfoPage，自 git 历史还原）与 `lib/splash/` 目录：登录/会话校验后若本地无学生信息缓存，进入「正在获取个人信息…」过渡页并**阻塞到获取成功**才放行主界面（`fetchUntilSuccess` 持续重试）。
+- `lib/xuegong/student_info_manager.dart` 恢复 `fetchUntilSuccess()`。
+- `lib/main.dart` `_checkSession`（会话有效 + 自动重登两条路径）与 `lib/auth/login_page.dart`（登录成功）改回：有缓存直接 `MainScreen`，无缓存跳 `FetchInfoPage`。
+
+### 🐛 修复（学工 WebView 不再弹出「用户已停用或不存在」）
+- SSO 登录失败时学工系统 JS `alert()` 提示「用户已停用或不存在」，`InAppWebView` 默认弹 Android 系统对话框。
+- **修复**：`lib/xuegong/webview_xuegong_page.dart`（可见学工 WebView）与 `lib/xuegong/xuegong_data_service.dart`（Headless 后台获取）的 WebView 均新增 `onJsAlert`/`onJsConfirm`/`onJsPrompt` 拦截——`JsAlertResponseAction.CONFIRM` 静默关闭，仅打日志，不再弹窗。
+
+### 🐛 修复（个人信息获取：页面加载等待加长 + 两个崩溃点）
+- **加载等待加长、提高成功率**（`lib/xuegong/xuegong_data_service.dart`）：目标页渲染等待由固定 4 秒改为**轮询 `.minemine` 个人信息区块出现（最多 10 秒）**，未出现再兜底等 4 秒——学工页有 `onLoadAction is not defined` JS 错误、渲染慢时显著提升成功率；HTML 提取失败重试 1→3 次（间隔 5 秒）；总超时 60→90 秒。
+- **修 RangeError 崩溃**：`onLoadStop` 的 `url.substring(0, 80)` 在 URL 短于 80 字符时越界（日志 `Invalid value: Not in inclusive range 0..61: 80`），改为长度判断后安全截断。
+- **修空 cookie 注入断言崩溃**：`_injectCookies` 跳过空值 cookie（否则 `CookieManager.setCookie` 断言 `value.isNotEmpty` 失败，日志 `Failed assertion: line 79 pos 12`）。
+
+### 🎨 UI 优化（个人信息卡片：自动获取 + 正在获取中状态）
+- 设置页个人信息卡片：无缓存时**进入即自动拉取**（学号、姓名、专业等），获取期间显示「正在获取个人信息…」转圈状态，**不再显示「点击获取个人信息」**占位文案。
+- 获取失败时显示「获取失败，点击重试」（副文案保留「手动拉取学号、姓名、专业等信息」），点击仍可手动拉取；有数据时展示完整信息不变。
+
 ### ✨ 新增（进入主界面后后台自动获取个人信息）
 - 上一条移除「首次登录阻塞获取」后，个人信息改为**后台静默获取**：`lib/home/main_screen.dart` 的 `MainScreen.initState` 在非游客模式（`userId` 非空）下触发 `StudentInfoManager.ensureBackgroundFetch(client)`，不阻塞 UI。
 - `lib/xuegong/student_info_manager.dart` 新增 `ensureBackgroundFetch()`：已有缓存或已在抓取中则直接返回（静态并发防抖），否则循环 `fetchAndCache` 每 3 秒重试**直到成功**，成功后由 `fetchAndCache` 自动写缓存并退出。
