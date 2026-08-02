@@ -141,8 +141,13 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
 
       final today = DateTime.now();
       final todayWeekday = today.weekday;
-      final firstMonday = today.subtract(
-          Duration(days: (curWeek - 1) * 7 + (todayWeekday - 1)));
+      // 第一周周一优先取校历 XQKSRQ 所在周的周一（寒暑假 dqzc 返回负 ZC，
+      // 反推会错位一周；2026-2027-1 第一周无排课，XQKSRQ=9/9 周三 → 周一 9/7）
+      final ksDate = DateTime.tryParse(sem.startDateStr);
+      final firstMonday = ksDate != null
+          ? ksDate.subtract(Duration(days: ksDate.weekday - 1))
+          : today.subtract(
+              Duration(days: (curWeek - 1) * 7 + (todayWeekday - 1)));
 
       if (mounted) {
         setState(() {

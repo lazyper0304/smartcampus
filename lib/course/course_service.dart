@@ -145,7 +145,7 @@ class CourseService {
   /// 获取当前学期的校历信息（总周次 + 学期起始日期 + 各周日期）
   Future<Map<String, dynamic>> fetchSemesterCalendar(
       String xnxqdm, {bool forceRefresh = false}) async {
-    const cacheKey = 'course_calendar';
+    final cacheKey = 'course_calendar_$xnxqdm';
     if (!forceRefresh) {
       final cached = DataCache().get<Map<String, dynamic>>(cacheKey);
       if (cached != null) return cached;
@@ -181,13 +181,23 @@ class CourseService {
       if (cached != null) return cached;
     }
     final host = _host;
+    xnxqdm ??= _calcXnxqdm();
+    // 第一周周一优先取校历 XQKSRQ 所在周的周一（cxxljc.do）。
+    // ⚠️ 不能用 dqzc.do 的 ZC 反推：寒暑假期间服务端返回负 ZC（如 -6），
+    // 反推会错位一周（2026-2027-1 第一周无排课，XQKSRQ=9/9 周三 → 周一 9/7）。
+    DateTime firstMonday = DateTime.now();
+    final cal = await fetchSemesterCalendar(xnxqdm);
+    final ksDate = DateTime.tryParse(cal['XQKSRQ']?.toString() ?? '');
+    if (ksDate != null) {
+      firstMonday = ksDate.subtract(Duration(days: ksDate.weekday - 1));
+    }
     try {
       // 构造 dqzc.do 参数（JS 源码：需要 XN + XQ + RQ）
       final today = DateTime.now();
       final params = <String, String>{
         'RQ': '${today.year}-${today.month}-${today.day}',
       };
-      if (xnxqdm != null && xnxqdm.isNotEmpty) {
+      if (xnxqdm.isNotEmpty) {
         final xnq = _parseXnxq(xnxqdm);
         params['XN'] = xnq[0];
         params['XQ'] = xnq[1];
@@ -205,16 +215,10 @@ class CourseService {
         final rows = module?['rows'] as List?;
         if (rows != null && rows.isNotEmpty) {
           final row = rows[0] as Map<String, dynamic>;
-          final zc =
+          var zc =
               int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
-
-          // 动态推算第1周周一
-          // 公式：firstMonday = 今天 - (当前周-1)*7 - (今天星期-1)
-          final todayWeekday = today.weekday; // 1=Mon..7=Sun
-          final firstMonday = today.subtract(Duration(
-            days: (zc - 1) * 7 + (todayWeekday - 1),
-          ));
-
+          // 寒暑假/未开学时服务端返回负 ZC（如 -6），clamp 到第 1 周
+          if (zc < 1) zc = 1;
           final info = CurrentWeekInfo(week: zc, firstMonday: firstMonday);
           DataCache().set(cacheKey, info);
           return info;
@@ -222,10 +226,7 @@ class CourseService {
       }
     } catch (_) {}
     // 回退
-    return CurrentWeekInfo(
-      week: _calcCurrentWeek(),
-      firstMonday: DateTime(DateTime.now().year, 3, 1),
-    );
+    return CurrentWeekInfo(week: _calcCurrentWeek(), firstMonday: firstMonday);
   }
 
   /// 从学期起始日期推算当前周次
@@ -752,9 +753,11 @@ class CourseService {
           if (m is Map) {
             final rows = m['rows'];
             if (rows is List && rows.isNotEmpty) {
-              final zc = int.tryParse(
+              var zc = int.tryParse(
                       (rows[0] as Map)['ZC']?.toString() ?? '0') ??
                   1;
+              // 寒暑假/未开学时服务端返回负 ZC，clamp 到第 1 周
+              if (zc < 1) zc = 1;
               DataCache().set(cacheKey, zc);
               return zc;
             }
