@@ -40,10 +40,31 @@ class XuegongDataService {
         _controller = ctrl;
       },
       onLoadStop: (ctrl, u) {
-        debugPrint('HeadlessWebView loaded: ${u?.toString().substring(0, 80)}');
+        final s = u?.toString() ?? '';
+        debugPrint('HeadlessWebView loaded: ${s.length > 80 ? s.substring(0, 80) : s}');
       },
       onTitleChanged: (ctrl, t) {
         debugPrint('HeadlessWebView title: $t');
+      },
+      // 拦截 JS 弹窗（SSO 失败时「用户已停用或不存在」alert），静默关闭
+      onJsAlert: (ctrl, jsAlertRequest) async {
+        debugPrint('HeadlessWebView alert suppressed: ${jsAlertRequest.message}');
+        return JsAlertResponse(
+          action: JsAlertResponseAction.CONFIRM,
+          message: '',
+        );
+      },
+      onJsConfirm: (ctrl, jsConfirmRequest) async {
+        return JsConfirmResponse(
+          action: JsConfirmResponseAction.CONFIRM,
+          message: '',
+        );
+      },
+      onJsPrompt: (ctrl, jsPromptRequest) async {
+        return JsPromptResponse(
+          action: JsPromptResponseAction.CONFIRM,
+          message: '',
+        );
       },
     );
 
@@ -74,34 +95,50 @@ class XuegongDataService {
         urlRequest: URLRequest(url: WebUri(url)),
       );
 
-      // 等待目标页面加载和 JS 渲染
-      await Future.delayed(const Duration(seconds: 4));
-
-      // 提取 HTML
-      final html = await _controller?.evaluateJavascript(
-        source: '''
-(function() {
-  return document.documentElement.outerHTML;
-})();
-''',
-      );
-
-      if (html is String && html.isNotEmpty) {
-        completer.complete(html);
-      } else {
-        // 重试一次
-        await Future.delayed(const Duration(seconds: 3));
-        final retry = await _controller?.evaluateJavascript(
-          source: 'document.documentElement.outerHTML',
-        );
-        if (retry is String && retry.isNotEmpty) {
-          completer.complete(retry);
-        } else {
-          completer.completeError(Exception('无法提取页面内容'));
-        }
+      // 等待目标页面加载 + JS 渲染完成。
+      // 轮询个人信息区块（.minemine）出现，最多 10 秒——比固定等待更可靠，
+      // 页面渲染慢（学工页有 JS 错误 onLoadAction is not defined）时显著提高成功率。
+      var rendered = false;
+      for (int i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        try {
+          final ready = await _controller?.evaluateJavascript(
+            source: "document.querySelectorAll('.minemine').length > 0",
+          );
+          if (ready == true || ready == 'true') {
+            rendered = true;
+            break;
+          }
+        } catch (_) {}
+      }
+      debugPrint('Target page rendered: $rendered');
+      if (!rendered) {
+        // 区块未出现：兜底再等一轮完整渲染
+        await Future.delayed(const Duration(seconds: 4));
       }
 
-      return await completer.future.timeout(const Duration(seconds: 60));
+      // 提取 HTML（最多重试 3 次，间隔 5 秒）
+      String? html;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          final raw = await _controller?.evaluateJavascript(
+            source: 'document.documentElement.outerHTML',
+          );
+          if (raw is String && raw.isNotEmpty) {
+            html = raw;
+            break;
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(seconds: 5));
+      }
+
+      if (html != null && html.isNotEmpty) {
+        completer.complete(html);
+      } else {
+        completer.completeError(Exception('无法提取页面内容'));
+      }
+
+      return await completer.future.timeout(const Duration(seconds: 90));
     } finally {
       await headlessWebView.dispose();
       _controller = null;
@@ -172,6 +209,7 @@ class XuegongDataService {
         final cookies = allCookies[domain];
         if (cookies != null && cookies.isNotEmpty) {
           for (final entry in cookies.entries) {
+            if (entry.value.isEmpty) continue; // 空值触发 inappwebview 断言
             await cm.setCookie(
               url: WebUri('https://$domain/'),
               name: entry.key,
@@ -187,6 +225,7 @@ class XuegongDataService {
       final yibinuCookies = allCookies['yibinu.edu.cn'];
       if (yibinuCookies != null && yibinuCookies.isNotEmpty) {
         for (final entry in yibinuCookies.entries) {
+          if (entry.value.isEmpty) continue; // 空值触发 inappwebview 断言
           await cm.setCookie(
             url: WebUri('https://yibinu.edu.cn/'),
             name: entry.key,

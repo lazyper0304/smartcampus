@@ -251,6 +251,27 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
                 action: PermissionResponseAction.GRANT,
               );
             },
+            // 拦截 JS 弹窗（如 SSO 失败时的「用户已停用或不存在」alert），
+            // 静默关闭不弹系统对话框，仅打日志。
+            onJsAlert: (ctrl, jsAlertRequest) async {
+              debugPrint('JS alert suppressed: ${jsAlertRequest.message}');
+              return JsAlertResponse(
+                action: JsAlertResponseAction.CONFIRM,
+                message: '',
+              );
+            },
+            onJsConfirm: (ctrl, jsConfirmRequest) async {
+              return JsConfirmResponse(
+                action: JsConfirmResponseAction.CONFIRM,
+                message: '',
+              );
+            },
+            onJsPrompt: (ctrl, jsPromptRequest) async {
+              return JsPromptResponse(
+                action: JsPromptResponseAction.CONFIRM,
+                message: '',
+              );
+            },
             onReceivedError: (ctrl, req, err) {
               debugPrint('WebView error: ${err.type} - ${err.description}');
             },
