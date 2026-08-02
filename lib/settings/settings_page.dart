@@ -42,7 +42,17 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadInfo() async {
     final info = await StudentInfoManager.getCached();
-    if (mounted) setState(() { _studentInfo = info; _loadingInfo = false; });
+    if (!mounted) return;
+    if (info != null) {
+      setState(() { _studentInfo = info; _loadingInfo = false; });
+      return;
+    }
+    // 无缓存：进入即自动拉取（学号、姓名、专业等），期间显示"正在获取中"
+    setState(() => _loadingInfo = true);
+    final fetched = await StudentInfoManager.fetchAndCache(widget.client!);
+    if (mounted) {
+      setState(() { _studentInfo = fetched; _loadingInfo = false; });
+    }
   }
 
   Future<void> _refreshInfo() async {
@@ -279,7 +289,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
 
-    // 首次加载且无缓存
+    // 首次加载且无缓存（自动获取中）
     if (_loadingInfo && _studentInfo == null) {
       return Card(
         elevation: 0,
@@ -287,13 +297,24 @@ class _SettingsPageState extends State<SettingsPage> {
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.1)),
         ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(
-            child: SizedBox(
-              width: 24, height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            children: [
+              SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(accentColorNotifier.value),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '正在获取个人信息…',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              ),
+            ],
           ),
         ),
       );
@@ -333,7 +354,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.client != null ? '点击获取个人信息' : '个人信息暂不可用',
+                      widget.client != null ? '获取失败，点击重试' : '个人信息暂不可用',
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 3),
