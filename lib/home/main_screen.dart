@@ -13,6 +13,7 @@ import '../core/local_storage.dart';
 import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
 import '../settings/settings_page.dart';
+import '../xuegong/student_info_manager.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
 import '../core/navigation.dart';
@@ -53,6 +54,16 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // 进入主界面后后台静默获取个人信息（失败自动重试直到成功），不阻塞 UI；
+    // 游客模式无登录凭据，跳过。
+    if (widget.userId.isNotEmpty) {
+      StudentInfoManager.ensureBackgroundFetch(widget.client);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -6,8 +6,6 @@ import '../core/guest_mode.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../home/main_screen.dart';
-import '../splash/fetch_info_page.dart';
-import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
 import '../main.dart';
 
@@ -89,18 +87,11 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // 有缓存则直接进主页面（cookie 失效也不重新获取）
-      final cached = await StudentInfoManager.getCached();
-      if (!mounted) return;
-      if (cached != null) {
-        replacePage(
-          context,
-          MainScreen(client: _authService.client, userId: _usernameController.text.trim()),
-        );
-      } else {
-        // 首次登录，获取个人信息
-        replacePage(context, FetchInfoPage(client: _authService.client));
-      }
+      // 登录成功直接进入主界面（个人信息改为后台按需获取，不再阻塞进入）
+      replacePage(
+        context,
+        MainScreen(client: _authService.client, userId: _usernameController.text.trim()),
+      );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

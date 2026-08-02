@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### ✨ 新增（进入主界面后后台自动获取个人信息）
+- 上一条移除「首次登录阻塞获取」后，个人信息改为**后台静默获取**：`lib/home/main_screen.dart` 的 `MainScreen.initState` 在非游客模式（`userId` 非空）下触发 `StudentInfoManager.ensureBackgroundFetch(client)`，不阻塞 UI。
+- `lib/xuegong/student_info_manager.dart` 新增 `ensureBackgroundFetch()`：已有缓存或已在抓取中则直接返回（静态并发防抖），否则循环 `fetchAndCache` 每 3 秒重试**直到成功**，成功后由 `fetchAndCache` 自动写缓存并退出。
+- 效果：登录/进主界面零等待，个人信息在后台自动补齐，设置页可直接看到最新资料。
+
+### 🔧 移除「首次登录获取个人信息」阻塞步骤
+- **删除** `lib/splash/fetch_info_page.dart`（FetchInfoPage）及整个 `lib/splash/` 目录：原流程登录/会话校验后若本地无学生信息缓存，会先进入「正在获取个人信息…」过渡页并**阻塞到获取成功**才放行进入主界面。
+- **流程简化**：`lib/main.dart`（Splash 会话校验 + 自动重登两条路径）与 `lib/auth/login_page.dart`（登录成功）均改为**直接进入 `MainScreen`**，不再判断个人信息缓存、不再跳转 FetchInfoPage。
+- `lib/xuegong/student_info_manager.dart` 删除已无引用的 `fetchUntilSuccess()`；`getCached()` / `fetchAndCache()` / `clearCache()` 保留（设置页个人资料仍按需后台获取与清除缓存）。
+
 ### 🔧 版本号升级至 1.1.3
 - 同步更新根目录 `VERSION`、`pubspec.yaml`（`version: 1.1.3+5`，build 4→5）、`lib/core/version.dart`（`appVersion`）、README 徽章。
 

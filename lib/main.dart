@@ -10,8 +10,6 @@ import 'core/http_client.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
 import 'home/main_screen.dart';
-import 'splash/fetch_info_page.dart';
-import 'xuegong/student_info_manager.dart';
 
 const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
 
@@ -374,15 +372,7 @@ class _SplashPageState extends State<SplashPage>
       final savedUser = await LocalStorage.getString('saved_username') ?? '';
       if (!mounted) return;
 
-      // 首次进入才等待获取个人信息，后续使用缓存
-      final cached = await StudentInfoManager.getCached();
-      if (cached == null) {
-        if (!mounted) return;
-        replacePage(context, FetchInfoPage(client: client));
-        return;
-      }
-
-      if (!mounted) return;
+      // 会话有效直接进入主界面（个人信息改为后台按需获取，不再阻塞进入）
       replacePage(context, MainScreen(client: client, userId: savedUser));
     } else {
       // 会话失效：若用户"记住密码"且存有凭据，先尝试自动重登（静默续期）
@@ -390,13 +380,8 @@ class _SplashPageState extends State<SplashPage>
       if (await autoAuth.autoRelogin()) {
         if (!mounted) return;
         final savedUser = await LocalStorage.getString('saved_username') ?? '';
-        final cached = await StudentInfoManager.getCached();
         if (!mounted) return;
-        if (cached == null) {
-          replacePage(context, FetchInfoPage(client: client));
-        } else {
-          replacePage(context, MainScreen(client: client, userId: savedUser));
-        }
+        replacePage(context, MainScreen(client: client, userId: savedUser));
         return;
       }
       replacePage(context, const LoginPage());

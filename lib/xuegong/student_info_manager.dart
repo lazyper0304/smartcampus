@@ -175,12 +175,22 @@ class StudentInfoManager {
     await LocalStorage.remove(_cacheKey);
   }
 
-  /// 持续重试直到成功获取个人信息
-  static Future<StudentInfo> fetchUntilSuccess(SharedHttpClient client) async {
-    while (true) {
-      final info = await fetchAndCache(client);
-      if (info != null) return info;
-      await Future.delayed(const Duration(seconds: 3));
+  static bool _backgroundFetching = false;
+
+  /// 后台静默获取个人信息并缓存，失败自动重试直到成功。
+  /// 不阻塞调用方 UI；已存在缓存或已在抓取中时直接返回，避免并发重复请求。
+  static Future<void> ensureBackgroundFetch(SharedHttpClient client) async {
+    if (_backgroundFetching) return;
+    if (await getCached() != null) return;
+    _backgroundFetching = true;
+    try {
+      while (true) {
+        final info = await fetchAndCache(client);
+        if (info != null) return; // 成功即退出（fetchAndCache 已写入缓存）
+        await Future.delayed(const Duration(seconds: 3));
+      }
+    } finally {
+      _backgroundFetching = false;
     }
   }
 }
