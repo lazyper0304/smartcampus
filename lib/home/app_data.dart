@@ -25,6 +25,7 @@ import '../vrmap/vrmap_page.dart';
 import '../race/race_page.dart';
 import '../srtp/srtp_page.dart';
 import '../second_classroom/erke_login_page.dart';
+import '../kxjas/kxjas_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -90,6 +91,9 @@ final List<AppEntry> allApps = [
     badge: const OfficeCampusCornerBadge(),
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => const ErkeLoginPage()),
+  AppEntry(icon: Icons.meeting_room_rounded, name: '空闲教室', category: AppCategory.jiaowu,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => KxjasPage(client: c)),
 
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,
