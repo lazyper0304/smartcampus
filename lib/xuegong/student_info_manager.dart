@@ -175,6 +175,15 @@ class StudentInfoManager {
     await LocalStorage.remove(_cacheKey);
   }
 
+  /// 持续重试直到成功获取个人信息（登录阻塞页 FetchInfoPage 使用）
+  static Future<StudentInfo> fetchUntilSuccess(SharedHttpClient client) async {
+    while (true) {
+      final info = await fetchAndCache(client);
+      if (info != null) return info;
+      await Future.delayed(const Duration(seconds: 3));
+    }
+  }
+
   static bool _backgroundFetching = false;
 
   /// 后台静默获取个人信息并缓存，失败自动重试直到成功。

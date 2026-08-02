@@ -7,6 +7,16 @@ import 'package:html/parser.dart' as html_parser;
 import '../core/http_client.dart';
 import 'captcha_service.dart';
 
+/// CAS 登录被拒绝（账号/密码错误等业务性失败）——非网络/OCR 类，
+/// 不重试；message 为友好文案（不抛 HTML 片段）。
+class LoginRejectedException implements Exception {
+  final String message;
+  const LoginRejectedException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// 金智教务系统 CAS 统一登录
 /// 严格参考 yibinu-score-crawler + verify_yibinu_ehall + wisedu-unified-login-api 实现
 ///
@@ -326,29 +336,46 @@ class CasLoginService {
         // 302 → 登录成功
         if (resp.statusCode == 302) return;
 
-        // 200 → 检查错误信息，验证码无效则重试
+        // 200 → 检查错误信息，验证码无效则继续重试
         if (resp.body.contains('无效的验证码')) continue;
 
-        // 其他错误
-        final snippet =
-            resp.body.length > 150 ? resp.body.substring(0, 150) : resp.body;
-        throw Exception('登录失败（HTTP ${resp.statusCode}）：$snippet');
+        // 账号/密码等业务错误：提取友好提示并立即抛出，不再重试
+        throw LoginRejectedException(_extractLoginError(resp.body));
       } catch (e) {
-        if (e is Exception && e.toString().contains('登录失败')) rethrow;
+        if (e is LoginRejectedException) rethrow;
         // 其他异常（网络、OCR失败等）继续重试
       }
     }
-    throw Exception('验证码登录失败（已重试 10 次）');
+    throw LoginRejectedException('验证码登录失败（已重试 10 次）');
   }
 
   /// 检查无验证码登录响应
   void _checkLoginResponse(HttpResponse resp) {
     if (resp.statusCode != 302) {
-      final snippet = resp.body.length > 150
-          ? resp.body.substring(0, 150)
-          : resp.body;
-      throw Exception('登录失败（HTTP ${resp.statusCode}）：$snippet');
+      // 账号/密码等业务错误：友好提示，不抛 HTML 片段
+      throw LoginRejectedException(_extractLoginError(resp.body));
     }
+  }
+
+  /// 从 CAS 登录失败页 HTML 中提取友好错误提示（自定义文案，不弹 JS/HTML）
+  String _extractLoginError(String html) {
+    try {
+      final doc = html_parser.parse(html);
+      final el = doc.querySelector(
+          '#tips, .login-error-tip, .error-tip, #msg, .auth_error, .error-tips');
+      if (el != null) {
+        final t = el.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+        if (t.isNotEmpty && t.length < 100) return t;
+      }
+    } catch (_) {}
+    if (html.contains('账号或密码错误') || html.contains('用户名或密码错误')) {
+      return '账号或密码错误';
+    }
+    if (html.contains('验证码')) return '验证码错误，请重试';
+    if (html.contains('停用') || html.contains('不存在')) {
+      return '账号已停用或不存在';
+    }
+    return '登录失败，请检查账号密码后重试';
   }
 
   /// 计算当前学期
