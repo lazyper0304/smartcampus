@@ -26,6 +26,7 @@ import '../race/race_page.dart';
 import '../srtp/srtp_page.dart';
 import '../second_classroom/erke_login_page.dart';
 import '../kxjas/kxjas_page.dart';
+import '../bohrium/bohrium_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -94,6 +95,9 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.meeting_room_rounded, name: '空闲教室', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => KxjasPage(client: c)),
+  AppEntry(icon: Icons.biotech_rounded, name: '玻尔科研', category: AppCategory.jiaowu,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => BohriumPage(client: c)),
 
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,

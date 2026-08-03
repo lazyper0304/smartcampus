@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### ✨ 新增（玻尔科研平台）
+- 新增「玻尔科研」应用入口（教务分类，需登录），内置 WebView 打开 `https://yibinu.bohrium.com/`（深势科技 Bohrium 高校定制版），复用学校 CAS 统一认证免密登录。
+- 新模块 `lib/bohrium/`（模块化两层：Service / Page）：
+  - `bohrium_service.dart`：`BohriumService` —— `injectCasCookiesToWebView` 从 `SharedHttpClient` 提取 authserver/yibinu/ehall 域 cookie（含 Secure/HttpOnly 的 **CASTGC**，按 `.yibinu.edu.cn` 父域 + isSecure 注入）到 WebView，使 CAS SSO 自动放行；`hasLocalCasSession` 检查本地是否有可注入会话；
+  - `bohrium_page.dart`：`BohriumPage` —— 加载平台首页，initState 先注入 cookie 再进 WebView；CAS 登录页停留检测（提示条引导手动登录兜底）、加载进度条、底部工具栏（后退/前进/首页/刷新）、菜单（外部浏览器打开/清除缓存，清缓存后自动重注入 cookie）。
+- 平台认证链路已确认：未登录 302 到 `authserver.yibinu.edu.cn` CAS → 回跳 `/cas_login?ticket=...` → `POST /platform-gateway/v1/account/cas_login` 兑换 token（localStorage `brmToken`）。
+- `lib/home/app_data.dart` 注册 `BohriumPage` 入口。
+
+### 🐛 修复（学科竞赛数据获取失败：CAS 登录 https service + 缓存回退兜底）
+- **根因**：`cas_login_service.dart` 的 `yibinLoginUrl` 仍使用 **http service**（`http://ehall.yibinu.edu.cn/login?service=http://...`），服务端已拒绝该入口（POST 恒 200 失败页无提示）→ 会话过期后 `autoRelogin` / 手动重登 / `bootstrapLogin` 全部失败 → scjx2 race 接口 401/404 → 学科竞赛永远"无法获取到"（缓存加再多也无用）。
+- **修复**（`lib/auth/cas_login_service.dart` + `lib/auth/captcha_service.dart`）：
+  - `yibinLoginUrl` 改为 **https service**（`https://authserver.yibinu.edu.cn/authserver/login?service=https%3A%2F%2Fehall.yibinu.edu.cn%3A443%2Flogin%3Fservice%3Dhttps%3A%2F%2Fehall.yibinu.edu.cn%2Fnew%2Findex.html`，verify_yibinu.py 已验证成功）；
+  - `needCaptcha.html` / `captcha.html` 同步改 https；`_captureCastgcOverHttps` 不再 `replaceFirst('http://', ...)`（URL 本身已是 https）。
+- **缓存真正生效**（`lib/race/race_service.dart` + `lib/race/race_page.dart` + `lib/race/my_race_page.dart`）：
+  - Service 四个 fetch 方法：请求失败（网络抖动/5xx/解析失败等**非登录类**异常）时**回退缓存**返回，不再直接抛错；登录类异常（未登录 scjx2/登录已过期）仍上抛走 bootstrap 引导；
+  - 新增 `cachedCompetitions()` / `cachedMyRaces()`；
+  - 页面首屏改为**缓存优先**：有缓存秒开旧数据 + 后台静默刷新（`_refreshSilently`），无缓存才走网络；下拉刷新/重试保持强制刷新；bootstrap 成功后强制走网络拿最新。
+
+
 ### 🔧 版本号升级至 1.1.4
 - `VERSION` / `pubspec.yaml`（1.1.4+6）/ `lib/core/version.dart` 三处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1。
 
