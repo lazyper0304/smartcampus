@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 🔧 版本号升级至 1.1.5
+- `VERSION` / `pubspec.yaml`（1.1.5+7）/ `lib/core/version.dart` 三处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1。
+- 1.1.5 新增内容：玻尔科研平台（CAS SSO 内置 WebView）、课程查询（搜索/筛选/分页/详情）及 403 与转圈修复。
+
+### 🐛 修复（课程查询 403 服务器拒绝访问）
+- **根因（实测定位）**：ehall 网关（rump/e）对 kccx 业务 POST 校验 `_WEU` 会话 cookie，缺失/失效即返回 403（用抓包 cookie 逐个剔除验证：去掉 `_WEU` 必 403，`MOD_AUTH_CAS`/`JSESSIONID`/`route`/`asessionid` 均无影响，Referer 的 `gid_` 也无影响）。`_WEU` 只能通过有效 ehall 登录链获得。
+- **修复**（`lib/kccx/kccx_service.dart`）：
+  - `ensureSession` 改为 **noRedirect 手动跟随重定向**（门户 `new/index.html` + kccx 首页，逐跳 GET），确保重定向链中间响应的 Set-Cookie 都被捕获（Dart HttpClient 自动跟随会丢弃中间响应 Set-Cookie）；
+  - **新增 ehall 应用入口链**：`appMultiGroupEntranceList?appId=...` → GET 返回的带 `gid_` 的 targetUrl（`gid_` 为**会话级**标识，实测不同应用相同；kcbcx 全校课表已验证此链是建立 ehall 网关会话 `_WEU` 的关键——kcbcx 无 `_WEU` 同样 403 证明其 ensureSession 正是靠此链拿到 `_WEU`）；
+  - `fetchCourses` / `fetchCourseDetail` 遇 403 时**自动重登**（`AuthService.autoRelogin`，记住密码时用已存账号密码刷新 ehall 会话）→ 重新预热 → 重试一次；未记住密码时提示「登录已过期，请重新登录后重试（403）」；403 前后打印各域 cookie 名便于定位。
+- 备注：用户给出的 `appShow?appId=4766860087431764` 实为「全校方案查询」（qxfacx），课程查询无 appId（入口 `thirdAppIndexShell.html`），本修复不依赖 appId。
+
+### 🐛 修复（课程查询一直转圈无响应）
+- **根因**：`kccx_page.dart` 在 `initState` 中调用 `_loadFirstPage()`，其首行 `FocusScope.of(context).unfocus()` 在 initState 阶段依赖 InheritedWidget（FocusScope）→ Flutter 抛异常 → async 异常被静默吞掉 → `_isLoading` 永远为 true → 页面一直转圈。
+- **修复**：键盘收起逻辑移到用户交互回调 `_submitSearch()`（查询按钮 / 输入框提交时执行），`_loadFirstPage` 不再在 initState 调用链中访问 InheritedWidget。
+- 列表底部新增分页进度提示：「已加载 X / 共 Y 条 · 上滑加载更多」/「已加载全部 Y 条课程」（全量 1 万+ 条课程走服务端分页 + 无限滚动）。
+
+### ✨ 新增（课程查询）
+- 新增「课程查询」应用入口（教务分类，需登录），基于 ehall jwapp「课程查询」（kccx 模块）按 课程名/课程号 搜索、考试类型/课程层次 筛选课程信息。
+- 新模块 `lib/kccx/`（严格模块化：Model / Service / Page 三层）：
+  - `kccx.dart`：`KccxCourse`（课程：KCM 课程名 / KCH 课程号 / XF 学分 / XS 学时 / KKDWDM 开课单位 / KSLXDM 考试类型 / KCFZR 负责人 / KCCCDM 课程层次 / KCZTDM 状态等，手写 fromJson 兜底）、`KccxPageResult`（分页结果）；
+  - `kccx_service.dart`：`ensureSession`（GET kccx 首页预热）、`fetchCourses`（kcxxcx.do，querySetting 组装 KCM/KCH 包含匹配 + KSLXDM/KCCCDM 等值过滤，默认 `KCZTDM=1` 仅查启用课程，分页无限滚动）、`fetchCourseDetail`（initKcdg.do，按 KCH 取课程完整信息）；
+  - `kccx_page.dart`：课程名/课程号双搜索框 + 考试类型 chips（全部/考试/考查）+ 课程层次 chips（全部/本科/专科）+ 查询按钮；四态 + 分页无限滚动 + 下拉刷新；课程卡片展示 课程名/课程号/学分·学时/开课单位/考试类型/课程层次/负责人，点击进入详情页；
+  - `kccx_detail_page.dart`：课程详情页（initKcdg.do），头部卡片 + 基本信息/单位信息/教学信息/其他 分组展示完整课程字段。
+- `lib/home/app_data.dart` 注册 `KccxPage` 入口。
+
 ### ✨ 新增（玻尔科研平台）
 - 新增「玻尔科研」应用入口（教务分类，需登录），内置 WebView 打开 `https://yibinu.bohrium.com/`（深势科技 Bohrium 高校定制版），复用学校 CAS 统一认证免密登录。
 - 新模块 `lib/bohrium/`（模块化两层：Service / Page）：
