@@ -36,6 +36,8 @@ class RaceService {
   Future<bool> bootstrapLogin() => _scjx2.bootstrapLogin(moduleId: moduleId);
 
   /// 拉取学科竞赛列表
+  ///
+  /// 请求失败（非登录类异常）时回退缓存，保证弱网/会话抖动时仍有数据可看。
   Future<RacePageResult> fetchCompetitions({
     int page = 1,
     int pageSize = 15,
@@ -47,21 +49,35 @@ class RaceService {
       if (cached != null) return cached;
     }
 
-    final body = <String, dynamic>{
-      'currpage': page,
-      'pagesize': pageSize,
-    };
-    final json = await _scjx2.request(
-      path: '/race/race/stuRace/listStuRacePage',
-      data: body,
-      currentRoutePath: currentRoutePath,
-      apiName: 'RACE',
-      moduleId: moduleId,
-    );
-    final result = RacePageResult.fromJson(json);
-    DataCache().set(cacheKey, result);
-    return result;
+    try {
+      final body = <String, dynamic>{
+        'currpage': page,
+        'pagesize': pageSize,
+      };
+      final json = await _scjx2.request(
+        path: '/race/race/stuRace/listStuRacePage',
+        data: body,
+        currentRoutePath: currentRoutePath,
+        apiName: 'RACE',
+        moduleId: moduleId,
+      );
+      final result = RacePageResult.fromJson(json);
+      DataCache().set(cacheKey, result);
+      return result;
+    } catch (e) {
+      // 登录类异常必须上抛（页面据此引导重登 / bootstrap）；
+      // 其余异常（网络抖动、5xx、解析失败等）回退缓存兜底。
+      final msg = e.toString();
+      if (msg.contains('未登录 scjx2') || msg.contains('登录已过期')) rethrow;
+      final cached = DataCache().get<RacePageResult>(cacheKey);
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
+
+  /// 读取缓存的学科竞赛列表（不请求网络），供页面缓存优先渲染
+  RacePageResult? cachedCompetitions({int page = 1, int pageSize = 15}) =>
+      DataCache().get<RacePageResult>('race_list_${page}_$pageSize');
 
   /// 拉取学科竞赛详情
   Future<RaceDetail> fetchRaceDetail(String raceId) async {
@@ -69,16 +85,25 @@ class RaceService {
     final cached = DataCache().get<RaceDetail>(cacheKey);
     if (cached != null) return cached;
 
-    final json = await _scjx2.request(
-      path: '/race/race/stuRace/toRaceApply',
-      params: {'race_id': raceId},
-      currentRoutePath: currentRoutePath,
-      apiName: 'RACE',
-      moduleId: moduleId,
-    );
-    final detail = RaceDetail.fromJson(json);
-    DataCache().set(cacheKey, detail);
-    return detail;
+    try {
+      final json = await _scjx2.request(
+        path: '/race/race/stuRace/toRaceApply',
+        params: {'race_id': raceId},
+        currentRoutePath: currentRoutePath,
+        apiName: 'RACE',
+        moduleId: moduleId,
+      );
+      final detail = RaceDetail.fromJson(json);
+      DataCache().set(cacheKey, detail);
+      return detail;
+    } catch (e) {
+      // 登录类异常上抛（页面走 bootstrap）；其余回退缓存
+      final msg = e.toString();
+      if (msg.contains('未登录 scjx2') || msg.contains('登录已过期')) rethrow;
+      final cachedAgain = DataCache().get<RaceDetail>(cacheKey);
+      if (cachedAgain != null) return cachedAgain;
+      rethrow;
+    }
   }
 
   /// 拉取"我的竞赛"列表（分页）
@@ -95,21 +120,34 @@ class RaceService {
       if (cached != null) return cached;
     }
 
-    final body = <String, dynamic>{
-      'currpage': page,
-      'pagesize': pageSize,
-    };
-    final json = await _scjx2.request(
-      path: '/race/race/stuRace/listMyRacePage',
-      data: body,
-      currentRoutePath: myRaceRoutePath,
-      apiName: 'RACE',
-      moduleId: moduleId,
-    );
-    final result = MyRacePageResult.fromJson(json);
-    DataCache().set(cacheKey, result);
-    return result;
+    try {
+      final body = <String, dynamic>{
+        'currpage': page,
+        'pagesize': pageSize,
+      };
+      final json = await _scjx2.request(
+        path: '/race/race/stuRace/listMyRacePage',
+        data: body,
+        currentRoutePath: myRaceRoutePath,
+        apiName: 'RACE',
+        moduleId: moduleId,
+      );
+      final result = MyRacePageResult.fromJson(json);
+      DataCache().set(cacheKey, result);
+      return result;
+    } catch (e) {
+      // 登录类异常上抛（页面走 bootstrap）；其余回退缓存
+      final msg = e.toString();
+      if (msg.contains('未登录 scjx2') || msg.contains('登录已过期')) rethrow;
+      final cached = DataCache().get<MyRacePageResult>(cacheKey);
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
+
+  /// 读取缓存的"我的竞赛"列表（不请求网络），供页面缓存优先渲染
+  MyRacePageResult? cachedMyRaces({int page = 1, int pageSize = 15}) =>
+      DataCache().get<MyRacePageResult>('my_race_list_${page}_$pageSize');
 
   /// 拉取"我的竞赛"团队详情
   ///
@@ -119,15 +157,24 @@ class RaceService {
     final cached = DataCache().get<MyRaceDetail>(cacheKey);
     if (cached != null) return cached;
 
-    final json = await _scjx2.request(
-      path: '/race/race/raceTeam/queryById',
-      params: {'id': teamId},
-      currentRoutePath: myRaceRoutePath,
-      apiName: 'RACE',
-      moduleId: moduleId,
-    );
-    final detail = MyRaceDetail.fromJson(json);
-    DataCache().set(cacheKey, detail);
-    return detail;
+    try {
+      final json = await _scjx2.request(
+        path: '/race/race/raceTeam/queryById',
+        params: {'id': teamId},
+        currentRoutePath: myRaceRoutePath,
+        apiName: 'RACE',
+        moduleId: moduleId,
+      );
+      final detail = MyRaceDetail.fromJson(json);
+      DataCache().set(cacheKey, detail);
+      return detail;
+    } catch (e) {
+      // 登录类异常上抛（页面走 bootstrap）；其余回退缓存
+      final msg = e.toString();
+      if (msg.contains('未登录 scjx2') || msg.contains('登录已过期')) rethrow;
+      final cachedAgain = DataCache().get<MyRaceDetail>(cacheKey);
+      if (cachedAgain != null) return cachedAgain;
+      rethrow;
+    }
   }
 }

@@ -59,7 +59,25 @@ class _MyRacePageState extends State<MyRacePage> {
     }
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool force = false}) async {
+    // 缓存优先：非强制刷新且有缓存 → 秒开旧数据，后台静默刷新
+    if (!force) {
+      final cached = _service.cachedMyRaces();
+      if (cached != null && cached.list.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _list = cached.list;
+          _currentPage = cached.currPage;
+          _totalPage = cached.totalPage;
+          _totalCount = cached.totalCount;
+          _isLoading = false;
+          _error = null;
+        });
+        _refreshSilently();
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -89,6 +107,22 @@ class _MyRacePageState extends State<MyRacePage> {
     }
   }
 
+  /// 后台静默刷新：成功则更新列表，失败静默保留缓存数据
+  Future<void> _refreshSilently() async {
+    try {
+      final result = await _service.fetchMyRaces(forceRefresh: true);
+      if (!mounted) return;
+      setState(() {
+        _list = result.list;
+        _currentPage = result.currPage;
+        _totalPage = result.totalPage;
+        _totalCount = result.totalCount;
+      });
+    } catch (_) {
+      // 静默失败：保留缓存展示
+    }
+  }
+
   /// 引导登录 scjx2，成功后重试加载
   Future<void> _tryBootstrap() async {
     if (!mounted) return;
@@ -100,8 +134,8 @@ class _MyRacePageState extends State<MyRacePage> {
       final ok = await _service.bootstrapLogin();
       if (!mounted) return;
       if (ok) {
-        // 登录成功，重新加载
-        await _loadData();
+        // 登录成功，重新加载（强制走网络，拿到最新数据）
+        await _loadData(force: true);
       } else {
         setState(() {
           _error = 'scjx2 登录失败，请前往 WebView 登录后再试';

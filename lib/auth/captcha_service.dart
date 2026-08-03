@@ -17,7 +17,7 @@ class CaptchaService {
   /// 检查是否需要验证码
   Future<bool> needsCaptcha(String host, String username) async {
     final resp = await client.get(
-      Uri.parse('http://$host/authserver/needCaptcha.html'
+      Uri.parse('https://$host/authserver/needCaptcha.html'
           '?username=$username&pwdEncrypt2=pwdEncryptSalt'),
     );
     return resp.body.trim() == 'true';

@@ -21,7 +21,7 @@ class LoginRejectedException implements Exception {
 /// 严格参考 yibinu-score-crawler + verify_yibinu_ehall + wisedu-unified-login-api 实现
 ///
 /// 关键要点（参考 Java 参考实现）：
-/// 1. 所有 ehall API 使用 http:// 而非 https://
+/// 1. ⚠️ 登录入口必须用 https service（http service 已被服务端拒绝，8/2 实测）
 /// 2. CAS ticket 验证重定向使用 POST 方法跟随
 /// 3. 每个页面跳转都会产生新 cookie，必须持续合并
 /// 4. 连续输错密码会触发验证码，使用 ML Kit OCR 自动识别
@@ -30,11 +30,14 @@ class CasLoginService {
       'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
 
   /// 宜宾学院统一认证登录 URL
-  /// 注意：必须使用 http:// 而非 https://，与 Java 参考实现一致
+  ///
+  /// ⚠️ 必须使用 https service（`service=https://ehall.yibinu.edu.cn:443/login?...`）：
+  /// 2026-08-02 实测 http service（`http://ehall.../login`）POST 恒被拒
+  /// （200 失败页无提示），https service 经 verify_yibinu.py 验证成功。
   static const String yibinLoginUrl =
-      'http://authserver.yibinu.edu.cn/authserver/login'
-      '?service=http%3A%2F%2Fehall.yibinu.edu.cn%2Flogin'
-      '%3Fservice%3Dhttp%3A%2F%2Fehall.yibinu.edu.cn%2Fnew%2Findex.html';
+      'https://authserver.yibinu.edu.cn/authserver/login'
+      '?service=https%3A%2F%2Fehall.yibinu.edu.cn%3A443%2Flogin'
+      '%3Fservice%3Dhttps%3A%2F%2Fehall.yibinu.edu.cn%2Fnew%2Findex.html';
 
   final SharedHttpClient client;
 
@@ -77,9 +80,9 @@ class CasLoginService {
         RegExp(r'var pwdDefaultEncryptSalt = "(.+?)";').firstMatch(resp.body);
     if (saltMatch != null) salt = saltMatch.group(1)!;
 
-    // 从 needCaptcha 接口获取更新后的盐（注意：needCaptcha 也用 http）
+    // 从 needCaptcha 接口获取更新后的盐（注意：needCaptcha 也用 https）
     final needResp = await client.get(
-      Uri.parse('http://$host/authserver/needCaptcha.html'
+      Uri.parse('https://$host/authserver/needCaptcha.html'
           '?username=$username&pwdEncrypt2=pwdEncryptSalt'),
       headers: _htmlHeaders(host, desktopUA),
     );
@@ -211,7 +214,7 @@ class CasLoginService {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-    final uri = Uri.parse(yibinLoginUrl.replaceFirst('http://', 'https://'));
+    final uri = Uri.parse(yibinLoginUrl);
     final host = uri.host; // authserver.yibinu.edu.cn
 
     // 1. GET https 登录页（取隐藏字段 + 加密盐）
@@ -321,7 +324,7 @@ class CasLoginService {
     required CaptchaService captchaService,
   }) async {
     const captchaUrl =
-        'http://authserver.yibinu.edu.cn/authserver/captcha.html';
+        'https://authserver.yibinu.edu.cn/authserver/captcha.html';
 
     for (int attempt = 0; attempt < 10; attempt++) {
       try {
