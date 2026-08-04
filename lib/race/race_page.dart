@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../auth/login_page.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
 import '../core/data_cache.dart';
+import '../core/navigation.dart';
 import '../core/pill_tab_bar.dart';
 import 'race.dart';
 import 'race_service.dart';
@@ -90,6 +92,9 @@ class _RaceListTabState extends State<_RaceListTab>
   bool _isLoading = true;
   String? _error;
 
+  /// 自愈失败（会话过期且无法自动重登）时引导用户重新登录
+  bool _loginRequired = false;
+
   int _currentPage = 1;
   int _totalPage = 1;
   bool _isLoadingMore = false;
@@ -154,6 +159,7 @@ class _RaceListTabState extends State<_RaceListTab>
         _currentPage = result.currPage;
         _totalPage = result.totalPage;
         _isLoading = false;
+        _loginRequired = false;
       });
     } catch (e) {
       // 如果未登录，自动引导登录
@@ -200,8 +206,9 @@ class _RaceListTabState extends State<_RaceListTab>
         await _loadData(force: true);
       } else {
         setState(() {
-          _error = 'scjx2 登录失败，请前往 WebView 登录后再试';
+          _error = '登录已过期，请重新登录后再试';
           _isLoading = false;
+          _loginRequired = true;
         });
       }
     } catch (e) {
@@ -265,6 +272,14 @@ class _RaceListTabState extends State<_RaceListTab>
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('重试'),
               ),
+              if (_loginRequired) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => pushAndClear(context, const LoginPage()),
+                  icon: const Icon(Icons.login, size: 18),
+                  label: const Text('重新登录'),
+                ),
+              ],
             ],
           ),
         ),

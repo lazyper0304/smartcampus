@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../auth/login_page.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
 import '../core/data_cache.dart';
+import '../core/navigation.dart';
 import '../core/pill_tab_bar.dart';
 import 'srtp.dart';
 import 'srtp_service.dart';
@@ -89,6 +91,9 @@ class _JoinedTabState extends State<_JoinedTab>
   bool _isLoading = true;
   String? _error;
 
+  /// 自愈失败（会话过期且无法自动重登）时引导用户重新登录
+  bool _loginRequired = false;
+
   int _currentPage = 1;
   int _totalPage = 1;
   bool _isLoadingMore = false;
@@ -135,6 +140,7 @@ class _JoinedTabState extends State<_JoinedTab>
         _currentPage = result.currPage;
         _totalPage = result.totalPage;
         _isLoading = false;
+        _loginRequired = false;
       });
     } catch (e) {
       // 如果未登录，自动引导登录
@@ -165,8 +171,9 @@ class _JoinedTabState extends State<_JoinedTab>
         await _loadData();
       } else {
         setState(() {
-          _error = 'scjx2 登录失败，请前往 WebView 登录后再试';
+          _error = '登录已过期，请重新登录后再试';
           _isLoading = false;
+          _loginRequired = true;
         });
       }
     } catch (e) {
@@ -207,7 +214,8 @@ class _JoinedTabState extends State<_JoinedTab>
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _buildError(context, _error!, onRetry: _loadData);
+      return _buildError(context, _error!,
+          onRetry: _loadData, loginRequired: _loginRequired);
     }
     if (_list.isEmpty) {
       return _buildEmpty(context, Icons.rocket_launch_outlined, '暂无参与的项目',
@@ -312,6 +320,9 @@ class _AppliedTabState extends State<_AppliedTab>
   bool _isLoading = true;
   String? _error;
 
+  /// 自愈失败（会话过期且无法自动重登）时引导用户重新登录
+  bool _loginRequired = false;
+
   int _currentPage = 1;
   int _totalPage = 1;
   bool _isLoadingMore = false;
@@ -358,6 +369,7 @@ class _AppliedTabState extends State<_AppliedTab>
         _currentPage = result.currPage;
         _totalPage = result.totalPage;
         _isLoading = false;
+        _loginRequired = false;
       });
     } catch (e) {
       // 如果未登录，自动引导登录
@@ -388,8 +400,9 @@ class _AppliedTabState extends State<_AppliedTab>
         await _loadData();
       } else {
         setState(() {
-          _error = 'scjx2 登录失败，请前往 WebView 登录后再试';
+          _error = '登录已过期，请重新登录后再试';
           _isLoading = false;
+          _loginRequired = true;
         });
       }
     } catch (e) {
@@ -430,7 +443,8 @@ class _AppliedTabState extends State<_AppliedTab>
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _buildError(context, _error!, onRetry: _loadData);
+      return _buildError(context, _error!,
+          onRetry: _loadData, loginRequired: _loginRequired);
     }
     if (_list.isEmpty) {
       return _buildEmpty(context, Icons.rocket_launch_outlined, '暂无申请的项目',
@@ -634,9 +648,9 @@ String formatMidTime(String midTime) {
   return '中期：${cut(parts[0])} ~ ${cut(parts[1])}';
 }
 
-/// 错误态（图标 + 文字 + 重试）
+/// 错误态（图标 + 文字 + 重试 [+ 重新登录]）
 Widget _buildError(BuildContext context, String error,
-    {required VoidCallback onRetry}) {
+    {required VoidCallback onRetry, bool loginRequired = false}) {
   return Center(
     child: Padding(
       padding: const EdgeInsets.all(24),
@@ -660,6 +674,14 @@ Widget _buildError(BuildContext context, String error,
             icon: const Icon(Icons.refresh, size: 18),
             label: const Text('重试'),
           ),
+          if (loginRequired) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => pushAndClear(context, const LoginPage()),
+              icon: const Icon(Icons.login, size: 18),
+              label: const Text('重新登录'),
+            ),
+          ],
         ],
       ),
     ),

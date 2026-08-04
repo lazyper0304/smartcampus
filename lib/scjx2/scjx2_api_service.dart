@@ -207,6 +207,9 @@ class Scjx2ApiService {
             retryCount: retryCount + 1,
           );
         }
+        // bootstrap 也失败 → 抛"登录已过期"，页面据此走 _tryBootstrap
+        // → 失败后显示"重新登录"按钮（不能抛 [code=401]，页面无法识别）
+        throw Exception('登录已过期，请重新登录');
       }
       throw Exception('$apiName 接口错误 [code=$code]: $msg');
     }
@@ -230,8 +233,24 @@ class Scjx2ApiService {
   ///
   /// [moduleId] 指定要登录的模块：'race' / 'teach' / 'grad'。
   /// 不传或传 null 时默认为 'race'。
-  Future<bool> bootstrapLogin({String? moduleId}) async {
+  Future<bool> bootstrapLogin({String? moduleId}) {
     moduleId ??= 'race';
+    // 互斥锁：串行化 WebView 引导登录。
+    // race 双 Tab 同时 init、request 401 自愈与页面 _tryBootstrap 并发调用时，
+    // 多个 HeadlessInAppWebView 会互相 deleteAllCookies 清空对方注入的 cookie，
+    // 导致 SSO 混乱（症状"时好时坏"）。所有 bootstrap 请求排队执行。
+    final prev = _bootstrapLock ?? Future.value();
+    final run = prev.then((_) => _bootstrapLogin(moduleId!));
+    // 无论成败都推进锁链，避免一次失败卡死后续所有登录
+    _bootstrapLock = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
+  /// 互斥锁状态（见 [bootstrapLogin]）
+  Future<void>? _bootstrapLock;
+
+  /// 单次引导登录（含短路 + 自动重登重试），由 [bootstrapLogin] 串行化调用
+  Future<bool> _bootstrapLogin(String moduleId) async {
     // 该模块已有 token 且未过期就直接用
     if (await isLoggedIn(moduleId: moduleId)) return true;
 
@@ -277,9 +296,13 @@ class Scjx2ApiService {
     final modulePath = _modulePath[moduleId] ?? '/RACE/';
     debugPrint('Scjx2: bootstrap for module=$moduleId, entry=$entryUrl');
 
-    // 重定向回环检测：统计 4s 内 onLoadStart 次数，超阈值即判定为刷新循环。
-    // 正常 CAS SSO 虽有几次重定向，但间隔较松；刷新回环是同一组 URL 高频自重载。
-    final loadTimestamps = <DateTime>[];
+    // 刷新回环检测：统计 10s 内**同一 URL** 的加载次数，≥3 次判定为回环。
+    // 关键：按 URL 区分，而不是按总跳转次数——正常 CAS SSO 链路
+    // （zxcas → authserver → ticket 回跳 → scjx2 home → 模块）每个 URL 只加载
+    // 一次，快网络下 4s 内 6+ 跳完全正常，旧"4s 内 6 次"判定会误伤自愈
+    // （这正是"用久了突然不行、清缓存碰运气能好"的原因之一）；
+    // 真正的刷新回环是同一 URL 反复自重载。
+    final urlLoadTimes = <String, List<DateTime>>{};
     var loopDetected = false;
     var didLoopReset = false;
 
@@ -309,15 +332,15 @@ class Scjx2ApiService {
         await ctrl.loadUrl(urlRequest: URLRequest(url: WebUri(entryUrl)));
       },
       onLoadStart: (ctrl, url) {
+        final urlStr = url.toString();
         final now = DateTime.now();
-        loadTimestamps.removeWhere(
-          (t) => now.difference(t).inMilliseconds > 4000,
-        );
-        loadTimestamps.add(now);
-        if (loadTimestamps.length >= 6) {
+        final times = urlLoadTimes.putIfAbsent(urlStr, () => <DateTime>[]);
+        times.removeWhere((t) => now.difference(t).inMilliseconds > 10000);
+        times.add(now);
+        if (times.length >= 3) {
           loopDetected = true;
           debugPrint('Scjx2: REFRESH LOOP detected '
-              '(${loadTimestamps.length} loads in 4s) url=$url');
+              '(${times.length} loads of same URL in 10s) url=$urlStr');
         }
       },
     );
@@ -335,7 +358,7 @@ class Scjx2ApiService {
           if (!didLoopReset) {
             didLoopReset = true;
             loopDetected = false;
-            loadTimestamps.clear();
+            urlLoadTimes.clear();
             // 仅尝试一次重置：清缓存 + 全清 cookie + 重新注入 SSO + 重载。
             // 这正是用户手动"清理缓存（尤其 cookie）"能恢复的原理。
             debugPrint('Scjx2: breaking refresh loop - hard reset + reload');
@@ -489,11 +512,20 @@ class Scjx2ApiService {
     }
   }
 
-  /// 把 SharedHttpClient 中 ehall/yibinu 域的 cookie 注入到 WebView
+  /// 把 SharedHttpClient 中 ehall/yibinu/authserver 域的 cookie 注入到 WebView
   ///
   /// 用户已经在 ehall 登录过，authserver.yibinu.edu.cn 已有 session。
   /// 把这些 cookie 注入 WebView 后，WebView 访问 scjx2/zxcas 时会自动走
   /// CAS SSO 跳过输入页直接 ticket 跳回 RACE。
+  ///
+  /// ⚠️ 按原域注入（而非统一挂 .yibinu.edu.cn 父域）：
+  /// - CASTGC：CAS TGC，父域 .yibinu.edu.cn（Secure+HttpOnly），
+  ///   authserver/ehall/scjx2 都会携带；
+  /// - authserver 自己的 cookie（JSESSIONID 等）→ authserver 域；
+  /// - ehall 业务 cookie（MOD_AUTH_CAS/_WEU/route/JSESSIONID 等）→ ehall 域。
+  /// 旧实现把 ehall 的 cookie 全量挂到父域，authserver 会收到一堆本不该
+  /// 发给它的 cookie（含多个历史过期变体——本地罐从不清理且忽略 path），
+  /// 干扰 CAS 会话判定，是"cookie 太多导致回环"的根源。
   Future<void> _injectEhallCookiesToWebView(CookieManager cookieManager) async {
     try {
       final allCookies = _client.getAllCookies();
@@ -501,11 +533,6 @@ class Scjx2ApiService {
       for (final e in allCookies.entries) {
         debugPrint('  ${e.key}: ${e.value.length} cookies = ${e.value.keys.toList()}');
       }
-
-      final ehallCookies = allCookies['ehall.yibinu.edu.cn'] ?? {};
-      final yibinuCookies = allCookies['yibinu.edu.cn'] ?? {};
-      // authserver 自己产生的 cookie 也可能有
-      final authCookies = allCookies['authserver.yibinu.edu.cn'] ?? {};
 
       // 兜底：CASTGC 可能落在带前导点的桶(.yibinu.edu.cn)或其他桶，
       // 必须确保它进入注入集合（authserver 凭 CASTGC 才放行 SSO）。
@@ -518,44 +545,65 @@ class Scjx2ApiService {
         }
       }
 
-      // 合并：yibinu 父域 cookie 优先
-      final merged = <String, String>{};
-      merged.addAll(yibinuCookies);
-      merged.addAll(ehallCookies);
-      merged.addAll(authCookies);
-      if (castgc != null && castgc.isNotEmpty) {
-        merged['CASTGC'] = castgc;
+      if (castgc == null || castgc.isEmpty) {
+        debugPrint('Scjx2: no CASTGC to inject (user not logged in)');
       }
 
-      if (merged.isEmpty) {
-        debugPrint('Scjx2: no ehall cookies to inject (user not logged in)');
-        return;
-      }
+      var ok = 0;
+      var total = 0;
 
-      debugPrint('Scjx2: injecting ${merged.length} cookies to WebView'
-          '${castgc != null && castgc.isNotEmpty ? " (CASTGC present)" : " (CASTGC missing)"}');
-      int ok = 0;
-      for (final e in merged.entries) {
-        // CASTGC 是 Secure/HttpOnly 的 TGC，必须带 isSecure 注入，
-        // 否则 WebView 在 https 请求 authserver 时不会携带它 → SSO 失败。
-        final isCastgc = e.key == 'CASTGC';
+      // 逐条注入；value 含 ';' 的坏 cookie 跳过（会截断请求头解析）
+      void inject(String url, String name, String value,
+          {String? domain, bool secure = false, bool httpOnly = false}) {
+        total++;
+        if (value.contains(';') || name.isEmpty) return;
         try {
-          await cookieManager.setCookie(
-            url: WebUri('https://authserver.yibinu.edu.cn'),
-            name: e.key,
-            value: e.value,
-            domain: '.yibinu.edu.cn',
+          cookieManager.setCookie(
+            url: WebUri(url),
+            name: name,
+            value: value,
+            domain: domain,
             path: '/',
-            isSecure: isCastgc,
-            isHttpOnly: isCastgc,
+            isSecure: secure,
+            isHttpOnly: httpOnly,
           );
           ok++;
         } catch (err) {
-          debugPrint('Scjx2: failed to set ${e.key}: $err');
+          debugPrint('Scjx2: failed to set $name: $err');
         }
       }
-      debugPrint('Scjx2: injected $ok/${merged.length} cookies');
-      debugPrint('Scjx2: CASTGC ${castgc != null && castgc.isNotEmpty ? "present" : "missing"}');
+
+      // 1) CASTGC → 父域（Secure + HttpOnly，否则 https 请求 authserver 不带它）
+      if (castgc != null && castgc.isNotEmpty) {
+        inject('https://authserver.yibinu.edu.cn', 'CASTGC', castgc,
+            domain: '.yibinu.edu.cn', secure: true, httpOnly: true);
+      }
+
+      // 2) authserver 自己的 cookie → authserver 域
+      final authCookies = allCookies['authserver.yibinu.edu.cn'] ?? {};
+      for (final e in authCookies.entries) {
+        if (e.key == 'CASTGC') continue;
+        inject('https://authserver.yibinu.edu.cn', e.key, e.value);
+      }
+
+      // 3) ehall 业务 cookie → ehall 域（浏览器只对该域发送）
+      final ehallCookies = allCookies['ehall.yibinu.edu.cn'] ?? {};
+      for (final e in ehallCookies.entries) {
+        if (e.key == 'CASTGC') continue;
+        inject('https://ehall.yibinu.edu.cn', e.key, e.value,
+            domain: 'ehall.yibinu.edu.cn');
+      }
+
+      // 4) yibinu 父域的其他 cookie（如 route 等）→ 父域
+      final yibinuCookies = allCookies['yibinu.edu.cn'] ?? {};
+      for (final e in yibinuCookies.entries) {
+        if (e.key == 'CASTGC') continue;
+        inject('https://authserver.yibinu.edu.cn', e.key, e.value,
+            domain: '.yibinu.edu.cn');
+      }
+
+      debugPrint('Scjx2: injected $ok/$total cookies'
+          '${castgc != null && castgc.isNotEmpty ? " (CASTGC present)" : " (CASTGC missing)"}');
 
       // 验证一下 authserver 域的 cookie 是否真的写入了
       final verify = await cookieManager.getCookies(

@@ -36,6 +36,29 @@
 - 平台认证链路已确认：未登录 302 到 `authserver.yibinu.edu.cn` CAS → 回跳 `/cas_login?ticket=...` → `POST /platform-gateway/v1/account/cas_login` 兑换 token（localStorage `brmToken`）。
 - `lib/home/app_data.dart` 注册 `BohriumPage` 入口。
 
+### 🎯 优化（进入应用强制重新登录，彻底告别手动重登）
+- **问题**：会话过期后（服务端 TTL）本地 cookie 是"死 cookie"，复用会触发 CAS 刷新回环；此前自动续期依赖用户勾选"记住密码"保存凭据，未勾选则只能手动重新登录。
+- **方案（用户确认方向）**：**每次进入应用都用本地保存的账号密码走真实 CAS 登录**，不再复用/校验本地 cookie 有效期，保证会话永远新鲜。
+- **改动**：
+  - `lib/main.dart` `SplashPage._checkSession`：删除「loadCookies → verifySession 判断会话」逻辑；有本地凭据 → 直接 `AuthService.autoRelogin()`（完整 CAS 登录刷新 CASTGC/ehall cookie 并落盘）→ 成功进主界面；无凭据或登录失败 → 登录页。游客模式不变。
+  - `lib/auth/login_page.dart`：**凭据总是保存**（`username`/`password` 与勾选状态解耦），`remember_password` 仅控制登录页自动填充；「记住密码」默认勾选。
+  - `lib/auth/auth_service.dart`：`autoRelogin()` 不再要求 `remember_password=true`，只要有账号密码即静默重登。
+- **效果**：冷启动每次都拿到全新会话（学科竞赛等 scjx2 模块 bootstrap 必成功）；运行时请求 401/404 仍走自动续期（`request` → autoRelogin → WebView SSO）。唯一需要手动登录的场景：首次安装使用、主动退出登录、自动重登失败（如验证码 OCR 连续失败）。
+
+### 🐛 修复（学科竞赛"用久了又无法获取"：回环误判 + cookie 域混淆 + 并发互斥）
+- **症状**：应用使用较长时间后学科竞赛/创新创业无法获取数据；会话过期后的自动重登（bootstrapLogin WebView SSO）经常失败，需清应用数据重登才能恢复。
+- **根因（代码级定位，4 处缺陷）**：
+  1. **刷新回环检测误伤正常 SSO**（`scjx2_api_service.dart`）：旧逻辑统计「4 秒内 onLoadStart 总次数 ≥6 判定回环」。正常 CAS SSO 链路（zxcas → authserver → ticket 回跳 → scjx2 home → 模块）在快网络下 4 秒内可达 6+ 跳 → 被误判为刷新回环 → 硬重置一次 → 第二遍仍误判 → 直接放弃 → bootstrap 失败 → 自愈断裂（网络越快越容易失败，与"时好时坏、清缓存碰运气"吻合）。
+  2. **cookie 注入域混淆 + 死 cookie 累积**：`_injectEhallCookiesToWebView` 把 ehall/yibinu/authserver 全部 cookie 统一挂到 `.yibinu.edu.cn` 父域注入，authserver 会收到 ehall 的 JSESSIONID/route/_WEU 等本不该发给它的 cookie（本地 cookie 罐从不清理且忽略 path，长期累积过期变体）→ 干扰 CAS 会话判定、助长回环。
+  3. **bootstrapLogin 无并发保护**：race 双 Tab 同时初始化、request 401 自愈与页面 `_tryBootstrap` 可能并发调用 bootstrapLogin，多个 Headless WebView 互相 `deleteAllCookies` 清空对方注入的 cookie → SSO 混乱。
+  4. **JSON code=401 自愈失败时抛 `[code=401]`**：页面按「未登录 scjx2/登录已过期」识别登录异常，识别不到 → 无法引导重新登录。
+- **修复**：
+  - 回环检测改为**按 URL 频率**：同一 URL 10 秒内重复加载 ≥3 次才判定回环（正常 SSO 每个 URL 只加载一次，不误伤）；
+  - 注入**按原域清洗**：CASTGC→父域 `.yibinu.edu.cn`（Secure+HttpOnly）、authserver cookie→authserver 域、ehall 业务 cookie→ehall 域，消除域混淆；
+  - `bootstrapLogin` 加**互斥锁**（Future 链串行化，成败均推进锁链）；
+  - JSON code=401 自愈失败改抛「登录已过期，请重新登录」；
+  - 页面（race/my_race/srtp 三个列表页）自愈失败时错误页新增「**重新登录**」按钮 → 跳登录页（替代原"请前往 WebView 登录"死胡同提示）。
+
 ### 🐛 修复（学科竞赛数据获取失败：CAS 登录 https service + 缓存回退兜底）
 - **根因**：`cas_login_service.dart` 的 `yibinLoginUrl` 仍使用 **http service**（`http://ehall.yibinu.edu.cn/login?service=http://...`），服务端已拒绝该入口（POST 恒 200 失败页无提示）→ 会话过期后 `autoRelogin` / 手动重登 / `bootstrapLogin` 全部失败 → scjx2 race 接口 401/404 → 学科竞赛永远"无法获取到"（缓存加再多也无用）。
 - **修复**（`lib/auth/cas_login_service.dart` + `lib/auth/captcha_service.dart`）：
