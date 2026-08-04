@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
@@ -90,14 +91,16 @@ class _SrtpDetailPageState extends State<SrtpDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: Text(widget.projectName,
             maxLines: 1, overflow: TextOverflow.ellipsis),
         centerTitle: true,
       ),
       body: _buildBody(),
-    );
+    
+    ));
   }
 
   Widget _buildBody() {
@@ -544,7 +547,7 @@ class _SrtpDetailPageState extends State<SrtpDetailPage> {
     final isLast = index == total - 1;
     final pass = a.state.contains('通过');
     final reject = a.state.contains('驳回') || a.state.contains('不通过');
-    final color = reject ? Colors.red : (pass ? Colors.green : Colors.orange);
+    final color = reject ? const Color(0xFFC2410C) : (pass ? Colors.green : Colors.orange);
 
     return IntrinsicHeight(
       child: Row(
@@ -815,7 +818,7 @@ class _SrtpDetailPageState extends State<SrtpDetailPage> {
   /// 状态标签：-1=终止(红) / 0=申报中(橙) / 4=已结题(绿)
   Widget _buildStateTag(int state) {
     final (text, color) = switch (state) {
-      -1 => ('已终止', Colors.red),
+      -1 => ('已终止', const Color(0xFFC2410C)),
       0 => ('申报中', Colors.orange),
       4 => ('已结题', Colors.green),
       _ => ('状态 $state', Colors.blue),

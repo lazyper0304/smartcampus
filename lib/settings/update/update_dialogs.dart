@@ -1,23 +1,20 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/theme_utils.dart';
+import '../../core/navigation.dart';
 import '../../core/version.dart';
 import '../../main.dart';
+import 'changelog_page.dart';
 import 'update_models.dart';
 import 'update_service.dart';
 
 /// 更新相关的对话框与交互流程。
 ///
-/// 对外只暴露 [showUpdateCheckFlow] 与 [showChangelogFlow] 两个入口，
-/// 由设置页等调用方通过 onTap 触发，内部已封装 loading 与错误提示。
-
-void _showSnack(BuildContext context, String msg) {
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-  );
-}
+/// 对外只暴露 [showUpdateCheckFlow] 与 [showChangelogFlow] 两个入口。
+/// 检查更新复用同一个玻璃弹窗：先显示「正在检查更新…」，结果返回后
+/// 原地切换为 已是最新 / 发现新版本 / 失败重试，不另弹新窗。
 
 Future<void> _openUrl(String url) async {
   final uri = Uri.parse(url);
@@ -26,192 +23,193 @@ Future<void> _openUrl(String url) async {
   }
 }
 
-/// 检查更新：显示 loading → 请求 → 弹「发现新版本 / 已是最新」提示。
-Future<void> showUpdateCheckFlow(BuildContext context) async {
-  showDialog(
+/// 检查更新：单个玻璃弹窗，内部按状态原地切换内容。
+Future<void> showUpdateCheckFlow(BuildContext context) {
+  return showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const Center(
-      child: Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(strokeWidth: 2),
-              SizedBox(height: 16),
-              Text('正在检查更新…'),
-            ],
-          ),
-        ),
-      ),
-    ),
+    // 淡遮罩：玻璃 Dialog 透出页面背景
+    barrierColor: Colors.black.withValues(alpha: 0.25),
+    builder: (_) => const _UpdateCheckDialog(),
   );
+}
 
-  try {
-    final result = await UpdateService.checkForUpdate();
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+/// 更新日志：跳转独立页面（页面自带加载中/失败重试/空态与下拉刷新）。
+void showChangelogFlow(BuildContext context) {
+  pushPage(context, const ChangelogPage());
+}
 
-    if (result.hasUpdate) {
-      _showUpdateDialog(context, result);
-    } else {
-      _showSnack(context, '已是最新版本 (v$appVersion)');
-    }
-  } catch (e) {
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-    _showSnack(context, '检查更新失败：$e');
+/// 检查更新弹窗：loading → 已是最新 / 发现新版本 / 失败重试，原地切换。
+class _UpdateCheckDialog extends StatefulWidget {
+  const _UpdateCheckDialog();
+
+  @override
+  State<_UpdateCheckDialog> createState() => _UpdateCheckDialogState();
+}
+
+class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
+  bool _loading = true;
+  String? _error;
+  UpdateCheckResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
   }
-}
 
-void _showUpdateDialog(BuildContext context, UpdateCheckResult result) {
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: Text('发现新版本 ${result.latestTag}'),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('当前版本：v$appVersion',
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 12),
-            Text(result.releaseNotes,
-                style: const TextStyle(fontSize: 13, height: 1.5)),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('稍后'),
-        ),
-        FilledButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _openUrl(result.downloadUrl);
-          },
-          child: const Text('前往下载'),
-        ),
-      ],
-    ),
-  );
-}
-
-/// 更新日志：显示 loading → 拉取 release 列表 → 弹日志对话框。
-Future<void> showChangelogFlow(BuildContext context) async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(
-      child: Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(strokeWidth: 2),
-              SizedBox(height: 16),
-              Text('加载更新日志…'),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-
-  try {
-    final releases = await UpdateService.fetchReleases();
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-
-    if (releases.isEmpty) {
-      _showSnack(context, '暂无更新记录');
-      return;
+  Future<void> _check() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final result = await UpdateService.checkForUpdate();
+      if (mounted) {
+        setState(() {
+          _result = result;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = '检查更新失败：$e';
+          _loading = false;
+        });
+      }
     }
-    _showChangelogDialog(context, releases);
-  } catch (e) {
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-    _showSnack(context, '加载更新日志失败：$e');
   }
-}
 
-void _showChangelogDialog(BuildContext context, List<ReleaseInfo> releases) {
-  showDialog(
-    context: context,
-    builder: (_) => Dialog(
+  void _close() => Navigator.of(context).pop();
+
+  void _download() {
+    _close();
+    _openUrl(_result!.downloadUrl);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = accentColorNotifier.value;
+    return Dialog(
+      backgroundColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            color: accentColorNotifier.value,
-            padding: const EdgeInsets.only(right: 4),
-            child: Row(
+      // 屏幕正中间 + 四周留白
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      // 磨砂玻璃：BackdropFilter 模糊 + 半透明渐变（弹窗固定不位移，采样稳定）
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  (isDark ? const Color(0xFF1C1C1E) : Colors.white)
+                      .withValues(alpha: isDark ? 0.55 : 0.45),
+                  (isDark ? const Color(0xFF1C1C1E) : Colors.white)
+                      .withValues(alpha: isDark ? 0.48 : 0.38),
+                ],
+                stops: const [0.0, 0.45],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _buildContent(accent),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildContent(Color accent) {
+    // ── 检查中 ──
+    if (_loading) {
+      return const [
+        Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(left: 20),
-                    child: Text('更新日志',
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
-                ),
+                CircularProgressIndicator(strokeWidth: 2.5),
+                SizedBox(height: 16),
+                Text('正在检查更新…'),
               ],
             ),
           ),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: releases.length,
-              separatorBuilder: (_, _) => const Divider(height: 24),
-              itemBuilder: (context, i) {
-                final r = releases[i];
-                final date =
-                    r.publishedAt.length >= 10 ? r.publishedAt.substring(0, 10) : '';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: accentColorNotifier.value.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(r.tagName,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: accentColorNotifier.value)),
-                        ),
-                        const SizedBox(width: 8),
-                        if (date.isNotEmpty)
-                          Text(date,
-                              style: TextStyle(fontSize: 11, color: textHint(context))),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(r.body, style: const TextStyle(fontSize: 13, height: 1.5)),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+        ),
+      ];
+    }
+    // ── 失败 ──
+    if (_error != null) {
+      return [
+        const Icon(Icons.error_outline_rounded,
+            color: Color(0xFFC2410C), size: 40),
+        const SizedBox(height: 12),
+        Text(_error!, style: const TextStyle(fontSize: 13, height: 1.5)),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: _close, child: const Text('关闭')),
+            const SizedBox(width: 8),
+            FilledButton(onPressed: _check, child: const Text('重试')),
+          ],
+        ),
+      ];
+    }
+    final result = _result!;
+    // ── 发现新版本 ──
+    if (result.hasUpdate) {
+      return [
+        Text('发现新版本 ${result.latestTag}',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Text('当前版本：v$appVersion',
+            style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        const SizedBox(height: 12),
+        Text(result.releaseNotes,
+            style: const TextStyle(fontSize: 13, height: 1.5)),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: _close, child: const Text('稍后')),
+            const SizedBox(width: 8),
+            FilledButton(onPressed: _download, child: const Text('前往下载')),
+          ],
+        ),
+      ];
+    }
+    // ── 已是最新版本 ──
+    return [
+      Center(child: Icon(Icons.check_circle_rounded, color: accent, size: 40)),
+      const SizedBox(height: 12),
+      const Center(
+        child: Text('已是最新版本',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
       ),
-    ),
-  );
+      const SizedBox(height: 6),
+      Center(
+        child: Text('当前版本 v$appVersion',
+            style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      ),
+      const SizedBox(height: 20),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton(onPressed: _close, child: const Text('好的')),
+      ),
+    ];
+  }
 }

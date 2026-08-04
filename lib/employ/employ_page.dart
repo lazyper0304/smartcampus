@@ -8,7 +8,6 @@ import '../main.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-
 class EmployPage extends StatefulWidget {
   const EmployPage({super.key});
 
@@ -329,58 +328,12 @@ class _EmployPageState extends State<EmployPage> {
   }
 }
 
-class _DelayedFadeSlide extends StatefulWidget {
+class _DelayedFadeSlide extends StatelessWidget {
   final Widget child;
   final Duration delay;
   const _DelayedFadeSlide({required this.child, this.delay = Duration.zero});
 
   @override
-  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
+  Widget build(BuildContext context) => child;
 }
 
-class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    if (widget.delay == Duration.zero) {
-      _controller.forward();
-    } else {
-      Future.delayed(widget.delay, () {
-        if (mounted) _controller.forward();
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        final t = _animation.value;
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - t)),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}

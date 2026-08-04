@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
@@ -71,19 +72,12 @@ class _FetchInfoPageState extends State<FetchInfoPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accentColorNotifier.value,
-              Color.lerp(accentColorNotifier.value, const Color(0xFF002171), 0.6)!,
-            ],
-          ),
-        ),
-        child: Center(
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    // 主界面同款液态玻璃背景（模块化组件）
+    return LiquidBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -96,24 +90,24 @@ class _FetchInfoPageState extends State<FetchInfoPage>
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1 + pulse * 0.1),
+                      color: onSurface.withValues(alpha: 0.08 + pulse * 0.06),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
                       Icons.person_outline_rounded,
                       size: 44,
-                      color: Colors.white.withValues(alpha: 0.7 + pulse * 0.3),
+                      color: onSurface.withValues(alpha: 0.6 + pulse * 0.3),
                     ),
                   );
                 },
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 '宜院宾果',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: onSurface,
                   letterSpacing: 2,
                 ),
               ),
@@ -123,7 +117,7 @@ class _FetchInfoPageState extends State<FetchInfoPage>
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 16),
@@ -131,7 +125,7 @@ class _FetchInfoPageState extends State<FetchInfoPage>
                 '正在获取个人信息…',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.6),
+                  color: onSurface.withValues(alpha: 0.5),
                   letterSpacing: 1,
                 ),
               ),

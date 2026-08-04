@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/ios_kit.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
@@ -122,26 +123,7 @@ class _GraduationPageState extends State<GraduationPage> {
 
     // 加载对话框
     if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: Card(
-          margin: EdgeInsets.all(32),
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(strokeWidth: 2),
-                SizedBox(height: 16),
-                Text('正在重新计算…', style: TextStyle(fontSize: 14)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    showGlassLoadingDialog(context, message: '正在重新计算…');
 
     try {
       await _service.recalculate();
@@ -315,7 +297,6 @@ class _GraduationPageState extends State<GraduationPage> {
 
   Widget _buildTreeRecursive(GraduationCategory node, int depth) {
     final hasChildren = node.hasChildren;
-    final progress = node.progress;
     final isRoot = depth == 0;
     final ctrlId = node.controlId;
 
@@ -545,7 +526,7 @@ class _GraduationPageState extends State<GraduationPage> {
     final Color? scoreColor;
     if (hasScore) {
       scoreText = course.score.toString();
-      scoreColor = course.score! >= 60 ? Colors.green[700] : Colors.red[600];
+      scoreColor = course.score! >= 60 ? Colors.green[700] : const Color(0xFFC2410C);
     } else if (isSelected) {
       scoreText = '已选课';
       scoreColor = Colors.orange[700];

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/smooth_styles.dart';
@@ -115,7 +116,8 @@ class _CourseChangesPageState extends State<CourseChangesPage>
         .where((s) => s.dm == _selectedSemester)
         .firstOrNull;
 
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('调课 & 未安排课程'),
         centerTitle: true,
@@ -139,7 +141,8 @@ class _CourseChangesPageState extends State<CourseChangesPage>
           _buildUnarrangedTab(),
         ],
       ),
-    );
+    
+    ));
   }
 
   // ==================== 学期选择器 ====================
@@ -395,7 +398,7 @@ class _CourseChangesPageState extends State<CourseChangesPage>
   // ==================== 调课卡片 ====================
 
   Widget _buildChangeCard(CourseChange change) {
-    final color = change.isSuspended ? Colors.red : Colors.orange;
+    final color = change.isSuspended ? const Color(0xFFC2410C) : Colors.orange;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0.5,

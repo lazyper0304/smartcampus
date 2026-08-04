@@ -206,7 +206,7 @@ class _ErkeLoginPageState extends State<ErkeLoginPage> {
               if (_error != null) ...[
                 const SizedBox(height: 4),
                 Text(_error!,
-                    style: const TextStyle(fontSize: 13, color: Colors.red)),
+                    style: const TextStyle(fontSize: 13, color: Color(0xFFC2410C))),
               ],
               const SizedBox(height: 16),
               SizedBox(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
@@ -15,9 +15,10 @@ import '../news/news_list_page.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
 import '../core/responsive.dart';
-import '../main.dart';
 import '../core/simple_page.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import '../core/ios_kit.dart';
+import '../xuegong/student_info_manager.dart';
+import '../main.dart';
 
 class HomeDashboard extends StatefulWidget {
   final SharedHttpClient client;
@@ -42,10 +43,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
   bool _isLoadingNews = true;
   int _currentWeek = 0;
 
+  /// 学生姓名（用于问候语），游客或未获取到为空
+  String? _studentName;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadStudentName();
+  }
+
+  Future<void> _loadStudentName() async {
+    final info = await StudentInfoManager.getCached();
+    if (!mounted) return;
+    setState(() => _studentName = info?.name);
   }
 
   Future<void> _loadData() async {
@@ -119,23 +130,64 @@ class _HomeDashboardState extends State<HomeDashboard> {
     super.dispose();
   }
 
+  /// 顶部问候语：上午好 / 下午好 / 晚上好 + 姓名
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    final base = hour < 12
+        ? '早上好'
+        : hour < 18
+            ? '下午好'
+            : '晚上好';
+    if (GuestMode.active) return '欢迎使用宜院宾果';
+    return _studentName != null && _studentName!.isNotEmpty
+        ? '$base，$_studentName'
+        : '宜院宾果';
+  }
+
+  String get _dateLabel {
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final now = DateTime.now();
+    return '${now.month}月${now.day}日 · 周${weekdays[now.weekday - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
+      // MainScreen GlassScaffold 已提供背景，不重复叠加
+      background: false,
+      // 透明背景：透出 GlassScaffold 的渐变+光斑（液态玻璃背景源），
+      // 否则 Scaffold 默认纯色背景会盖住渐变。
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         body: SafeArea(
           // 底部浮动玻璃导航栏为浮层，由 ListView 的 bottom padding 统一避让。
           bottom: false,
           child: RefreshIndicator(
-            onRefresh: () { DataCache().invalidateAll(); return _loadData(); },
+            onRefresh: () {
+              DataCache().invalidateAll();
+              return _loadData();
+            },
             child: ListView(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomBarSafePadding(context)),
+              padding: EdgeInsets.fromLTRB(
+                  kIosPageHPadding, 10, kIosPageHPadding,
+                  bottomBarSafePadding(context)),
               children: [
                 MaxWidthContent(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      IosLargeTitle(
+                        title: _greeting,
+                        eyebrow: _dateLabel,
+                      ),
+                      const SizedBox(height: 10),
+                      // ── 自定义常用功能（可增删 / 拖拽排序） ──
+                      QuickAppsSection(
+                        client: widget.client,
+                        userId: widget.userId ?? '',
+                      ),
+                      const SizedBox(height: 8),
                       _buildTodayCoursesCard(context),
                       const SizedBox(height: 16),
                       _buildNewsCard(context),
@@ -151,137 +203,107 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildTodayCoursesCard(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOut,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
+    return _FadeSlideIn(
+      child: IosCard(
+        onTap: () => pushPage(
+          context,
+          CourseTablePage(
+            client: widget.client,
+            userId: widget.userId,
           ),
-        );
-      },
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: dividerColor(context)),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _cardHeaderIcon(Icons.calendar_month_rounded),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('今日课程',
+                      style: TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.bold)),
+                ),
+                Builder(builder: (context) {
+                  // 右上角只显示周次（不显示星期）
+                  if (_currentWeek <= 0) return const SizedBox.shrink();
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: accentColorNotifier.value.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
+                      color: accentOf(context).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Icon(Icons.calendar_month_rounded,
-                        color: accentColorNotifier.value, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text('今日课程',
+                    child: Text('第$_currentWeek周',
                         style: TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.bold)),
-                  ),
-                  Builder(builder: (context) {
-                    final weekdayLabel = [
-                      '',
-                      '一',
-                      '二',
-                      '三',
-                      '四',
-                      '五',
-                      '六',
-                      '日'
-                    ][DateTime.now().weekday];
-                    final weekLabel = _currentWeek > 0
-                        ? '第$_currentWeek周 · 周$weekdayLabel'
-                        : '周$weekdayLabel';
-                    return Text(weekLabel,
-                        style: TextStyle(
-                            fontSize: 13, color: textSecondary(context)));
-                  }),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (GuestMode.active)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.lock_outline_rounded,
-                            size: 40, color: textHint(context)),
-                        const SizedBox(height: 8),
-                        Text('游客模式下无法查看课程',
-                            style: TextStyle(color: textHint(context))),
-                        const SizedBox(height: 12),
-                        FilledButton.tonalIcon(
-                          icon: const Icon(Icons.login_rounded, size: 18),
-                          label: const Text('去登录'),
-                          onPressed: () => showGuestLoginDialog(
-                              context, featureName: '课程表'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (_isLoadingCourses)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (_todayCourses == null || _todayCourses!.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.event_busy, size: 40, color: textHint(context)),
-                        const SizedBox(height: 8),
-                        Text('今天没有课程',
-                            style: TextStyle(color: textHint(context))),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                ...(_todayCourses!.map((c) => _buildCourseRow(c))),
-              if (_todayCourses != null && _todayCourses!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('查看完整课表',
-                          style: TextStyle(fontSize: 13)),
-                      onPressed: () => pushPage(
-                        context,
-                        CourseTablePage(
-                          client: widget.client,
-                          userId: widget.userId,
-                        ),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: accentOf(context))),
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (GuestMode.active)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.lock_outline_rounded,
+                          size: 40, color: textHint(context)),
+                      const SizedBox(height: 8),
+                      Text('游客模式下无法查看课程',
+                          style: TextStyle(color: textHint(context))),
+                      const SizedBox(height: 12),
+                      FilledButton.tonalIcon(
+                        icon: const Icon(Icons.login_rounded, size: 18),
+                        label: const Text('去登录'),
+                        onPressed: () => showGuestLoginDialog(
+                            context, featureName: '课程表'),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-            ],
-          ),
+              )
+            else if (_isLoadingCourses)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_todayCourses == null || _todayCourses!.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.event_busy, size: 40, color: textHint(context)),
+                      const SizedBox(height: 8),
+                      Text('今天没有课程',
+                          style: TextStyle(color: textHint(context))),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...(_todayCourses!.map((c) => _buildCourseRow(c))),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _cardHeaderIcon(IconData icon) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: accentColorNotifier.value.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon, color: accentColorNotifier.value, size: 21),
     );
   }
 
@@ -291,9 +313,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: blue.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: blue.withValues(alpha: 0.1)),
+        color: blue.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(kIosTileRadius),
+        border: Border.all(color: blue.withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
@@ -339,82 +361,55 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildNewsCard(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOut,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: dividerColor(context)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: accentColorNotifier.value.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.newspaper_rounded,
-                        color: accentColorNotifier.value, size: 22),
+    return _FadeSlideIn(
+      child: IosCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _cardHeaderIcon(Icons.newspaper_rounded),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('校园新闻',
+                      style: TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.bold)),
+                ),
+                GestureDetector(
+                  onTap: () => pushPage(context, const NewsListPage()),
+                  child: Text('查看全部 ›',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: accentOf(context))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_isLoadingNews)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_newsItems == null || _newsItems!.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.article_outlined, size: 40, color: textHint(context)),
+                      const SizedBox(height: 8),
+                      Text('暂无新闻',
+                          style: TextStyle(color: textHint(context))),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text('校园新闻',
-                        style: TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.bold)),
-                  ),
-                  GestureDetector(
-                    onTap: () => pushPage(context, const NewsListPage()),
-                    child: Text('查看全部 ›',
-                        style: TextStyle(
-                            fontSize: 13, color: textSecondary(context))),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (_isLoadingNews)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (_newsItems == null || _newsItems!.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.article_outlined, size: 40, color: textHint(context)),
-                        const SizedBox(height: 8),
-                        Text('暂无新闻',
-                            style: TextStyle(color: textHint(context))),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                _buildFirstNews(context),
-            ],
-          ),
+                ),
+              )
+            else
+              _buildFirstNews(context),
+          ],
         ),
       ),
     );
@@ -427,10 +422,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: accentColorNotifier.value.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(12),
+          color: accentColorNotifier.value.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(kIosTileRadius),
           border: Border.all(
-              color: accentColorNotifier.value.withValues(alpha: 0.1)),
+              color: accentColorNotifier.value.withValues(alpha: 0.12)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,25 +469,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Future<void> _openNewsDetail(NewsItem news) async {
     // 显示加载
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('加载中...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    showGlassLoadingDialog(context, message: '加载中...');
 
     try {
       final detail = await _newsService.fetchNewsDetail(news.url);
@@ -507,5 +484,31 @@ class _HomeDashboardState extends State<HomeDashboard> {
         SnackBar(content: Text('加载失败: $e')),
       );
     }
+  }
+}
+
+/// 渐显 + 上移进入动画（iOS 页面元素入场节奏）
+class _FadeSlideIn extends StatelessWidget {
+  final Widget child;
+
+  const _FadeSlideIn({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 18 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
   }
 }

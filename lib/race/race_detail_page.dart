@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
@@ -67,14 +68,16 @@ class _RaceDetailPageState extends State<RaceDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_detail?.name ?? widget.raceName,
             maxLines: 1, overflow: TextOverflow.ellipsis),
         centerTitle: true,
       ),
       body: _buildBody(),
-    );
+    
+    ));
   }
 
   Widget _buildBody() {

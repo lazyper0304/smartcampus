@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 /// VR 地图页面 — 支持 A区 / B区 / 临港校区切换
@@ -35,7 +36,8 @@ class _VrmapPageState extends State<VrmapPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: Text('VR地图 · ${_currentCampus.name}'),
         centerTitle: true,
@@ -114,7 +116,8 @@ class _VrmapPageState extends State<VrmapPage> {
                 setState(() => _isLoading = false);
               },
             ),
-    );
+    
+    ));
   }
 
   @override

@@ -385,7 +385,7 @@ class _MyRacePageState extends State<MyRacePage> {
     if (stateName.contains('驳回') ||
         stateName.contains('不通过') ||
         stateName.contains('未通过')) {
-      return Colors.red;
+      return const Color(0xFFC2410C);
     }
     if (stateName.contains('待审') || stateName.contains('审核中')) {
       return Colors.orange;

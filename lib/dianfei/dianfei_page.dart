@@ -1,22 +1,14 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/local_storage.dart' as store;
 import '../core/data_cache.dart';
+import '../core/ios_kit.dart';
 import '../main.dart';
-
-
-class _DayData {
-  final String date;
-  final double kwh;
-  _DayData(this.date, this.kwh);
-}
+import 'dianfei_models.dart';
+import 'dianfei_service.dart';
 
 class DianfeiPage extends StatefulWidget {
   const DianfeiPage({super.key});
@@ -29,7 +21,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
   bool _loading = false;
   bool _firstTime = true;
   String _error = '';
-  List<_DayData> _allDays = [];
+  List<DayData> _allDays = [];
   int _viewMode = 1;
   String _meterId = '';
   double _monthKwh = 0;
@@ -49,7 +41,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
     _initLoad();
   }
 
-  List<_DayData> get _displayDays =>
+  List<DayData> get _displayDays =>
       _viewMode == 0 && _allDays.length > 7
           ? _allDays.sublist(_allDays.length - 7)
           : _allDays;
@@ -63,62 +55,36 @@ class _DianfeiPageState extends State<DianfeiPage> {
       _wechatUserOpenid =
           await store.LocalStorage.getString('dianfei_wechatUserOpenid') ?? '';
       // 恢复缓存的剩余电量等数据
-      _loadCachedSummary();
+      final summary = await DianfeiService.loadSummary();
+      if (mounted) {
+        setState(() {
+          _shengyu = summary.shengyu;
+          _leiji = summary.leiji;
+          _zhuangtai = summary.zhuangtai;
+          _price = summary.price;
+          _monthKwh = summary.monthKwh;
+          _monthMoney = summary.monthMoney;
+          _monthStr = summary.monthStr;
+        });
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _query());
     } else {
       setState(() => _firstTime = true);
     }
   }
 
-  /// 从本地缓存恢复剩余电量、月度汇总等数据
-  void _loadCachedSummary() {
-    store.LocalStorage.getString('dianfei_shengyu').then((shengyu) async {
-      if (shengyu == null) return;
-      final leiji = await store.LocalStorage.getString('dianfei_leiji');
-      final zhuangtai = await store.LocalStorage.getString('dianfei_zhuangtai');
-      final price = await store.LocalStorage.getString('dianfei_price');
-      final monthKwh = await store.LocalStorage.getString('dianfei_monthKwh');
-      final monthMoney = await store.LocalStorage.getString('dianfei_monthMoney');
-      final monthStr = await store.LocalStorage.getString('dianfei_monthStr');
-      if (!mounted) return;
-      setState(() {
-        _shengyu = double.tryParse(shengyu) ?? 0;
-        _leiji = double.tryParse(leiji ?? '0') ?? 0;
-        _zhuangtai = zhuangtai ?? '';
-        _price = double.tryParse(price ?? '0.55') ?? 0.55;
-        _monthKwh = double.tryParse(monthKwh ?? '0') ?? 0;
-        _monthMoney = double.tryParse(monthMoney ?? '0') ?? 0;
-        _monthStr = monthStr ?? '';
-      });
-    });
-  }
-
-  /// 缓存剩余电量、月度汇总等数据到本地
-  Future<void> _saveCachedSummary() async {
-    await store.LocalStorage.setString('dianfei_shengyu', _shengyu.toString());
-    await store.LocalStorage.setString('dianfei_leiji', _leiji.toString());
-    await store.LocalStorage.setString('dianfei_zhuangtai', _zhuangtai);
-    await store.LocalStorage.setString('dianfei_price', _price.toString());
-    await store.LocalStorage.setString('dianfei_monthKwh', _monthKwh.toString());
-    await store.LocalStorage.setString('dianfei_monthMoney', _monthMoney.toString());
-    await store.LocalStorage.setString('dianfei_monthStr', _monthStr);
-  }
-
   Future<void> _query() async {
     final raw = _meterCtrl.text.trim();
     if (raw.isEmpty) { _showSnack('请输入查询链接'); return; }
 
-    // 从 URL 中提取 wechatUserOpenid 和 meterId
-    final openIdMatch = RegExp(r'[?&]wechatUserOpenid=([^&]+)').firstMatch(raw);
-    final meterIdMatch = RegExp(r'[?&]meterId=(\d+)').firstMatch(raw);
-
-    if (openIdMatch == null || meterIdMatch == null) {
+    // 从 URL 中提取 wechatUserOpenid 和 meterId（DianfeiService.parseLink）
+    final parsed = DianfeiService.parseLink(raw);
+    if (parsed == null) {
       _showSnack('链接格式错误，请检查是否包含 wechatUserOpenid 和 meterId');
       return;
     }
-
-    final meterId = meterIdMatch.group(1)!;
-    final wechatUserOpenid = Uri.decodeComponent(openIdMatch.group(1)!);
+    final meterId = parsed.meterId;
+    final wechatUserOpenid = parsed.openId;
 
     setState(() {
       _loading = true; _error = ''; _allDays = [];
@@ -134,181 +100,28 @@ class _DianfeiPageState extends State<DianfeiPage> {
     await store.LocalStorage.setString('dianfei_wechatUserOpenid', wechatUserOpenid);
 
     try {
-      final data = await _fetchApi(meterId);
-      _saveCachedSummary();
+      final result = await DianfeiService.query(
+        meterId: meterId,
+        wechatUserOpenid: wechatUserOpenid,
+      );
+      final s = result.status;
+      _wechatUserId = s.wechatUserId;
+      await DianfeiService.saveSummary(s);
+      if (!mounted) return;
       setState(() {
-        _allDays = data;
+        _allDays = result.days;
+        _shengyu = s.shengyu;
+        _leiji = s.leiji;
+        _zhuangtai = s.zhuangtai;
+        _price = s.price;
+        _monthKwh = s.monthKwh;
+        _monthMoney = s.monthMoney;
+        _monthStr = s.monthStr;
         _firstTime = false;
         _loading = false;
       });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
-    }
-  }
-
-  Future<List<_DayData>> _fetchApi(String meterId) async {
-    final cacheKey = 'dianfei_$meterId';
-    final cached = DataCache().get<List<_DayData>>(cacheKey);
-    if (cached != null) return cached;
-    final completer = Completer<List<_DayData>>();
-    final url = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
-        '#/pages/meterlist/meterqueryChart'
-        '?wechatUserOpenid=$_wechatUserOpenid&meterId=$meterId';
-
-    bool started = false;
-
-    final headless = HeadlessInAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(url)),
-      initialSettings: InAppWebViewSettings(
-        javaScriptEnabled: true, domStorageEnabled: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-      ),
-      onLoadStop: (ctrl, url) async {
-        if (started) return;
-        started = true;
-
-        await Future.delayed(const Duration(seconds: 5));
-        if (completer.isCompleted) return;
-
-        // 调用三个 API：余量查询 + 月度汇总 + 日度明细
-        final js = r'''
-(function() {
-  try {
-    var meterId = (location.href.match(/meterId=(\d+)/) || ['',''])[1];
-    var openId = (location.href.match(/wechatUserOpenid=([^&]+)/) || ['',''])[1];
-    var remark = (location.href.match(/elemeterTypeRemark=([^&]+)/) || ['',''])[1];
-    var isAfter = (remark && decodeURIComponent(remark).indexOf('后付费') >= 0) ? 1 : 0;
-    var now = new Date();
-    var y = now.getFullYear();
-    var m = String(now.getMonth()+1).padStart(2,'0');
-    var d = String(now.getDate()).padStart(2,'0');
-    var past = new Date(now.getTime() - 30*24*60*60*1000);
-    var py = past.getFullYear();
-    var pm = String(past.getMonth()+1).padStart(2,'0');
-    var pd = String(past.getDate()).padStart(2,'0');
-
-    // 接口0: 获取微信用户信息（得到 wechatId）
-    var xhr00 = new XMLHttpRequest();
-    xhr00.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/index', false);
-    xhr00.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr00.send('openId=' + openId);
-    var userResp = JSON.parse(xhr00.responseText);
-    var wechatUserId = '';
-    if (userResp.code == 200 && userResp.data) {
-      wechatUserId = userResp.data.wechatId;
-    }
-
-    // 接口1: 余量查询（需要 wechatUserId + electricUserUid + isAfterMoney）
-    var yuResp = '';
-    if (wechatUserId) {
-      var xhr0 = new XMLHttpRequest();
-      xhr0.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/electricMeterQuery', false);
-      xhr0.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-      xhr0.send('wechatUserId=' + wechatUserId + '&electricUserUid=' + meterId + '&isAfterMoney=' + isAfter);
-      yuResp = xhr0.responseText;
-    }
-
-    // 接口2: 月度汇总
-    var xhr1 = new XMLHttpRequest();
-    xhr1.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/GetMonthEleAndMoneyList', false);
-    xhr1.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr1.send('meterid=' + meterId + '&startMonth=' + y + '-' + m + '-01&endMonth=' + y + '-' + m + '-01');
-    var monthResp = xhr1.responseText;
-
-    // 接口3: 日度明细 (30天)
-    var xhr2 = new XMLHttpRequest();
-    xhr2.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/GetMonthDayEleList', false);
-    xhr2.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr2.send('meterid=' + meterId + '&startTime=' + py + '-' + pm + '-' + pd + '&endTime=' + y + '-' + m + '-' + d);
-    var dayResp = xhr2.responseText;
-
-    return JSON.stringify({yu: yuResp, month: monthResp, days: dayResp, wechatUserId: wechatUserId});
-  } catch(e) {
-    return JSON.stringify({error: e.message});
-  }
-})();
-''';
-        try {
-          final result = await ctrl.evaluateJavascript(source: js);
-          if (result is String && !completer.isCompleted) {
-            final data = _parseApiResult(result);
-            completer.complete(data);
-            return;
-          }
-        } catch (e) {
-          debugPrint('Dianfei WV error: $e');
-        }
-        if (!completer.isCompleted) completer.complete([]);
-      },
-    );
-
-    await headless.run();
-    final result = await completer.future.timeout(const Duration(seconds: 25), onTimeout: () => []);
-    await headless.dispose();
-    if (result.isNotEmpty) DataCache().set(cacheKey, result);
-    return result;
-  }
-
-  List<_DayData> _parseApiResult(String jsonStr) {
-    try {
-      final wrapper = jsonDecode(jsonStr) as Map;
-      if (wrapper.containsKey('error')) return [];
-
-      // 解析余量查询
-      final yuBody = wrapper['yu'] as String? ?? '';
-      if (yuBody.isNotEmpty) {
-        try {
-          final yj = jsonDecode(yuBody) as Map;
-          if (yj['code'] == 200 && yj['data'] != null) {
-            final yd = yj['data'] as Map;
-            _shengyu = double.tryParse(yd['shengyu']?.toString() ?? '0') ?? 0;
-            _leiji = double.tryParse(yd['leiji']?.toString() ?? '0') ?? 0;
-            _zhuangtai = yd['zhuangtai']?.toString() ?? '';
-            _price = double.tryParse(yd['price']?.toString() ?? '0.55') ?? 0.55;
-            debugPrint('Dianfei yu: 剩余${_shengyu}kWh 累计${_leiji}kWh 状态$_zhuangtai');
-          }
-        } catch (_) {}
-      }
-
-      // 保存微信用户ID
-      if (wrapper.containsKey('wechatUserId')) {
-        _wechatUserId = wrapper['wechatUserId']?.toString() ?? '';
-      }
-
-      // 解析月度汇总
-      final monthBody = wrapper['month'] as String? ?? '';
-      if (monthBody.isNotEmpty) {
-        try {
-          final mj = jsonDecode(monthBody) as Map;
-          if (mj['code'] == 200 && mj['data'] != null) {
-            final md = mj['data']['data'] as List? ?? [];
-            if (md.isNotEmpty) {
-              final first = md[0] as Map;
-              _monthKwh = double.tryParse(first['total']?.toString() ?? '0') ?? 0;
-              _monthMoney = double.tryParse(first['money']?.toString() ?? '0') ?? 0;
-              _monthStr = first['month']?.toString() ?? '';
-              debugPrint('Dianfei month: $_monthStr ${_monthKwh}kWh ¥${_monthMoney}');
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 解析日度明细
-      final daysBody = wrapper['days'] as String? ?? '';
-      if (daysBody.isEmpty) return [];
-      final json = jsonDecode(daysBody) as Map;
-      if (json['code'] != 200 || json['data'] == null) return [];
-      final innerData = json['data'] as Map;
-      final list = innerData['data'] as List? ?? [];
-      return list.map((e) {
-        final m = e as Map;
-        return _DayData(
-          m['endtime']?.toString()?.substring(5) ?? '',
-          double.tryParse(m['total']?.toString() ?? '0') ?? 0,
-        );
-      }).toList();
-    } catch (_) {
-      return [];
     }
   }
 
@@ -321,16 +134,46 @@ class _DianfeiPageState extends State<DianfeiPage> {
   Future<void> _unbind() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('解绑电表'),
-        content: Text('确定解绑电表 #$_meterId 吗？解绑后可绑定新电表。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('解绑', style: TextStyle(color: Colors.red[600])),
+      // 淡遮罩：玻璃 Dialog 透出页面背景
+      barrierColor: Colors.black.withValues(alpha: 0.25),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        // 磨砂玻璃弹窗（同其他页面弹窗：模糊 + 半透明渐变）
+        child: glassDialog(
+          context: ctx,
+          radius: 20,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('解绑电表',
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                Text('确定解绑电表 #$_meterId 吗？解绑后可绑定新电表。',
+                    style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('取消')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: Text('解绑',
+                            style: TextStyle(color: Color(0xFFC2410C)))),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
     if (confirm != true) return;
@@ -490,35 +333,37 @@ class _DianfeiPageState extends State<DianfeiPage> {
           ],
         ),
         const SizedBox(height: 12),
-        // 剩余电量卡片
-        Container(
-          width: double.infinity,
+        // 剩余电量卡片（静态玻璃，同其他页面卡片）
+        contentCardGlass(
+          context: context,
+          borderRadius: BorderRadius.circular(16),
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _shengyu < 20
-                  ? [Colors.red[700]!, Colors.red[400]!]
-                  : _shengyu < 50
-                      ? [Colors.orange[700]!, Colors.orange[400]!]
-                      : [accentColorNotifier.value, accentColorNotifier.value.withValues(alpha: 0.7)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('剩余电量', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text('剩余电量',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white70 : Colors.grey[600])),
                   if (_zhuangtai.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: _zhuangtai == '合闸' ? Colors.white.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.4),
+                        color: (_zhuangtai == '合闸'
+                                ? accentColorNotifier.value
+                                : const Color(0xFFC2410C))
+                            .withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(_zhuangtai, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                      child: Text(_zhuangtai,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: _zhuangtai == '合闸'
+                                  ? accentColorNotifier.value
+                                  : const Color(0xFFC2410C))),
                     ),
                 ],
               ),
@@ -526,18 +371,30 @@ class _DianfeiPageState extends State<DianfeiPage> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${_shengyu.toStringAsFixed(1)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8, left: 4),
-                    child: Text('kWh', style: TextStyle(color: Colors.white60, fontSize: 14)),
+                  Text(
+                    '${_shengyu.toStringAsFixed(1)}',
+                    style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                        color: _shengyu < 20
+                            ? const Color(0xFFC2410C)
+                            : (isDark ? Colors.white : Colors.black87)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8, left: 4),
+                    child: Text('kWh',
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white60 : Colors.grey[600])),
                   ),
                   const Spacer(),
                   if (_shengyu > 0)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text('≈ ¥${(_shengyu * _price).toStringAsFixed(1)}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                          style: TextStyle(
+                              fontSize: 15,
+                              color: isDark ? Colors.white70 : Colors.grey[700])),
                     ),
                 ],
               ),
@@ -547,7 +404,9 @@ class _DianfeiPageState extends State<DianfeiPage> {
                   child: Row(
                     children: [
                       Text('累计用电 ${_leiji.toStringAsFixed(1)} kWh',
-                          style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white60 : Colors.grey[600])),
                     ],
                   ),
                 ),
@@ -555,28 +414,28 @@ class _DianfeiPageState extends State<DianfeiPage> {
           ),
         ),
         const SizedBox(height: 12),
-        // 本月汇总卡片
+        // 本月汇总卡片（静态玻璃）
         if (_monthKwh > 0)
-          Container(
-            width: double.infinity,
+          contentCardGlass(
+            context: context,
+            borderRadius: BorderRadius.circular(16),
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [accentColorNotifier.value.withValues(alpha: 0.9), accentColorNotifier.value.withValues(alpha: 0.6)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
             child: Column(
               children: [
                 Text(_monthStr.isNotEmpty ? '$_monthStr 用电' : '本月用电',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white70 : Colors.grey[600])),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _summaryItem('用电量', '${_monthKwh.toStringAsFixed(1)} kWh'),
-                    Container(width: 1, height: 30, color: Colors.white.withValues(alpha: 0.2)),
+                    Container(
+                        width: 1,
+                        height: 30,
+                        color: (isDark ? Colors.white : Colors.black)
+                            .withValues(alpha: 0.1)),
                     _summaryItem('电费', '¥${_monthMoney.toStringAsFixed(2)}'),
                   ],
                 ),
@@ -605,35 +464,45 @@ class _DianfeiPageState extends State<DianfeiPage> {
           child: Column(
             key: ValueKey('view_$_viewMode'),
             children: [
-              // 时段汇总卡片
-              Container(
-                width: double.infinity, padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [accentColorNotifier.value, accentColorNotifier.value.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              // 时段汇总卡片（静态玻璃）
+              contentCardGlass(
+                context: context,
+                borderRadius: BorderRadius.circular(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Text('近${days.length}天用电', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text('近${days.length}天用电',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white70 : Colors.grey[600])),
                     const SizedBox(height: 8),
-                    Text('${total.toStringAsFixed(1)} kWh', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                    Text('${total.toStringAsFixed(1)} kWh',
+                        style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87)),
                     const SizedBox(height: 4),
                     Text('日均 ${avg.toStringAsFixed(1)} kWh · 预估 ¥${(total * _price).toStringAsFixed(2)}',
-                        style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white60 : Colors.grey[600])),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              // 折线图
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-                  color: isDark ? Colors.grey[850] : Colors.white,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('每日用电量', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              // 折线图（静态玻璃卡片）
+              contentCardGlass(
+                context: context,
+                borderRadius: BorderRadius.circular(16),
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('每日用电量',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87)),
                       const SizedBox(height: 12),
                       SizedBox(
                         height: 180,
@@ -688,7 +557,6 @@ class _DianfeiPageState extends State<DianfeiPage> {
                       ),
                     ],
                   ),
-                ),
               ),
               const SizedBox(height: 16),
               Text('逐日明细', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
@@ -850,7 +718,11 @@ class _DianfeiPageState extends State<DianfeiPage> {
     setState(() => _recharging = true);
 
     try {
-      final paymentId = await _createRechargeOrder(amount);
+      final paymentId = await DianfeiService.createRechargeOrder(
+        meterId: _meterId,
+        wechatUserOpenid: _wechatUserOpenid,
+        amount: amount,
+      );
       if (paymentId == null || !mounted) return;
 
       final payUrl = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
@@ -870,180 +742,132 @@ class _DianfeiPageState extends State<DianfeiPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[600], size: 24),
-              const SizedBox(width: 10),
-              const Text('订单已创建', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: accentColorNotifier.value.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      // 淡遮罩：玻璃 Dialog 透出页面背景
+      barrierColor: Colors.black.withValues(alpha: 0.25),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        // 磨砂玻璃弹窗（同其他页面弹窗：模糊 + 半透明渐变）
+        child: glassDialog(
+          context: ctx,
+          radius: 20,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('充值金额', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                        Text('¥${amount.toStringAsFixed(0)}', style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold, color: accentColorNotifier.value,
-                        )),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text('电表 #$_meterId', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                    Icon(Icons.check_circle, color: Colors.green[600], size: 24),
+                    const SizedBox(width: 10),
+                    const Text('订单已创建',
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text('支付链接', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[700])),
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[850] : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  payUrl,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  maxLines: 3, overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.wechat_rounded, size: 20),
-                  label: const Text('复制并打开微信', style: TextStyle(fontSize: 15)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF07C160),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: accentColorNotifier.value.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: payUrl));
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content: Text('链接已复制，请在微信中粘贴打开完成支付'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('充值金额',
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey[600])),
+                          Text('¥${amount.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: accentColorNotifier.value,
+                              )),
+                        ],
                       ),
-                    );
-                    launchUrl(Uri.parse('weixin://'), mode: LaunchMode.externalApplication);
-                    Navigator.pop(ctx);
-                  },
+                      const SizedBox(height: 8),
+                      Text('电表 #$_meterId',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[500])),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('关闭', style: TextStyle(color: Colors.grey[600])),
+                const SizedBox(height: 16),
+                Text('支付链接',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700])),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).brightness == Brightness.dark
+                        ? Colors.grey[850]
+                        : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    payUrl,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.wechat_rounded, size: 20),
+                    label: const Text('复制并打开微信',
+                        style: TextStyle(fontSize: 15)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF07C160),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: payUrl));
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text('链接已复制，请在微信中粘贴打开完成支付'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                      launchUrl(Uri.parse('weixin://'),
+                          mode: LaunchMode.externalApplication);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child:
+                        Text('关闭', style: TextStyle(color: Colors.grey[600])),
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<String?> _createRechargeOrder(double amount) async {
-    final completer = Completer<String?>();
-    final url = 'http://dfcz.yibinu.edu.cn/electricmeter/index.html'
-        '#/pages/meterlist/meterpay'
-        '?wechatUserOpenid=$_wechatUserOpenid&meterId=$_meterId';
-
-    bool started = false;
-
-    final headless = HeadlessInAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(url)),
-      initialSettings: InAppWebViewSettings(
-        javaScriptEnabled: true, domStorageEnabled: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          ),
+        ),
       ),
-      onLoadStop: (ctrl, _) async {
-        if (started) return;
-        started = true;
-
-        await Future.delayed(const Duration(seconds: 4));
-        if (completer.isCompleted) return;
-
-        final money = amount.toStringAsFixed(0);
-    final js = r'''
-(function() {
-  try {
-    var meterId = (location.href.match(/meterId=(\d+)/) || ['',''])[1];
-    var openId = (location.href.match(/wechatUserOpenid=([^&]+)/) || ['',''])[1];
-
-    // 获取微信用户信息
-    var xhr0 = new XMLHttpRequest();
-    xhr0.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/index', false);
-    xhr0.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr0.send('openId=' + openId);
-    var userResp = JSON.parse(xhr0.responseText);
-    var wechatUserId = '';
-    if (userResp.code == 200 && userResp.data) {
-      wechatUserId = userResp.data.wechatId;
-    }
-    if (!wechatUserId) return JSON.stringify({error: '获取用户信息失败'});
-
-    // 创建充值订单
-    var xhr1 = new XMLHttpRequest();
-    xhr1.open('POST', 'http://dfcz.yibinu.edu.cn/kddz/electricmeterpost/electricCrteatementPay', false);
-    xhr1.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr1.send('wechatUserId=' + wechatUserId + '&electricUserUid=' + meterId + '&money=__MONEY__');
-    var payResp = JSON.parse(xhr1.responseText);
-    if (payResp.code == 200 && payResp.data) {
-      return JSON.stringify({paymentId: payResp.data.paymentId});
-    }
-    return JSON.stringify({error: payResp.msg || '创建订单失败'});
-  } catch(e) {
-    return JSON.stringify({error: e.message});
-  }
-})();
-'''.replaceAll('__MONEY__', money);
-
-        try {
-          final result = await ctrl.evaluateJavascript(source: js);
-          if (result is String && !completer.isCompleted) {
-            final parsed = jsonDecode(result) as Map;
-            if (parsed.containsKey('error')) {
-              debugPrint('Recharge API error: ${parsed['error']}');
-              completer.complete(null);
-            } else {
-              completer.complete(parsed['paymentId']?.toString());
-            }
-            return;
-          }
-        } catch (e) {
-          debugPrint('Recharge WV error: $e');
-        }
-        if (!completer.isCompleted) completer.complete(null);
-      },
     );
-
-    await headless.run();
-    final result = await completer.future.timeout(const Duration(seconds: 20), onTimeout: () => null);
-    await headless.dispose();
-    return result;
   }
 
   @override
@@ -1053,11 +877,19 @@ class _DianfeiPageState extends State<DianfeiPage> {
   }
 
   Widget _summaryItem(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white60 : Colors.grey[600])),
         const SizedBox(height: 2),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87)),
       ],
     );
   }

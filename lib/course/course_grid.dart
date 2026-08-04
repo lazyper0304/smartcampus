@@ -30,7 +30,7 @@ Color tagBadgeColor(String tag) {
     case '调':
     case '停':
     case '补':
-      return Colors.red.shade400;
+      return const Color(0xFFC2410C);
     default:
       return accentColorNotifier.value;
   }

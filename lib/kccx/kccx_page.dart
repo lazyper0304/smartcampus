@@ -200,7 +200,7 @@ class _KccxPageState extends State<KccxPage> {
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: accentColorNotifier.value.withValues(alpha: 0.06),
+                    // fillColor 跟随全局 theme（静态玻璃半透明白）
                     contentPadding:
                         const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   ),
@@ -221,7 +221,7 @@ class _KccxPageState extends State<KccxPage> {
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: accentColorNotifier.value.withValues(alpha: 0.06),
+                    // fillColor 跟随全局 theme（静态玻璃半透明白）
                     contentPadding:
                         const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                   ),

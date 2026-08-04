@@ -60,10 +60,16 @@ class MaxWidthContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final padded =
         padding == EdgeInsets.zero ? child : Padding(padding: padding, child: child);
-    final constrained = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      child: padded,
+    // 用 LayoutBuilder + SizedBox 强制给子项 tight 宽度（min(父最大, maxWidth)），
+    // 避免 Center 把父约束变 loose 导致 Column(stretch) 失效（卡片宽度不一）。
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth.clamp(0.0, maxWidth);
+        return Align(
+          alignment: center ? Alignment.center : Alignment.centerLeft,
+          child: SizedBox(width: w, child: padded),
+        );
+      },
     );
-    return center ? Center(child: constrained) : constrained;
   }
 }

@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/guest_mode.dart';
+import '../core/ios_kit.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../home/main_screen.dart';
 import '../splash/fetch_info_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
+import '../core/liquid_background.dart';
 import '../main.dart';
 
 Color get _accentBlue => accentColorNotifier.value;
@@ -127,54 +129,50 @@ class _LoginPageState extends State<LoginPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return GlassScaffold(
-      background: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accentColorNotifier.value,
-              Color.lerp(accentColorNotifier.value, const Color(0xFF1565C0), 0.5)!,
-              Color.lerp(accentColorNotifier.value, const Color(0xFF1A237E), 0.7)!,
-            ],
-          ),
-        ),
-      ),
-      statusBarStyle: GlassStatusBarStyle.light,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeOut,
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: Transform.translate(
-                    offset: Offset(0, 30 * (1 - value)),
-                    child: child,
-                  ),
-                );
-              },
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-                  const Text(
-                    '宜院宾果',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 2,
+      // 与主界面同款的统一液态玻璃背景（主题渐变 + 动态气泡）
+      background: const LiquidBackground(),
+      statusBarStyle: GlassStatusBarStyle.auto,
+      // 透明 Scaffold：提供 Material 祖先（TextField/Checkbox 需要）+ 
+      // SnackBar 宿主（0.26.0 起 GlassScaffold 内部是 CupertinoPageScaffold，
+      // 无 Material Scaffold 注册，登录失败提示 SnackBar 无法显示）。
+      body: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 30 * (1 - value)),
+                      child: child,
                     ),
-                  ),
-                  const SizedBox(height: 48),
-                  _buildLoginCard(colorScheme),
-                  const SizedBox(height: 32),
-                ],
+                  );
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 24),
+                    Text(
+                      '宜院宾果',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        // 跟随主题（浅色深字 / 深色浅字），不再固定白色
+                        color: colorScheme.onSurface,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    _buildLoginCard(colorScheme),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
           ),
@@ -184,14 +182,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLoginCard(ColorScheme colorScheme) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
+    // iOS 毛玻璃登录卡片：BackdropFilter 半透明白 + 模糊（全设备有效，
+    // GlassCard shader 在 GLES 设备不渲染）；透明 Material 提供表单祖先。
+    return contentCardGlass(
+      context: context,
+      borderRadius: BorderRadius.circular(20),
+      padding: const EdgeInsets.all(24),
+      child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -341,7 +338,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ],
-        ),
         ),
       ),
     );

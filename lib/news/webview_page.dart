@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -20,7 +21,8 @@ class _WebViewPageState extends State<WebViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    return LiquidBackground(
+      child: PopScope(
       canPop: false,
       // 系统返回手势/返回键：优先回退 WebView 浏览历史，
       // 仅当已到首页（无可后退）时才退出页面
@@ -88,6 +90,7 @@ class _WebViewPageState extends State<WebViewPage> {
           },
         ),
       ),
-    );
+    
+    ));
   }
 }

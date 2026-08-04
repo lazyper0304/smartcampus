@@ -325,7 +325,7 @@ class _ScorePageState extends State<ScorePage> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: isPass ? Colors.green[700] : Colors.red[600],
+            color: isPass ? Colors.green[700] : const Color(0xFFC2410C),
           ),
           children: [
             TextSpan(
@@ -333,7 +333,7 @@ class _ScorePageState extends State<ScorePage> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
-                color: isPass ? Colors.green[400] : Colors.red[400],
+                color: isPass ? Colors.green[400] : const Color(0xFFC2410C).withValues(alpha: 0.85),
               ),
             ),
           ],

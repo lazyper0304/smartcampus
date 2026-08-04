@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../core/liquid_background.dart';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,8 +8,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/local_storage.dart';
 import '../core/theme_utils.dart';
+import '../core/ios_kit.dart';
 import '../main.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 class AppearancePage extends StatefulWidget {
   const AppearancePage({super.key});
@@ -86,6 +87,8 @@ class _AppearancePageState extends State<AppearancePage> {
       valueListenable: themeModeNotifier,
       builder: (context, currentMode, _) {
         return GlassPage(
+          // 主界面同款液态玻璃背景（模块化组件）
+          background: const LiquidBackground(),
           statusBarStyle: GlassStatusBarStyle.auto,
           child: Scaffold(
             appBar: AppBar(title: const Text('外观')),
@@ -449,17 +452,7 @@ class _AppearancePageState extends State<AppearancePage> {
   }
 
   Widget _buildSection(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 4),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: textSecondary(context),
-        ),
-      ),
-    );
+    return IosSectionHeader(title, padding: const EdgeInsets.fromLTRB(4, 4, 4, 8));
   }
 }
 

@@ -1,6 +1,306 @@
 # CHANGELOG
 
+## [1.1.7] - 2026-08-04
+
+### ✨ 新增
+- 页面切换改 iOS 风格动画（CupertinoPageRoute 右滑推入 + 边缘返回手势）；主界面 tab 切换 / 应用页分类切换动画。
+- 自定义背景图提升到全局（所有页面统一应用，二级页面同步生效）。
+- 内容卡片、宫格方块、搜索栏、弹窗全面玻璃化（静态玻璃 + 磨砂玻璃）。
+- 更新日志改独立页面（含下拉刷新）；检查更新单窗原地切换。
+
+### 🐛 修复
+- GlassCard shader 玻璃在 GLES 设备不渲染（改 BackdropFilter/静态玻璃）。
+- BackdropFilter 在列表 overscroll 变透（静态玻璃方案根治）。
+- 自定义背景时页面内容丢失。
+
+### 🎯 优化
+- 功耗：背景气泡动画降速、列表逐项动画移除、宫格方块去 shader 组件。
+
 ## [Unreleased]
+
+### 🐛 修复（自定义背景时页面内容消失）
+- 根因：`LiquidBackground` 有自定义背景时返回 `SizedBox.shrink()`，把 `child`（页面内容）一并丢弃——空闲教室/学业完成等用 SimplePage(background) 的页面只剩背景。
+- 修复：改为 `return child ?? const SizedBox.shrink();`——透出全局背景图同时保留内容。
+
+### 🐛 修复（自定义背景在二级界面生效）
+- 根因：二级页面（SimplePage / login / calendar / race / srtp / vrmap 等自绘页面）各自渲染不透明 `LiquidBackground`，盖住全局背景图。
+- 修复：`LiquidBackground` 组件内部 `ValueListenableBuilder` 监听 `backgroundNotifier`——有自定义背景图时不渲染（透出全局背景图），无则正常渐变背景；SimplePage 恢复简单版（统一由 LiquidBackground 处理），设置/重置背景即时刷新全 app。
+
+### ✨ 新增（自定义背景应用到全部页面）
+- 外观设置的自定义背景图从「仅主界面」提升到**全局**（main.dart builder 监听 `backgroundNotifier`）：所有页面（主界面 + 全部二级页）统一显示背景图（`Image.file` + 半透明遮罩保证可读性），默认仍为 `LiquidBackground`；新增 `dart:io` import。
+- `main_screen.dart`：`GlassScaffold.background` 改透明（全局背景透出），删除主界面独立的 `Image.file` 背景逻辑及 `_overlayColor`/相关 unused import。
+
+### 🎨 UI 优化（电费页卡片玻璃化）
+- 剩余电量卡 / 本月汇总卡（用电量·电费）/ 时段汇总卡（近X天用电）/ 折线图卡：从 accent 渐变实色底 / 实色白底改为**静态玻璃**（`contentCardGlass` 同款：半透明渐变 + 白色高光描边），文字改主题色；低电量数字用深橙提示、状态徽章用 accent/深橙。
+
+### 🔧 重构（电费查询模块化，三层架构）
+- `lib/dianfei/` 按模块化铁律拆分为三层：
+  - **`dianfei_models.dart`**：`DayData`（日度明细）/ `DianfeiStatus`（余量/累计/状态/电价/月度汇总/微信用户ID）/ `DianfeiQueryResult`。
+  - **`dianfei_service.dart`**：`DianfeiService`——`parseLink`（链接解析）、`query`（HeadlessInAppWebView 三接口抓取 + 解析 + 缓存）、`createRechargeOrder`（充值下单）、`loadSummary`/`saveSummary`（本地缓存）。
+  - **`dianfei_page.dart`**：页面只调 Service + 渲染（原 1152 行 → 约 900 行）；`_query`/`_doRecharge`/`_initLoad` 改调 Service。
+- 弹窗玻璃化（补回 git 恢复丢失）：解绑确认、订单已创建改磨砂玻璃 Dialog（`glassDialog`）。
+
+### 🎨 UI 优化（临港电费弹窗玻璃化）
+- 新增 `glassDialog`（ios_kit.dart）公共磨砂玻璃弹窗容器（`BackdropFilter` blur 20 + 半透明渐变 + 白描边）。
+- 电费页（dianfei_page.dart）「解绑电表」确认弹窗与「订单已创建」结果弹窗从实色 `AlertDialog` 改为**磨砂玻璃 Dialog**（淡遮罩 25%）；页面卡片已随全局 `cardTheme` 玻璃化，渐变强调卡（余额/统计）保留。
+
+### 🎨 UI 优化（所有加载弹窗统一磨砂玻璃）
+- 新增 `showGlassLoadingDialog`（ios_kit.dart）：磨砂玻璃加载弹窗（`BackdropFilter` blur 20 + 半透明渐变 + 转圈 + 文案，淡遮罩 25%）。
+- 替换 5 处旧 Card loading 弹窗：资讯（news_list / column_list）、办公网（office_list）、毕业要求（「正在重新计算」）、首页（「加载中」）。
+- 检查更新弹窗（`_UpdateCheckDialog`，update_dialogs.dart）加 `BackdropFilter`（blur 20）磨砂玻璃——loading/结果全状态统一模糊。
+- 顺带清理毕业要求页死代码（`progress` 未用变量）。
+
+### 🐛 修复（添加常用功能弹窗顶部多余模糊）
+- 弹窗顶部 40px 留白从 `Container.margin` 移到**最外层 `Padding`**——此前 `BackdropFilter` 覆盖 ClipRRect 全区域（含留白区）导致弹窗上方多出一片模糊带；现模糊只作用于弹窗本体。
+
+### 🎨 UI 优化（添加常用功能弹窗加模糊）
+- 「添加常用功能」底部弹窗（`_QuickAppPickerSheet`，ios_kit.dart）加 `BackdropFilter`（blur 20）——磨砂玻璃效果，背后页面模糊透出；填充降至白 45%/深灰 55%（弹窗是固定容器，采样稳定，无卡片 overscroll 变透问题）；恢复 `dart:ui` import。
+
+### 🎨 UI 优化（宫格方块改回圆角矩形）
+- `appTileGlass`（应用网格/首页常用功能格子）从圆形改回**圆角矩形**（`BorderRadius.circular(16)`，恢复 `radius` 参数默认 16），渐变/描边不变。
+
+### 🎨 UI 优化（宫格方块改圆形）
+- `appTileGlass`（应用网格/首页常用功能格子）从圆角方块改为**圆形**（`BoxShape.circle`，iOS 图标底样式），渐变/描边参数不变。
+
+### 🎨 UI 优化（应用/首页宫格方块改静态玻璃）
+- 应用网格卡片与首页「常用功能」格子的 `GlassButton`（shader 组件，GLES 设备不渲染 + 30+ 个同时渲染掉帧/耗电）改为**静态玻璃方块**（ios_kit.dart 新增 `appTileGlass`，与内容卡片同款：半透明渐变 + 白色高光描边 + 圆角 16）——视觉统一、无 shader 依赖、性能提升；全库已无 GlassButton 使用。
+
+### 🎯 优化（应用分类切换掉帧）
+- 分类切换 `AnimatedSwitcher` 设 `reverseDuration: Duration.zero`——旧网格**立即移除**，不再与新高网格（各 30+ 卡片）同时渲染 200ms（双倍负载 → 掉帧主因），只渲染新网格滑入+淡入。
+- 应用网格卡片包 `RepaintBoundary`——隔离每张卡（含玻璃组件）绘制，切换/滚动只重绘变化的项。
+
+### 🎨 UI 优化（今日课程卡右上角只显示周次）
+- 首页「今日课程」卡右上角角标去掉星期（原「第X周 · 周X」→「第X周」）；教学周外（`_currentWeek <= 0`）不显示角标。
+
+### 🎯 优化（功耗与动画掉帧）
+- **背景气泡动画降耗**（`lib/core/liquid_background.dart`）：`FluidBackground` velocity 55→**28**（animated）/ 15→10（static），气泡形变周期 4s→**6s**——所有页面背景的持续动画 GPU 负载约减半。
+- **列表逐项动画移除**（`calendar_page` / `employ_page` / `jiaocai_page`）：`_DelayedFadeSlide` 由「逐项错峰淡入+上浮」（`index*50ms` / `index%10*30`，列表长时**并发大量 AnimationController 导致首帧掉帧**）改为**无动画直显**（StatelessWidget），删除对应 State 类。
+- 排查确认：splash 脉冲、tab/分类切换、首页 2 处卡片淡入均为一次性/短时动画，无持续 ticker。
+
+### 🔧 重构（检查更新弹窗单窗原地切换）
+- `showUpdateCheckFlow`（update_dialogs.dart）重构为**单个玻璃弹窗**（`_UpdateCheckDialog` StatefulWidget）：「正在检查更新…」→ 结果返回后**原地切换**为 已是最新 / 发现新版本（可滚动说明 + 稍后/下载）/ 失败重试，不再关闭后另弹新窗；删除 `_showUpdateDialog`/`_showUpToDateDialog`/`_showSnack`。
+
+### 🎨 UI 优化（「已是最新版本」改居中玻璃弹窗）
+- 「已是最新版本」从底部 SnackBar 改为**居中玻璃提示弹窗**（`_showUpToDateDialog`）：成功图标 + 版本号 + 全宽「好的」按钮，玻璃底（白 45%/深灰 55%）+ 淡遮罩 25%，`insetPadding` 四周 24 屏幕正中间，不再被底部导航栏遮挡。
+
+### 🎨 UI 优化（检查更新弹窗玻璃化并居中）
+- `_showUpdateDialog`（update_dialogs.dart）：`AlertDialog` 实色改为**静态玻璃 Dialog**（半透明白 45%/深灰 55% + 淡遮罩 25%），内容 `SingleChildScrollView` 可滚动；`insetPadding` 四周 24 保证**屏幕正中间**且不贴底（避免与浮动玻璃导航栏区域重叠）。
+
+### 🎨 UI 优化（更新日志/常用功能标题改 AppBar 样式）
+- 更新日志页（`changelog_page.dart`）与常用功能页（`quick_apps_page.dart`）顶部标题从 `IosLargeTitle` 大标题改为 **AppBar 导航栏标题**（与隐私协议页一致）：顶部居中标题 + 返回按钮，移除 SafeArea 冗余（AppBar 自带状态栏处理）。
+
+### 🔧 重构（更新日志弹窗改独立页面）
+- 新增 `lib/settings/update/changelog_page.dart` `ChangelogPage`：iOS 大标题 + 每版本一张静态玻璃卡（版本徽章 + 日期 + 正文），自带 加载中 / 失败重试 / 空 / 列表 四态 + 下拉刷新（RefreshIndicator），SimplePage 液态玻璃背景。
+- `showChangelogFlow`（update_dialogs.dart）改为 `pushPage` 跳转页面；删除弹窗实现 `_showChangelogDialog` 与 loading 对话框；清理未使用 import。
+
+### 🎨 UI 优化（隐私协议/更新日志卡片玻璃化）
+- 隐私协议页（`privacy_policy_page.dart`）：2 处 Card 移除自带实色 `color`（accent 6% / 实色白），跟随全局 `cardTheme` 静态玻璃。
+- 更新日志对话框（`update_dialogs.dart`）：`Dialog` 背景改静态玻璃（半透明白 45% / 深灰 55%）+ 遮罩 black54 → 淡黑 25%（透出页面背景）；「检查更新/加载日志」加载对话框同步淡遮罩。
+
+### 🎨 UI 优化（分类切"全部"时消除垂直跳动动画）
+- `AnimatedSwitcher` 增加 `layoutBuilder`：Stack 对齐从默认居中改为**顶部对齐**——分类切换时新旧网格高度不同（如"全部"更高）不再垂直居中错位，消除"向上进入"的跳动，只保留左右滑动+淡入。
+
+### 🎨 UI 优化（应用页分类切换改左右滑动动画）
+- 应用页分类切换动画改为**左右滑动**：新内容从右侧 15% 滑入 + 淡入（`SlideTransition` + `FadeTransition`，220ms easeOutCubic/easeInCubic）。
+
+### 🎨 UI 优化（应用页分类切换动画去微缩放）
+- 应用页分类切换动画移除 `ScaleTransition`（0.98→1.0 微放大），仅保留 **200ms 渐变淡入**。
+
+### 🎨 UI 优化（二级界面卡片与搜索栏统一静态玻璃）
+- **全局 `cardTheme`**（main.dart）：92 处二级页面 Material `Card` 从实色改为**半透明静态玻璃**（浅色白 38% / 深色深灰 48% + 白色高光描边、圆角 14、`surfaceTintColor` 透明）——透出 LiquidBackground，无 BackdropFilter 滚动稳定，与主界面 `contentCardGlass` 同款参数。
+- **全局 `inputDecorationTheme`**：所有 `TextField`/搜索框改为半透明玻璃填充（白 38%/深灰 48%）+ 白色描边（聚焦仍 accent），二级页搜索栏（kccx 课程查询、qxfacx 全校方案、办公网等）自动统一。
+- 移除 kccx 显式 `fillColor`（accent 6%）与 dianfei 电费明细 Card 的深色 `color`，跟随主题玻璃。
+
+### ✨ 新增（应用页分类切换淡入动画）
+- `main_screen.dart`：应用网格外包 `AnimatedSwitcher`（200ms）——分类（最近/全部/教务/服务/资讯）切换时 **淡入 + 轻微放大（0.98→1.0）**（iOS 风格）；`GridView` 的 `ValueKey('tab_$_tabIndex')` 触发切换，搜索过滤不换 key 不动画。
+
+### ✨ 新增（首页/应用/设置 tab 切换淡入动画）
+- `main_screen.dart`：主界面三 tab 切换从无动画 `IndexedStack` 改为 `_buildPagesStack()`——Stack 常驻三页（保留各自滚动/加载状态），非活跃页透明度 0 + `IgnorePointer` + `TickerMode`（暂停动画），切换时 **250ms iOS 风格淡入**；窄屏/宽屏（侧边栏）两种布局均生效。
+
+### ✨ 新增（所有页面切换改 iOS 风格动画）
+- `lib/core/navigation.dart`：页面转场从 `page_transition`（fade 淡入）改为 **`CupertinoPageRoute`**——右滑推入 + 下层视差 + 上层轻微缩放（iOS 标准 400ms 转场），并支持 **iOS 边缘左滑返回手势**（interactive pop）。`pushPage` / `replacePage` / `pushAndClear` 全部生效，覆盖所有二级页面与 启动→登录→主界面 跳转。
+- 移除 `page_transition` 依赖（pubspec.yaml）。
+
+### 🎨 UI 优化（应用页搜索栏改静态玻璃样式）
+- 应用页搜索栏从 `GlassSearchBar`（shader 玻璃，GLES 设备不渲染）改为**静态玻璃**（`main_screen.dart` `_buildSearchBar`）：半透明渐变填充（顶部高光）+ 白色高光描边 + 圆角 12 + 高度 42，与内容卡片同款参数；保留搜索/清除图标与输入逻辑（`_searchCtrl` listener 驱动，无 `showsCancelButton`）。
+
+### 🔧 重构（卡片去除 BackdropFilter 改静态玻璃）
+- 用户要求"直接去掉 BackdropFilter"：`contentCardGlass`（IosCard/IosListGroup/登录卡）与「添加常用功能」底部弹窗移除 `BackdropFilter`/`RepaintBoundary`，改**静态玻璃**——半透明渐变填充（顶部略亮模拟反光）+ 白色高光描边，无 blur 采样依赖 → **overscroll 永不"变透"**；删除 `dart:ui` import。
+
+### 🐛 修复（滚动 overscroll 卡片变透 · 降 blur 提填充保底）
+- RepaintBoundary 未解决：BackdropFilter 与 iOS 橡皮筋（BouncingScrollPhysics 位移+裁剪）组合是 Flutter 平台级限制，采样仍会被破坏。
+- 调整 `contentCardGlass`（ios_kit.dart）：blur 26 → **12**（降低采样依赖）、填充白 30% → **40%** / 深灰 40% → **50%**（视觉保底）→ overscroll 时即使 blur 失效，卡片呈半透明浅卡而非全透。
+
+### 🐛 修复（滚动到顶/底时卡片变透）
+- **根因**：`BackdropFilter` 在 ListView 滚动/overscroll（橡皮筋）时被裁剪 + 位移 → 采样区域破坏、blur 失效 → 卡片只剩 30% 填充，看起来"变透"。
+- **修复**：`contentCardGlass` 外包 `RepaintBoundary`（ios_kit.dart），独立绘制层避免与滚动容器合并重绘导致的采样异常。
+
+### 🎨 UI 优化（卡片玻璃去除厚重白色底）
+- 用户"还是有白色底色"：`contentCardGlass` 填充从白 66%/深灰 72% 大幅降至 **白 30%/深灰 40%**（透出 LiquidBackground 渐变/气泡），描边改**白色高光细边**（浅色 45%/深色 10%，iOS 玻璃边缘感）；「添加常用功能」底部弹窗填充同步降至白 40%/深灰 50%。
+
+### 🐛 修复（卡片玻璃在 GLES 设备不渲染 → 改 BackdropFilter 毛玻璃）
+- **根因**：`GlassCard` 的 shader 玻璃在无 Impeller/Vulkan（GLES）设备上 `ImageFilter.isShaderFilterSupported == false` → 不渲染玻璃、直接透出背景（LiquidBackground 浅色渐变下看起来就是白色卡片）。
+- **修复**：`IosCard` / `IosListGroup` / 登录表单卡改用 **BackdropFilter 手写毛玻璃**（`contentCardGlass` 容器，ios_kit.dart：半透明白 66% / 深灰 72% + `blur 26` + 细描边，Flutter 内置 blur 全设备有效）；删除 `contentCardGlassSettings`（GlassCard 参数函数）。「添加常用功能」底部弹窗原方案即 BackdropFilter，不受影响。
+- 卡片结构：`ClipRRect > BackdropFilter(blur 26) > Container(半透明白, 圆角, 描边) > Material(transparency) > Padding`。
+
+### 🎨 UI 优化（内容卡片全面液态玻璃化）
+- 用户要求"所有白色卡片使用 iOS 液态玻璃"：`IosCard` / `IosListGroup`（ios_kit.dart）内部实色白底（90-92%）改为**液态玻璃**——`GlassCard(useOwnLayer: true, quality: standard)` + 统一参数 `contentCardGlassSettings(context)`（glassColor 白66%/深灰72%、blur 26、standardOpacityMultiplier 0.85、whitenStrength 0.4、thickness 30），透出 LiquidBackground 渐变/气泡；内部透明 `Material` 保留主题继承。
+- 登录表单卡（login_page.dart）同步玻璃化（useOwnLayer + 同参数）；「添加常用功能」底部弹窗（ios_kit.dart）改 `ClipRRect + BackdropFilter(blur 26) + 半透明白` 毛玻璃（顶部圆角 22）。
+- ⚠️ 规范变更：推翻"内容区实色底"旧准则，内容卡片与导航/控制层统一液态玻璃（standard 管线滚动安全）。
+
+### 🎨 UI 优化（应用页分类宫格卡片四周留白等边）
+- 卡片内边距 `symmetric(vertical: 6)` → **`EdgeInsets.all(8)`**（上下左右等边）；卡片下方与网格间距 20 → **16**（与上方搜索框间距 16、页面左右 16 对齐）→ 卡片内外四周留白统一等边。
+
+### 🎨 UI 优化（应用页分类宫格卡片高度与选中状态动态契合）
+- 改用 `IntrinsicHeight + Row(stretch)`：分割线与选中背景（AnimatedContainer）自动拉伸至内容全高，高度随文字实际行高动态适配——彻底解决固定分割线高度与选中背景不齐的问题；选中背景切换加 200ms 淡入动画。
+
+### 🎨 UI 优化（应用页分类宫格卡片高度比例微调）
+- 分割线高度 30 → **46**（贯穿图标+文字内容区，此前偏短不协调）；卡片垂直 padding 10 → 8、单元 padding 4 → 3 → 卡片总高约 66，与设置页分组卡观感一致。
+
+### 🎨 UI 优化（应用页分类选择改统一宫格卡片 + 内部分割线）
+- 应用页分类栏从分段控件（GlassSegmentedControl）改为**统一宫格卡片**（`main_screen.dart` `_buildTabBar` 用 `IosCard` 玻璃卡）：5 个分类等宽横排、图标+文字竖排，相邻分类间 0.5px 竖分割线（与 `IosListGroup` 分隔线同规格）；选中项浅 accent 背景圆角 + accent 色加粗，未选中 `textSecondary`。
+
+### 🎨 UI 优化（应用页分类选择样式优化）
+- `IosSegmentedControl`（`lib/core/ios_kit.dart`）：高度 36 → **44**（竖排布局 图标16+文字13 不再拥挤）；新增显式选中/未选中文字样式（选中 `textPrimary` w600 / 未选中 `textSecondary` w500，替代依赖 CupertinoTheme 回退的 60% 透明度）；图标尺寸交由内部 IconTheme 统一（移除外部 size 15）；指示器 padding 2 → 3；新增 iOS 26 按压辉光 `glowColor: accent 18%`（默认软白在浅色下不可见）。
+
+### 🎨 UI 优化（应用页网格固定 4 列并对齐首页常用功能间距）
+- 应用页网格去掉自适应列数（`appGridColumns`），固定 `crossAxisCount: 4`；上下间距 `mainAxisSpacing 18 → 14`、左右 `crossAxisSpacing 8`、卡片比例 `childAspectRatio 0.82`，与首页「常用功能」宫格完全一致。
+
+### 🎨 UI 优化（应用页顶部状态栏留白与设置页对齐）
+- 应用页（`lib/home/main_screen.dart` `_AppsPage`）此前**漏包 `SafeArea`**（GlassScaffold 不自动 SafeArea），窄屏下标题顶到状态栏、上方无空白；补 `SafeArea(bottom: false)`，并将顶部 padding 统一为 10（原窄屏 12 / 宽屏 28）→ 与首页/设置页顶部结构一致（状态栏下留白 + 大标题）。
+
+### 🎨 UI 优化（应用页/设置页顶部眉标文字移除）
+- 设置页（`lib/settings/settings_page.dart`）顶部 `IosLargeTitle` 移除 `eyebrow: '宜院宾果'`，仅保留大标题「设置」。
+- 应用页（`lib/home/main_screen.dart`）顶部大标题「应用」上方无眉标文字（旧版本显示的「全部校园服务」在当前代码中已不存在），两页顶部结构一致，仅保留大标题。
+
+### 🐛 修复（账号/关于卡残留默认 margin）
+- **根因**：此前批量给 `IosListGroup` 加 `margin: EdgeInsets.zero` 时只命中无 `header` 的调用格式——**带 `header:` 的账号/关于两组被漏掉**，仍带默认 16px 边距 → 比上方两张卡窄 32px。
+- **修复**：账号/关于两组补 `margin: EdgeInsets.zero`；并把 `IosListGroup` **默认 margin 改为 `EdgeInsets.zero`**（页面 ListView 均已提供 padding），从根上杜绝同类遗漏。
+
+### 🐛 修复（设置页四卡片宽度强制一致）
+- `width: double.infinity` 在 loose 约束下可能不生效（尤其个人信息卡 loading 状态无 Expanded 会收缩）→ 改用**终极保险**：设置页与常用功能管理页主 Column 改 `crossAxisAlignment: CrossAxisAlignment.stretch`，强制个人信息卡/外观/账号/关于四卡同宽，任何状态下不收缩。
+
+### 🐛 修复（设置分组卡宽度与个人信息卡不一致）
+- **根因**：设置页 `Column(crossAxisAlignment: CrossAxisAlignment.start)` 为 loose 约束，`IosListGroup` 的 Container 无显式宽度 → 宽度被内容收缩；个人信息卡内容含 `Expanded` 会撑满 → 分组卡比个人信息卡窄。
+- **修复**（`lib/core/ios_kit.dart`）：`IosListGroup` 容器加 `width: double.infinity`，与同列卡片对齐。
+
+### 🎨 优化（启动/过渡界面统一 LiquidBackground）
+- 用户"登录过后的过渡界面也要使用 LiquidBackground"：`SplashPage`（验证 Cookie 过渡页）去掉品牌渐变，改用默认 `LiquidBackground` + 文字/图标主题色（`colorScheme.onSurface`）。至此 启动页 / 登录页 / 首次获取信息页 / 主界面 / 全部二级页面 均统一主界面同款背景。
+
+### 🎨 优化（二级页面自带主界面同款背景）
+- 用户要求"二级界面也要有主界面同款背景，不是直接透明"——每页**自带** LiquidBackground，不依赖全局透出。
+- **`SimplePage` 新增 `background` 参数（默认 true）**：内置 `LiquidBackground(child: 内容)` → 38 个业务页自动获得主界面同款背景；主界面两个 tab 页（首页/设置）传 `background: false`（MainScreen GlassScaffold 已提供背景，避免叠加）。
+- **10 个直接 Scaffold 的独立页补包 LiquidBackground**：校历服务（2 个页面类）/ 调停补 / 电费查询 / WebView 通用页 / 竞赛详情 / 我的竞赛详情 / SRTP 详情 / VR 地图；外观页给 `GlassPage` 加 `background`；首次获取信息页去掉品牌渐变改 LiquidBackground + 文字主题色。
+- 全局 builder 底层 LiquidBackground 保留作为兜底（转场瞬间背景连续）。
+
+### 🎨 优化（所有页面统一主界面同款背景）
+- 用户要求"二级页面和登录页都要是主界面那个背景，不要半透明也不要品牌界面"：
+  - `main.dart` 主题 `scaffoldBackgroundColor` 从半透明（0.78/0.82）改为 **`Colors.transparent`** → 所有二级页面完全透出 builder 层 LiquidBackground（气泡全清晰显示，无遮罩层）；
+  - `login_page.dart`：背景去掉品牌蓝渐变，改用默认 `LiquidBackground()`（主题渐变 + 气泡）；状态栏 `light → auto`；标题「宜院宾果」白色改为跟随主题（`colorScheme.onSurface`）。
+- 移除主题中不再使用的 `bgColor` 变量。
+
+### 🎨 优化（背景动态改用 fluid_background 气泡）
+- 新增依赖 `fluid_background: ^1.0.5`（官方 verified publisher，无额外依赖，全平台）。
+- `lib/core/liquid_background.dart` 重构：`LiquidBackground` 从「自绘光斑动画」改为「主题渐变底色 + `FluidBackground` 彩色气泡层」（气泡 = 彩色渐隐圆 + 内置 blur，缓慢漂移，`velocity 55`、`bubblesSize 420`、尺寸渐变 4s）。接口不变（child / colors / animated），主界面 / 全局路由底层 / 登录页零改动自动升级；`colors` 参数同时控制渐变底色与气泡色（登录页品牌蓝渐变 → 蓝系气泡）。
+- 组件由 StatefulWidget 简化为 StatelessWidget（动画由包自管）。
+
+### 🎨 优化（背景模块化：全部页面统一液态玻璃背景）
+- **新增 `lib/core/liquid_background.dart` 公共组件** `LiquidBackground`（渐变 + 3 光斑正弦漂移动画，16s 循环；支持 `child` 覆盖层、`colors` 自定义渐变、`animated` 开关）——首页/全局/登录页统一复用，**禁止再手写纯色/私有背景**。
+- **`main_screen.dart`**：删除私有 `_buildDefaultBackground`/`_glowBlob`/`_bgCtrl`（SingleTickerProviderStateMixin 一并移除），GlassScaffold 默认背景改用 `LiquidBackground`。
+- **`main.dart`**：MaterialApp.builder 底层改用 `LiquidBackground(child: Theme(...))` → 二级页面 Scaffold 半透明透出动态光斑背景。
+- **`login_page.dart`**：品牌蓝渐变背景改用 `LiquidBackground(colors: 品牌蓝渐变)`，保留白字可读性 + 新增动态光斑。
+
+### 🎨 优化（全局二级页面去纯色背景）
+- **根因**：业务页 `Scaffold` 默认使用主题不透明背景色（接近纯色），登录页已有渐变但 52 个二级页面全是纯色。
+- **修复**（`main.dart` 全局机制，一处改动覆盖全部页面）：
+  - `MaterialApp.builder` 底层铺设**全局 accent 渐变背景**（浅色 accent 掺白系 / 深色暗黑系，随主题/强调色动态变化）；
+  - 主题 `scaffoldBackgroundColor` 改为**半透明**（浅 0.78 / 深 0.82）→ 所有业务页 Scaffold 透出渐变；
+  - 主界面/登录页/启动页自身不透明背景盖住全局层，不受影响；Dialog/SnackBar 浮层不受影响。
+
+### 🎨 优化（设置界面卡片宽度一致）
+- **根因**：`IosListGroup` 默认自带 16px 水平 margin，而设置页/常用功能管理页的 ListView 已提供 16px padding → 分组卡片比个人信息卡（Card 无 margin）窄 32px。
+- **修复**：`settings_page.dart` 三处 + `quick_apps_page.dart` 一处 `IosListGroup` 显式 `margin: EdgeInsets.zero`，所有卡片边缘对齐。
+
+### 🎨 优化（应用宫格按钮玻璃参数统一为底部导航栏参数）
+- 用户要求"应用按钮参数也改成这样"：`GlassScaffold` 页面级 `settings`（grouped 子 widget 继承，宫格 GlassButton 同源）改为底部导航栏同款 `thickness 30 / blur 5 / glowIntensity 1.2 / refractiveIndex 2.6 / specularSharpness sharp / standardOpacityMultiplier 0.8`，应用页与首页宫格按钮玻璃质感统一。
+
+### 🎨 优化（背景光斑动效：缓慢漂移）
+- 用户要求"光斑要能动起来"：`_MainScreenState` 加 `SingleTickerProviderStateMixin` + 16s 循环 `AnimationController`，三处光斑以不同相位/幅度做正弦漂移（iOS 26 动态壁纸感）；玻璃背景采样随之动态变化，底部栏模糊/折射内容始终在动。
+
+### 🎨 优化（首页/设置页透出渐变背景）
+- **根因**：首页/设置页内部 `Scaffold` 默认使用主题不透明背景色，把 `GlassScaffold` 的渐变+光斑背景完全盖住（应用页无 Scaffold 所以能看到渐变）。
+- **修复**：`home_dashboard.dart` / `settings_page.dart` 的 `Scaffold` 加 `backgroundColor: Colors.transparent`，透出玻璃背景源；独立路由页（如常用功能管理页）保持主题背景不透出前页。
+
+### 🎨 优化（底部导航栏透出文字）
+- 用户要求"透出下面的文字"：`blur 10 → 2`（文字基本清晰透出）、`thickness 44 → 24`、`standardOpacityMultiplier 1 → 0.8`、`glowIntensity 1.6 → 1.2`；保留 `premium + refractiveIndex 2.6 + specularSharpness sharp`（折射边缘）。页面级 settings 用户已自行调至低模糊（thickness 10/blur 5）。
+
+### 🎨 优化（底部导航栏通透：仅调低模糊）
+- 仅 `blur 20 → 10` 实现通透（更清晰透出背景）；其余参数恢复折射生效版：`thickness 44 / glowIntensity 1.6 / refractiveIndex 2.6 / specularSharpness sharp / standardOpacityMultiplier 1`。
+
+### 🎨 优化（底部导航栏更通透的液态玻璃）
+- 用户确认折射生效后要求"更通透"：`thickness 44→28`（更薄）、`blur 20→10`（更透亮）、`glowIntensity 1.6→1.2`（光晕收敛）、`standardOpacityMultiplier 1→0.7`（比 Apple 基准 6% 更透）、保留 `premium + refractiveIndex 2.6 + specularSharpness.sharp`（折射与镜面高光不衰减）。
+
+### 🎨 优化（底部导航栏折射效果：显式 Premium + 强折射参数）
+- **根因**：折射（refraction）+ 色散（chromatic aberration）是 **Premium 质量完整 shader 管线的专属能力**，Standard 为轻量 shader 无折射。底部栏虽被 GlassScaffold 默认提升 premium，但在部分设备/场景下质量推断可能回退，折射不生效。
+- **修复**（`main_screen.dart`）：`GlassTabBar.bottom` **显式 `quality: GlassQuality.premium`**；折射参数增强（`refractiveIndex 2.2 → 2.6`）+ `specularSharpness: GlassSpecularSharpness.sharp`（镜面高光）；背景光斑饱和度提升（alpha 0.4→0.55）让滚动经过玻璃时的折射变形肉眼可感知。
+
+### 🎨 优化（液态玻璃真实效果：默认背景改为渐变 + 光斑）
+- **根因**：液态玻璃必须模糊「背景内容」——原默认背景是**纯色**（`Container(color: defaultBg)`），模糊纯色仍是纯色，玻璃呈现为半透明实块而非玻璃（README 明确："Without a controlled background, glass surfaces can appear flat, incorrectly tinted, or invisible"）。
+- **修复**（`main_screen.dart`）：默认背景改为 **iOS 26 风格多彩渐变 + 三处装饰光斑**（RadialGradient 圆形渐隐，浅色清新/深色霓虹）。底部导航栏滚动时真实模糊渐变与光斑 → 液态玻璃质感；首页玻璃卡片边缘透出渐变。用户自定义背景图片逻辑不变（遮罩基色独立 `_overlayColor`）。
+
+### 🎨 优化（底部导航栏液态玻璃效果）
+- 底部 `GlassTabBar.bottom` 玻璃参数从 `blur: 1`（近乎无模糊的半透明实块）调优为 iOS 26 风格液态玻璃：`thickness 44 / blur 20 / glowIntensity 1.4 / refractiveIndex 2.2`，明显模糊透出背景。底部栏由 `GlassScaffold` 自动提升 premium 质量（完整 shader 折射 + 色散），由 `warmUpImpellerPipeline` 预热保证 GLES 兼容。
+
+### 🐛 修复（底部导航栏 label 字体解耦问题）
+- **根因**：`GlassBottomBar`（`GlassTabBar.bottom`）的标签文字默认样式 `fontSize 11 + 选中/未选字重`，**未指定颜色**——依赖 `DefaultTextStyle`。解耦后 bottomBar 区域无 Material 祖先 → label 回退**纯黑**（深色模式下黑字在深色玻璃上完全看不见）。
+- **修复**（`main_screen.dart`）：底部导航栏包透明 `Material`（恢复主题字体）+ 给 `GlassTabBar.bottom` 传显式 `textStyle`（11px，浅色 `#6E6E80` / 深色 `#9E9EB0`）双保险。侧边栏文字在 body Material 内已正常。
+
+### 🐛 修复（Material 解耦导致字体异常 + 文字去红色）
+- **字体异常根因**：0.26.0+ `GlassScaffold` 内部是 `CupertinoPageScaffold`，**不提供 Material 的 `DefaultTextStyle`**——无子 `Scaffold` 的页面（应用页）所有 `Text` 回退到 Flutter 默认样式（14px 纯黑），字体字号/字色异常。
+- **修复**：`main_screen.dart` 的 `GlassScaffold.body` 外层包透明 `Material`（恢复主题字体继承 + Material 祖先；首页/设置页自带 Scaffold 不受影响）。
+- **文字去红色**（统一替换为深橙 `#C2410C`，保留警示感）：错误提示（erke 登录、电费查询）、「解绑」确认、「已终止/驳回/不通过」状态标签（srtp/学科竞赛）、停课/调停补标记（课程表/调课）、不及格分数（成绩/学业完成）、PDF 标签（校历）；全局表单校验错误文字 `errorStyle` 去红。红色图标、删除背景、安全页主题红保留（非文字）。
+
+### 🎨 优化（玻璃内容卡片可读性 → 实色底）
+- **根因**：`GlassQuality.standard` 默认玻璃透明度仅 **6%**（Apple 匹配基准，适合导航层），此前内容卡片全部做成玻璃 → 文字直接透出背景，对比度不足"看不清"。违背 iOS 26 设计准则（内容区保持不透明，玻璃只用于导航/控制层）。
+- **修复**（`lib/core/ios_kit.dart`）：`IosCard` 卡片内部加高对比实色底（浅色白 0.9 / 深色 `#1C1C1E` 0.94），保留玻璃边缘质感；`IosListGroup` 重构为 iOS 分组卡片样式（实色底 + 圆角描边 + 自动分隔线）；登录卡 `Material` 同样加实色底（0.92/0.95）。
+- 导航层（GlassTabBar 底部栏、GlassButton 宫格方块）保持玻璃不变——保留液态玻璃亮点。
+
+### 🐛 修复（登录页 No Material widget found + SnackBar 失效）
+- **根因**：liquid_glass_widgets 0.26.0 起 **Material 完全解耦**——`GlassCard`/`GlassScaffold`（内部 `CupertinoPageScaffold`）不再提供 Material 祖先。登录表单由 `Card` 改为 `GlassCard` 后，内部 `TextField`/`Checkbox` 等 Material 组件失去 Material 祖先 → 运行时报 `No Material widget found`；同时登录失败提示 `SnackBar` 因无 Material `Scaffold` 宿主而无法显示。
+- **修复**（`lib/auth/login_page.dart`）：`GlassScaffold` body 包一层透明 `Scaffold`（`backgroundColor: Colors.transparent`，提供 Material 祖先 + SnackBar 宿主，不影响玻璃渲染）；登录卡 `GlassCard` 内包 `Material(type: transparency)` 承载表单。
+- **前瞻修复**（`lib/core/ios_kit.dart`）：`IosCard` 统一在 `GlassCard` 内包透明 `Material`——首页卡片里的 `TextButton`（查看完整课表）/`FilledButton`（游客去登录）等 Material 组件不再缺祖先。
+- 验证：analyze No issues；`flutter build apk --debug` 成功。
+
+### 🎯 优化（常用功能自定义迁移至设置页）
+- 首页「常用功能」宫格改为**只读展示**（点击直达应用），移除首页编辑模式（自定义按钮/抖动/删除/拖拽）。
+- **新增 `lib/settings/quick_apps_page.dart` 常用功能管理页**（设置 → 外观 → 常用功能）：已添加列表（**左滑删除** + **长按拖拽排序**）、「添加常用功能」入口（底部弹窗从全部应用搜索添加，上限 12），修改即时生效并**自动刷新首页宫格**。
+- 数据层抽取为 `QuickAppsStore`（`lib/core/ios_kit.dart`：load/save/默认值/maxCount），新增全局 `quickAppsChangedNotifier` 变更通知器（设置页修改后首页监听刷新）。
+
+### 🎨 完全重构 UI 风格：iOS 液态玻璃（Liquid Glass）
+- **新增 `lib/core/ios_kit.dart`（iOS 风格组件库）**：
+  - `IosLargeTitle`（iOS 大标题 + 日期眉题）、`IosSectionHeader`（分组标题）、`IosCard`（玻璃内容卡片）、`IosListGroup`（玻璃分组列表）、`IosListTile`（iOS 风格条目 + chevron）、`IosSegmentedControl`（玻璃分段控件封装）；统一超椭圆圆角（squircle）。
+- **首页全新布局**（`lib/home/home_dashboard.dart`）：
+  - 顶部 iOS 大标题 + 时段问候语（早上好/下午好/晚上好 + 姓名，游客显示欢迎语）+ 日期眉题；
+  - **✨ 常用功能宫格**：默认 8 个（课程表/成绩查询/校历服务/校园新闻/临港电费/校车时间/网络服务/VR地图），点击直达；自定义（增删/拖拽排序）在「设置 → 常用功能」管理页，配置持久化到 `home_quick_apps`；
+  - 今日课程 / 校园新闻改为玻璃卡片，周次标签胶囊化。
+- **主框架**（`lib/home/main_screen.dart`）：底部 `GlassTabBar` 换 Cupertino 图标；应用页改为 iOS 大标题 + `GlassSearchBar` 玻璃搜索 + `GlassSegmentedControl` 分类分段 + 控制中心风格玻璃宫格。
+- **设置页**（`lib/settings/settings_page.dart`）：分组列表全面玻璃化（`IosListGroup` + `IosListTile`），含个人信息卡、外观/账号/关于三分组。
+- **全局主题 iOS 化**（`lib/main.dart`）：iOS 系统分组背景（浅 `#F2F2F7` / 深黑）、卡片圆角 14 + 细描边无阴影、`#E5E5EA` 分隔线。
+- 登录页登录卡片改液态玻璃（透出品牌渐变背景）；外观页标题对齐 iOS 分组标题。
+
+### 🐛 修复（进入应用白屏 → liquid_glass_widgets 升级 0.29.1）
+- **根因**：旧版 `liquid_glass_widgets 0.21.3` 的 Impeller 管道预热是 **no-op**（通过未挂载的 `LiquidGlassLayer` widget 预热，未挂载即不栅格化，GPU 无实际工作）。在 Android **无 Vulkan 支持**的设备（MediaTek / 中端骁龙，走 Impeller GLES）上，`glCompileShader`+`glLinkProgram` 于首帧在 raster 线程**同步执行**（100–800ms），与 `nativeSurfaceChanged` 表面初始化竞争 → 首帧渲染失败，进入应用白屏。
+- **修复**：`pubspec.yaml` 升级 `liquid_glass_widgets` `^0.21.3 → ^0.29.1`（最低要求 Flutter ≥ 3.41，本机 3.44 ✓）：
+  - 0.29.1 `initialize()` 默认 `warmUpImpellerPipeline: true`——在 `runApp` 前用 1×1 离屏表面真实栅格化两种 premium shader，GLES 管道编译在原生启动屏背后完成，不再与表面初始化竞争；
+  - 顺带获得：Android 冷启动 Infinity/NaN 崩溃修复、`GlassScaffold` 转场透明修复（issue #177）、Vulkan 合成位竞争修复。
+- **适配**：`main.dart` 的 `LiquidGlassWidgets.wrap()` 补传 `brightnessResolver: Theme.maybeBrightnessOf`（0.29.1 起 MaterialApp 用户必须，修复深色系统 + 浅色应用时玻璃阴影丢失 #124）。其余 API（GlassScaffold/GlassTabBar/GlassCard/GlassSegmentedControl/GlassButton/LiquidRoundedSuperellipse 等）0.29.1 完全向后兼容，零改动。
+- 验证：全 `lib` `dart analyze` 0 error；`flutter build apk --debug` 构建成功（52s）。
+
+### 🐛 修复（首页仍白屏 → GlassQuality 从 premium 降为 standard）
+- **二次根因（日志定位）**：升级 0.29.1 后逻辑层正常（课程请求已发出、无任何异常），但渲染仍白屏。官方文档明确：**`GlassQuality.premium` 仅适合静态非滚动表面，在 `ListView`/`CustomScrollView` 内于 Impeller 上可能渲染错误**。项目全局主题设为 premium（0.21.3 时代遗留），而首页/应用页/设置页全是滚动列表中的玻璃卡片/宫格 → 内容静默不渲染 → 整页白屏。
+- **修复**：`main.dart` 全局 `GlassThemeVariant.quality: premium → standard`（官方推荐默认，95% 场景适用，滚动内容安全；导航栏/底部栏由 `GlassScaffold` 的 `GlassIsolationScope` 自动提升 premium，观感不降）。
+- **消除 `settings provided without useOwnLayer` 警告**：grouped 模式下 per-widget `settings` 被父层忽略并打印警告。改为页面玻璃参数统一由 `GlassScaffold.settings` 提供（`thickness 32 / blur 14`），`IosCard`/宫格 `GlassButton`/登录 `GlassCard` 不再传 per-widget settings（`lib/core/ios_kit.dart` 删除 `kIosCardGlass`/`kIosTileGlass` 常量，改为设计约束注释）。
+- 验证：全 `lib` analyze 0 error；`flutter build apk --debug` 25s 成功。
 
 ### ✨ 新增（邮件系统）
 - 新增「邮件系统」应用入口（服务分类，需登录），内置 WebView 打开 `http://mailmid.yibinu.edu.cn/index/index/oauthLogin`（宜宾学院邮箱，phpCAS 1.3.2 接入学校统一认证），复用统一登录免密进入邮箱。

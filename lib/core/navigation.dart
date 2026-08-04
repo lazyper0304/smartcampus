@@ -1,17 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:page_transition/page_transition.dart';
+import 'package:flutter/cupertino.dart';
 
-const Duration _duration = Duration(milliseconds: 350);
-
-PageTransitionType _transitionType = PageTransitionType.fade;
-
-PageTransition _buildRoute(Widget page) {
-  final type = _transitionType;
-  return PageTransition(
-    type: type,
-    child: page,
-    duration: _duration,
-    reverseDuration: const Duration(milliseconds: 300),
+/// iOS 风格页面切换动画（CupertinoPageRoute）：
+/// - 右滑推入 + 下层视差 + 上层轻微缩放（iOS 系统标准转场，400ms）
+/// - 支持 iOS 边缘左滑返回手势（interactive pop）
+CupertinoPageRoute _buildRoute(Widget page) {
+  return CupertinoPageRoute(
+    builder: (_) => page,
   );
 }
 

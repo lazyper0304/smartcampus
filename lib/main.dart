@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -7,6 +8,7 @@ import 'auth/auth_service.dart';
 import 'auth/login_page.dart';
 import 'core/guest_mode.dart';
 import 'core/http_client.dart';
+import 'core/liquid_background.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
 import 'home/main_screen.dart';
@@ -71,10 +73,16 @@ void main() async {
     child: SmartCampusApp(
       initialThemeMode: initialMode,
     ),
+    // 0.29.1 起 MaterialApp 用户必须提供：修复深色系统 + 浅色应用时玻璃阴影丢失
+    brightnessResolver: Theme.maybeBrightnessOf,
     theme: GlassThemeData(
+      // ⚠️ 质量必须用 standard：premium 在 ListView/CustomScrollView 内
+      // 于 Impeller 上可能渲染错误（整页白屏）。standard 是官方推荐默认，
+      // 滚动内容安全；导航栏/底部栏由 GlassScaffold 的 GlassIsolationScope
+      // 自动提升为 premium，无需担心观感下降。
       light: GlassThemeVariant(
-        settings: GlassThemeSettings(thickness: 45, blur: 18),
-        quality: GlassQuality.premium,
+        settings: GlassThemeSettings(thickness: 32, blur: 14),
+        quality: GlassQuality.standard,
         glowColors: GlassGlowColors(
           primary: Colors.white,
           glowBlurRadius: 32,
@@ -83,8 +91,8 @@ void main() async {
         ),
       ),
       dark: GlassThemeVariant(
-        settings: GlassThemeSettings(thickness: 45, blur: 18),
-        quality: GlassQuality.premium,
+        settings: GlassThemeSettings(thickness: 32, blur: 14),
+        quality: GlassQuality.standard,
         glowColors: GlassGlowColors(
           primary: Colors.white,
           glowBlurRadius: 24,
@@ -187,15 +195,50 @@ class _SmartCampusAppState extends State<SmartCampusApp>
         return ValueListenableBuilder<Color>(
           valueListenable: accentColorNotifier,
           builder: (context, _, __) {
-            return Theme(
-              data: _buildTheme(
-                _themeMode == ThemeMode.dark
-                    ? Brightness.dark
-                    : _themeMode == ThemeMode.light
-                        ? Brightness.light
-                        : MediaQuery.platformBrightnessOf(context),
+            final brightness = _themeMode == ThemeMode.dark
+                ? Brightness.dark
+                : _themeMode == ThemeMode.light
+                    ? Brightness.light
+                    : MediaQuery.platformBrightnessOf(context);
+            // ⚠️ 自定义背景提升到全局：外观设置选择的图片应用到所有页面
+            //（主界面 + 全部二级页），默认仍为液态玻璃背景（渐变+动态光斑）。
+            return ValueListenableBuilder<String?>(
+              valueListenable: backgroundNotifier,
+              builder: (context, bgPath, child) {
+                final bgOk = bgPath != null && bgPath.isNotEmpty;
+                final isDark = brightness == Brightness.dark;
+                final bg = bgOk
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(
+                            File(bgPath),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const LiquidBackground(),
+                          ),
+                          // 半透明遮罩确保内容可读性
+                          Container(
+                            color: (isDark
+                                    ? const Color(0xFF1A1A2E)
+                                    : Colors.white)
+                                .withValues(alpha: 0.5),
+                          ),
+                        ],
+                      )
+                    : const LiquidBackground();
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    bg,
+                    child!,
+                  ],
+                );
+              },
+              child: Theme(
+                data: _buildTheme(brightness),
+                child: child!,
               ),
-              child: child!,
             );
           },
         );
@@ -207,12 +250,14 @@ class _SmartCampusAppState extends State<SmartCampusApp>
   ThemeData _buildTheme(Brightness brightness) {
     final accent = accentColorNotifier.value;
     final isDark = brightness == Brightness.dark;
+    // 卡片表面色（iOS secondarySystemGroupedBackground）
+    final cardColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final colorScheme = ColorScheme.fromSeed(
       seedColor: accent,
       brightness: brightness,
       primary: accent,
       onPrimary: Colors.white,
-      surface: isDark ? Color.lerp(accent, const Color(0xFF121212), 0.7)! : Color.lerp(accent, const Color(0xFFF0F4FF), 0.85)!,
+      surface: cardColor,
       onSurface: isDark ? Colors.white : const Color(0xFF1A1A2E),
     );
 
@@ -220,8 +265,9 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       useMaterial3: true,
       colorScheme: colorScheme,
 
-
-      scaffoldBackgroundColor: isDark ? Color.lerp(accent, const Color(0xFF1A1A2E), 0.85)! : Color.lerp(accent, Colors.white, 0.9)!,
+      // Scaffold 背景全透明：所有页面（含二级页）直接透出
+      // builder 层 LiquidBackground 的主界面同款背景
+      scaffoldBackgroundColor: Colors.transparent,
 
       appBarTheme: AppBarTheme(
         centerTitle: true,
@@ -231,18 +277,32 @@ class _SmartCampusAppState extends State<SmartCampusApp>
         foregroundColor: colorScheme.onSurface,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
-          fontSize: 18,
+          fontSize: 17,
           fontWeight: FontWeight.w600,
           color: colorScheme.onSurface,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       ),
 
+      // iOS 卡片：静态玻璃（与主界面 contentCardGlass 同款参数——
+      // 半透明白/深灰透出 LiquidBackground + 白色高光描边，无 BackdropFilter
+      // 滚动稳定）；所有二级页面 Material Card 统一玻璃化（自带 color 的
+      // 个别 Card 仍会覆盖，可单独处理）
       cardTheme: CardThemeData(
-        color: isDark ? const Color(0xFF2A2A3E) : Colors.white,
-        elevation: 1,
-        shadowColor: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: isDark
+            ? const Color(0xFF1C1C1E).withValues(alpha: 0.48)
+            : Colors.white.withValues(alpha: 0.38),
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.45),
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
       ),
 
@@ -258,33 +318,46 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF2A2A3E) : accent.withValues(alpha: 0.04),
+        // 静态玻璃填充（与卡片同款：半透明白/深灰透出背景，无 BackdropFilter）
+        fillColor: isDark
+            ? const Color(0xFF1C1C1E).withValues(alpha: 0.48)
+            : Colors.white.withValues(alpha: 0.38),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: (isDark ? Colors.white : accent).withValues(alpha: 0.2)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.45),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: (isDark ? Colors.white : accent).withValues(alpha: 0.15)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.35),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: isDark ? const Color(0xFF5C5CFF) : accent, width: 2),
         ),
+        // 表单校验错误文字统一用深橙（应用界面文字不用红色）
+        errorStyle: const TextStyle(color: Color(0xFFC2410C), fontSize: 12),
         labelStyle: TextStyle(color: isDark ? Colors.white70 : accent.withValues(alpha: 0.6)),
       ),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        elevation: 8,
-        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         selectedItemColor: isDark ? const Color(0xFF5C5CFF) : accent,
         unselectedItemColor: isDark ? const Color(0xFF6E6E80) : Colors.grey.shade500,
         type: BottomNavigationBarType.fixed,
       ),
 
       dividerTheme: DividerThemeData(
-        color: isDark ? const Color(0xFF3A3A4E) : const Color(0xFFEEEEF4),
+        color: isDark ? const Color(0xFF3A3A4E) : const Color(0xFFE5E5EA),
         space: 1,
         thickness: 1,
       ),
@@ -307,8 +380,8 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       ),
 
       dialogTheme: DialogThemeData(
-        backgroundColor: isDark ? const Color(0xFF2A2A3E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
 
       snackBarTheme: SnackBarThemeData(
@@ -397,19 +470,12 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accentColorNotifier.value,
-              Color.lerp(accentColorNotifier.value, const Color(0xFF002171), 0.6)!,
-            ],
-          ),
-        ),
-        child: Center(
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    // 主界面同款液态玻璃背景（模块化组件），登录后过渡界面统一
+    return LiquidBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -422,24 +488,24 @@ class _SplashPageState extends State<SplashPage>
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1 + pulse * 0.1),
+                      color: onSurface.withValues(alpha: 0.08 + pulse * 0.06),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
                       Icons.school_rounded,
                       size: 44,
-                      color: Colors.white.withValues(alpha: 0.7 + pulse * 0.3),
+                      color: onSurface.withValues(alpha: 0.6 + pulse * 0.3),
                     ),
                   );
                 },
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 '宜院宾果',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: onSurface,
                   letterSpacing: 2,
                 ),
               ),
@@ -449,7 +515,7 @@ class _SplashPageState extends State<SplashPage>
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 16),
@@ -457,7 +523,7 @@ class _SplashPageState extends State<SplashPage>
                 '验证 Cookie 中…',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.6),
+                  color: onSurface.withValues(alpha: 0.5),
                   letterSpacing: 1,
                 ),
               ),

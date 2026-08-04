@@ -10,7 +10,6 @@ import '../main.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-
 class JiaocaiPage extends StatefulWidget {
   final SharedHttpClient client;
   final String? userId;
@@ -346,56 +345,12 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
   }
 }
 
-class _DelayedFadeSlide extends StatefulWidget {
+class _DelayedFadeSlide extends StatelessWidget {
   final Widget child;
   final Duration delay;
   const _DelayedFadeSlide({required this.child, this.delay = Duration.zero});
 
   @override
-  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
+  Widget build(BuildContext context) => child;
 }
 
-class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    if (widget.delay == Duration.zero) {
-      _controller.forward();
-    } else {
-      Future.delayed(widget.delay, () {
-        if (mounted) _controller.forward();
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value;
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - t)),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}

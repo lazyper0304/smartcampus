@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/liquid_background.dart';
 
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
@@ -67,14 +68,16 @@ class _MyRaceDetailPageState extends State<MyRaceDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: Text(widget.item.name,
             maxLines: 1, overflow: TextOverflow.ellipsis),
         centerTitle: true,
       ),
       body: _buildBody(),
-    );
+    
+    ));
   }
 
   Widget _buildBody() {
@@ -573,7 +576,7 @@ class _MyRaceDetailPageState extends State<MyRaceDetailPage> {
     if (stateName.contains('驳回') ||
         stateName.contains('不通过') ||
         stateName.contains('未通过')) {
-      return Colors.red;
+      return const Color(0xFFC2410C);
     }
     if (stateName.contains('待审') || stateName.contains('审核中')) {
       return Colors.orange;

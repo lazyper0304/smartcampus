@@ -12,10 +12,12 @@ import '../core/navigation.dart';
 import '../core/responsive.dart';
 import '../core/version.dart';
 import '../core/http_client.dart';
+import '../core/ios_kit.dart';
 import '../xuegong/student_info_detail_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'appearance_page.dart';
 import 'privacy_policy_page.dart';
+import 'quick_apps_page.dart';
 import 'update/update_dialogs.dart';
 import '../main.dart';
 import '../core/simple_page.dart';
@@ -66,140 +68,121 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
+      // MainScreen GlassScaffold 已提供背景，不重复叠加
+      background: false,
+      // 透明背景：透出 GlassScaffold 的渐变+光斑（液态玻璃背景源）
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         body: SafeArea(
           // 底部浮动玻璃导航栏为浮层，不占布局空间，交由 ListView 的
           // bottom padding 统一避让，此处关闭 SafeArea 底部避免重复留白。
           bottom: false,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomBarSafePadding(context)),
+            padding: EdgeInsets.fromLTRB(
+                kIosPageHPadding, 10, kIosPageHPadding,
+                bottomBarSafePadding(context)),
             children: [
               MaxWidthContent(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  // stretch 强制所有卡片同宽（个人信息卡/分组卡），
+                  // 杜绝 loose 约束下卡片收缩导致的宽度不一致
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-              // ── 个人信息卡片（始终显示） ──
-              _buildInfoCard(context),
-              const SizedBox(height: 16),
-              _buildSection('外观'),
-              const SizedBox(height: 8),
-              Card(
-                elevation: 0,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF2A2A3E)
-                    : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(
-                    color: accentColorNotifier.value.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: _buildSettingTile(
-                  context,
-                  icon: Icons.palette_outlined,
-                  title: '外观',
-                  subtitle: '切换浅色/深色模式',
-                  color: accentColorNotifier.value,
-                  onTap: () => pushPage(context, const AppearancePage()),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSection('账号'),
-              const SizedBox(height: 8),
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  children: [
-                    if (GuestMode.active)
-                      _buildSettingTile(
-                        context,
-                        icon: Icons.login_rounded,
-                        title: '登录账号',
-                        subtitle: '当前为游客模式，登录后可使用全部功能',
-                        color: accentColorNotifier.value,
-                        onTap: () => _goLogin(context),
-                      )
-                    else
-                      _buildSettingTile(
-                        context,
-                        icon: Icons.logout_rounded,
-                        title: '退出登录',
-                        subtitle: '清除登录状态，返回登录页面',
-                        color: Colors.red,
-                        onTap: () => _logout(context),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSection('关于'),
-              const SizedBox(height: 8),
-              Card(
-                elevation: 0,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF2A2A3E)
-                    : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  children: [
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.forum_rounded,
-                      title: '交流群',
-                      subtitle: '加入 QQ 群【宜院宾果】',
-                      color: Colors.blue,
-                      onTap: () => _openQQGroup(context),
+                    const IosLargeTitle(title: '设置'),
+                    const SizedBox(height: 8),
+                    // ── 个人信息卡片（始终显示） ──
+                    _buildInfoCard(context),
+                    const SizedBox(height: 16),
+                    // ── 外观 ──
+                    IosListGroup(
+                      // ListView 已提供水平 padding，分组卡不再自带 margin，
+                      // 保证与个人信息卡宽度一致
+                      margin: EdgeInsets.zero,
+                      children: [
+                        IosListTile(
+                          icon: Icons.palette_outlined,
+                          title: '外观',
+                          subtitle: '切换浅色/深色模式',
+                          onTap: () => pushPage(context, const AppearancePage()),
+                        ),
+                        IosListTile(
+                          icon: Icons.grid_view_rounded,
+                          title: '常用功能',
+                          subtitle: '自定义首页快捷入口',
+                          onTap: () => pushPage(context, const QuickAppsPage()),
+                        ),
+                      ],
                     ),
-                    Divider(height: 1, indent: 16, endIndent: 16,
-                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.privacy_tip_outlined,
-                      title: '隐私协议',
-                      subtitle: '了解我们如何保护您的数据',
-                      color: Colors.green.shade600,
-                      onTap: () => pushPage(context, const PrivacyPolicyPage()),
+                    // ── 账号 ──
+                    IosListGroup(
+                      header: '账号',
+                      // ListView 已提供水平 padding，分组卡不再自带 margin
+                      margin: EdgeInsets.zero,
+                      children: [
+                        if (GuestMode.active)
+                          IosListTile(
+                            icon: Icons.login_rounded,
+                            title: '登录账号',
+                            subtitle: '当前为游客模式，登录后可使用全部功能',
+                            onTap: () => _goLogin(context),
+                          )
+                        else
+                          IosListTile(
+                            icon: Icons.logout_rounded,
+                            iconColor: Colors.red,
+                            iconBackground: Colors.red.withValues(alpha: 0.1),
+                            title: '退出登录',
+                            subtitle: '清除登录状态，返回登录页面',
+                            onTap: () => _logout(context),
+                          ),
+                      ],
                     ),
-                    Divider(height: 1, indent: 16, endIndent: 16,
-                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.update_rounded,
-                      title: '检查更新',
-                      subtitle: '当前版本 v$appVersion',
-                      color: accentColorNotifier.value,
-                      onTap: () => showUpdateCheckFlow(context),
+                    // ── 关于 ──
+                    IosListGroup(
+                      header: '关于',
+                      // ListView 已提供水平 padding，分组卡不再自带 margin
+                      margin: EdgeInsets.zero,
+                      children: [
+                        IosListTile(
+                          icon: Icons.forum_rounded,
+                          iconColor: Colors.blue,
+                          iconBackground: Colors.blue.withValues(alpha: 0.1),
+                          title: '交流群',
+                          subtitle: '加入 QQ 群【宜院宾果】',
+                          onTap: () => _openQQGroup(context),
+                        ),
+                        IosListTile(
+                          icon: Icons.privacy_tip_outlined,
+                          iconColor: Colors.green.shade600,
+                          iconBackground: Colors.green.withValues(alpha: 0.1),
+                          title: '隐私协议',
+                          subtitle: '了解我们如何保护您的数据',
+                          onTap: () => pushPage(context, const PrivacyPolicyPage()),
+                        ),
+                        IosListTile(
+                          icon: Icons.update_rounded,
+                          title: '检查更新',
+                          subtitle: '当前版本 v$appVersion',
+                          onTap: () => showUpdateCheckFlow(context),
+                        ),
+                        IosListTile(
+                          icon: Icons.history_rounded,
+                          iconColor: Colors.teal,
+                          iconBackground: Colors.teal.withValues(alpha: 0.1),
+                          title: '更新日志',
+                          subtitle: '查看版本更新记录',
+                          onTap: () => showChangelogFlow(context),
+                        ),
+                        IosListTile(
+                          icon: Icons.person_rounded,
+                          iconColor: Colors.orange,
+                          iconBackground: Colors.orange.withValues(alpha: 0.12),
+                          title: '作者',
+                          subtitle: 'lazy波斯猫',
+                          onTap: null,
+                        ),
+                      ],
                     ),
-                    Divider(height: 1, indent: 16, endIndent: 16,
-                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.history_rounded,
-                      title: '更新日志',
-                      subtitle: '查看版本更新记录',
-                      color: Colors.teal,
-                      onTap: () => showChangelogFlow(context),
-                    ),
-                    Divider(height: 1, indent: 16, endIndent: 16,
-                        color: accentColorNotifier.value.withValues(alpha: 0.08)),
-                    _buildSettingTile(
-                      context,
-                      icon: Icons.person_rounded,
-                      title: '作者',
-                      subtitle: 'lazy波斯猫',
-                      color: Colors.orange,
-                      onTap: null,
-                    ),
-                  ],
-                ),
-              ),
                   ],
                 ),
               ),
@@ -246,76 +229,60 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildInfoCard(BuildContext context) {
     // 游客模式：显示游客占位卡片，点击前往登录
     if (GuestMode.active) {
-      return GestureDetector(
+      return IosCard(
+        padding: const EdgeInsets.all(14),
         onTap: () => _goLogin(context),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 56, height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(13),
-                    color: Colors.grey.withValues(alpha: 0.08),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
-                  ),
-                  child: Icon(Icons.person_outline_rounded,
-                      color: Colors.grey.shade400, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('游客模式',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 3),
-                      Text('登录后可查看个人信息并使用全部功能',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                    ],
-                  ),
-                ),
+        child: Row(
+          children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                color: Colors.grey.withValues(alpha: 0.08),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+              ),
+              child: Icon(Icons.person_outline_rounded,
+                  color: Colors.grey.shade400, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('游客模式',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text('登录后可查看个人信息并使用全部功能',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                ],
+              ),
+            ),
                 Icon(Icons.login_rounded, color: Colors.grey.shade400, size: 22),
               ],
             ),
-          ),
-        ),
       );
     }
 
     // 首次加载且无缓存（自动获取中）
     if (_loadingInfo && _studentInfo == null) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.1)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 24, height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(accentColorNotifier.value),
-                ),
+      return IosCard(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            SizedBox(
+              width: 24, height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(accentColorNotifier.value),
               ),
-              const SizedBox(height: 12),
-              Text(
-                '正在获取个人信息…',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '正在获取个人信息…',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+          ],
         ),
       );
     }
@@ -326,97 +293,81 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     // 无数据 → 占位卡片，点击手动获取
-    return GestureDetector(
+    return IosCard(
+      padding: const EdgeInsets.all(14),
       onTap: widget.client != null ? _refreshInfo : null,
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.withValues(alpha: 0.15)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  color: Colors.grey.withValues(alpha: 0.08),
-                  border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
-                ),
-                child: Icon(Icons.person_outline_rounded,
-                    color: Colors.grey.shade400, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.client != null ? '获取失败，点击重试' : '个人信息暂不可用',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      widget.client != null ? '手动拉取学号、姓名、专业等信息' : '请在登录后查看',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
-              ),
-              if (widget.client != null)
-                Icon(Icons.refresh_rounded, color: Colors.grey.shade400, size: 22),
-            ],
+      child: Row(
+        children: [
+          Container(
+            width: 56, height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              color: Colors.grey.withValues(alpha: 0.08),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+            ),
+            child: Icon(Icons.person_outline_rounded,
+                color: Colors.grey.shade400, size: 28),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.client != null ? '获取失败，点击重试' : '个人信息暂不可用',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  widget.client != null ? '手动拉取学号、姓名、专业等信息' : '请在登录后查看',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          if (widget.client != null)
+            Icon(Icons.refresh_rounded, color: Colors.grey.shade400, size: 22),
+        ],
       ),
     );
   }
 
   Widget _buildStudentCard(StudentInfo info) {
-    return GestureDetector(
+    return IosCard(
+      padding: const EdgeInsets.all(14),
       onTap: () => pushPage(context, StudentInfoDetailPage(info: info)),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.1)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // 头像
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  color: accentColorNotifier.value.withValues(alpha: 0.05),
-                  border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: info.hasPhoto
-                      ? Image.memory(
-                          Uint8List.fromList(info.photoBytes),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _buildAvatarFallback(info.name),
-                        )
-                      : _buildAvatarFallback(info.name),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(info.name,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 3),
-                    Text(info.studentId,
-                        style: TextStyle(fontSize: 13, color: textSecondary(context))),
+      child: Row(
+        children: [
+          // 头像
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              color: accentColorNotifier.value.withValues(alpha: 0.05),
+              border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: info.hasPhoto
+                  ? Image.memory(
+                      Uint8List.fromList(info.photoBytes),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _buildAvatarFallback(info.name),
+                    )
+                  : _buildAvatarFallback(info.name),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(info.name,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 3),
+                Text(info.studentId,
+                    style: TextStyle(fontSize: 13, color: textSecondary(context))),
                     if (info.major.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(info.major,
@@ -429,8 +380,6 @@ class _SettingsPageState extends State<SettingsPage> {
               Icon(Icons.chevron_right_rounded, color: textHint(context), size: 22),
             ],
           ),
-        ),
-      ),
     );
   }
 
@@ -445,67 +394,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
-
-  Widget _infoRow(IconData icon, String text) {
-    if (text.isEmpty) return const SizedBox.shrink();
-    return Row(
-      children: [
-        Icon(icon, size: 13, color: textHint(context)),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(text,
-              style: TextStyle(fontSize: 12, color: textSecondary(context)),
-              overflow: TextOverflow.ellipsis),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSection(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 4),
-      child: Text(
-        title,
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary(context)),
-      ),
-    );
-  }
-
-  Widget _buildSettingTile(BuildContext context, {
-    required IconData icon, required String title,
-    required String subtitle, required Color color, VoidCallback? onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: textSecondary(context))),
-                ],
-              ),
-            ),
-            if (onTap != null)
-              Icon(Icons.chevron_right_rounded, color: textHint(context), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   /// 游客模式：退出游客态前往登录页（保留已记住的凭据）
   Future<void> _goLogin(BuildContext context) async {

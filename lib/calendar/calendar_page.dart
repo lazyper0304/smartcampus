@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../core/liquid_background.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,7 +59,8 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('校历服务'),
         centerTitle: true,
@@ -70,7 +72,8 @@ class _CalendarPageState extends State<CalendarPage> {
         ],
       ),
       body: _buildBody(),
-    );
+    
+    ));
   }
 
   Widget _buildBody() {
@@ -186,11 +189,11 @@ class _CalendarPageState extends State<CalendarPage> {
                         ),
                         const SizedBox(width: 16),
                         Icon(Icons.picture_as_pdf,
-                            size: 14, color: Colors.red[300]),
+                            size: 14, color: Color(0xFFC2410C)),
                         const SizedBox(width: 4),
                         Text('PDF',
                             style: TextStyle(
-                                fontSize: 12, color: Colors.red[300])),
+                                fontSize: 12, color: Color(0xFFC2410C))),
                       ],
                     ),
                   ],
@@ -279,7 +282,8 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LiquidBackground(
+      child: Scaffold(
       appBar: AppBar(
         title: Text(
           widget.entry.academicYear.isNotEmpty
@@ -291,7 +295,8 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
       ),
       body: _buildBody(),
       bottomNavigationBar: _detail != null ? _buildBottomBar() : null,
-    );
+    
+    ));
   }
 
   Widget _buildBody() {
@@ -568,55 +573,14 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
   }
 }
 
-/// 延时淡入+上浮动画（替代原 cue 入场动画）
-class _DelayedFadeSlide extends StatefulWidget {
+/// 列表项直显（性能优化：去掉逐项 stagger 淡入+上浮动画——
+/// 校历列表项多，index*50ms 错峰会并发大量 AnimationController 导致首帧掉帧）
+class _DelayedFadeSlide extends StatelessWidget {
   final Widget child;
   final Duration delay;
 
   const _DelayedFadeSlide({required this.child, required this.delay});
 
   @override
-  State<_DelayedFadeSlide> createState() => _DelayedFadeSlideState();
-}
-
-class _DelayedFadeSlideState extends State<_DelayedFadeSlide>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    Future.delayed(widget.delay, () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _animation.value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - _animation.value)),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
+  Widget build(BuildContext context) => child;
 }

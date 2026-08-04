@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -12,6 +12,7 @@ import '../core/http_client.dart';
 import '../core/local_storage.dart';
 import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
+import '../core/ios_kit.dart';
 import '../settings/settings_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'home_dashboard.dart';
@@ -33,9 +34,9 @@ class _RailTabDef {
 }
 
 const List<_RailTabDef> _railDefs = [
-  _RailTabDef(Icons.home_rounded, '首页'),
-  _RailTabDef(Icons.apps_rounded, '应用'),
-  _RailTabDef(Icons.settings_rounded, '设置'),
+  _RailTabDef(CupertinoIcons.house_fill, '首页'),
+  _RailTabDef(CupertinoIcons.square_grid_2x2_fill, '应用'),
+  _RailTabDef(CupertinoIcons.settings, '设置'),
 ];
 
 class MainScreen extends StatefulWidget {
@@ -67,51 +68,42 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final defaultBg = _isDark(context)
-        ? Color.lerp(_accentBlue, const Color(0xFF1A1A2E), 0.85)!
-        : Color.lerp(_accentBlue, Colors.white, 0.9)!;
     final isWide = isWideScreen(context);
 
-    return ValueListenableBuilder<String?>(
-      valueListenable: backgroundNotifier,
-      builder: (context, bgPath, _) {
-        return GlassScaffold(
-          background: bgPath != null
-              ? Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.file(
-                      File(bgPath),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: defaultBg),
-                    ),
-                    // 半透明遮罩确保内容可读性
-                    Container(color: defaultBg.withValues(alpha: 0.5)),
-                  ],
-                )
-              : Container(color: defaultBg),
-          statusBarStyle: GlassStatusBarStyle.auto,
-          contentAwareBrightness: true,
-          body: isWide
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSideRail(context),
-                    Expanded(
-                      child: IndexedStack(
-                        index: _currentIndex,
-                        children: _buildPages(),
-                      ),
-                    ),
-                  ],
-                )
-              : IndexedStack(
-                  index: _currentIndex,
-                  children: _buildPages(),
-                ),
+    return GlassScaffold(
+      // 页面玻璃参数统一在此层设置（grouped 子 widget 继承，避免
+      // per-widget settings 被忽略的警告）；quality 全局 standard。
+      // 与底部导航栏参数一致（用户要求应用按钮同款）。
+      settings: const LiquidGlassSettings(
+        thickness: 30,
+        blur: 5,
+        glowIntensity: 1.2,
+        refractiveIndex: 2.6,
+        specularSharpness: GlassSpecularSharpness.sharp,
+        standardOpacityMultiplier: 0.8,
+      ),
+      // ⚠️ 自定义背景已提升到全局 builder（main.dart）统一应用（含二级页），
+      // 此处背景透明，让全局背景（图片或液态玻璃）透出。
+      background: const SizedBox.shrink(),
+      statusBarStyle: GlassStatusBarStyle.auto,
+      contentAwareBrightness: true,
+      // ⚠️ 0.26.0+ GlassScaffold 内部是 CupertinoPageScaffold，不提供
+      // Material 的 DefaultTextStyle/主题字体——无子 Scaffold 的页面
+      //（应用页）Text 会回退到 14px 纯黑默认样式（字体异常）。
+      // 包一层透明 Material 恢复主题字体继承 + Material 祖先。
+  body: Material(
+    type: MaterialType.transparency,
+        child: isWide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSideRail(context),
+                  Expanded(child: _buildPagesStack()),
+                ],
+              )
+            : _buildPagesStack(),
+      ),
       bottomBar: isWide ? null : _buildBottomTabBar(),
-    );
-      },
     );
   }
 
@@ -133,41 +125,85 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ];
 
+  /// 主界面 tab 切换动画容器：Stack 常驻三个页面（保留各自滚动/加载状态），
+  /// 非活跃页透明度 0 + 忽略触摸 + 暂停动画（TickerMode），切换时 250ms
+  /// iOS 风格淡入；替代无动画的 IndexedStack。
+  Widget _buildPagesStack() {
+    final pages = _buildPages();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < pages.length; i++)
+          IgnorePointer(
+            ignoring: i != _currentIndex,
+            child: AnimatedOpacity(
+              opacity: i == _currentIndex ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              child: TickerMode(
+                enabled: i == _currentIndex,
+                child: pages[i],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   /// 紧凑布局（手机竖屏）下的浮动玻璃底部导航栏。
-  Widget _buildBottomTabBar() => Theme(
-        data: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: _accentBlue,
-            primary: _accentBlue,
+  Widget _buildBottomTabBar() => Material(
+        type: MaterialType.transparency,
+        // ⚠️ 解耦修复：GlassBottomBar 的 label 不指定颜色（依赖
+        // DefaultTextStyle）→ 无 Material 祖先时回退纯黑（深色模式看不见）。
+        // 包透明 Material 恢复主题字体 + 显式 textStyle 双保险。
+        child: Theme(
+          data: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _accentBlue,
+              primary: _accentBlue,
+            ),
           ),
-        ),
-        child: GlassTabBar.bottom(
-          settings: const LiquidGlassSettings(
-            thickness: 32,
-            blur: 1,
-            glowIntensity: 1,
-            refractiveIndex: 2.5,
-            standardOpacityMultiplier: 1,
+          child: GlassTabBar.bottom(
+            // 显式 premium：折射（refraction）+ 色散（chromatic aberration）
+            // 只有完整 shader 管线才有；standard 是轻量 shader 无折射。
+            quality: GlassQuality.premium,
+            // 透出型液态玻璃：极低模糊让下方滚动文字清晰透出，保留折射边缘
+            settings: const LiquidGlassSettings(
+              thickness: 30,
+              blur: 5,
+              glowIntensity: 1.2,
+              refractiveIndex: 2.6,
+              specularSharpness: GlassSpecularSharpness.sharp,
+              standardOpacityMultiplier: 0.8,
+            ),
+            textStyle: TextStyle(
+              fontSize: 11,
+              color: _isDark(context)
+                  ? const Color(0xFF9E9EB0)
+                  : const Color(0xFF6E6E80),
+            ),
+            selectedIndex: _currentIndex,
+            onTabSelected: (i) => setState(() => _currentIndex = i),
+            tabs: [
+              GlassTab(
+                icon: const Icon(CupertinoIcons.house),
+                activeIcon: Icon(CupertinoIcons.house_fill, color: _accentBlue),
+                label: '首页',
+              ),
+              GlassTab(
+                icon: const Icon(CupertinoIcons.square_grid_2x2),
+                activeIcon:
+                    Icon(CupertinoIcons.square_grid_2x2_fill, color: _accentBlue),
+                label: '应用',
+              ),
+              GlassTab(
+                icon: const Icon(CupertinoIcons.settings),
+                activeIcon:
+                    Icon(CupertinoIcons.settings, color: _accentBlue),
+                label: '设置',
+              ),
+            ],
           ),
-          selectedIndex: _currentIndex,
-          onTabSelected: (i) => setState(() => _currentIndex = i),
-          tabs: [
-            GlassTab(
-              icon: Icon(Icons.home_rounded),
-              activeIcon: Icon(Icons.home_rounded, color: _accentBlue),
-              label: '首页',
-            ),
-            GlassTab(
-              icon: Icon(Icons.apps_rounded),
-              activeIcon: Icon(Icons.apps_rounded, color: _accentBlue),
-              label: '应用',
-            ),
-            GlassTab(
-              icon: Icon(Icons.settings_rounded),
-              activeIcon: Icon(Icons.settings_rounded, color: _accentBlue),
-              label: '设置',
-            ),
-          ],
         ),
       );
 
@@ -351,37 +387,69 @@ class _AppsPageState extends State<_AppsPage> {
   @override
   Widget build(BuildContext context) {
     final apps = _filteredApps;
-    final isWide = isWideScreen(context);
-    final topPad = isWide ? 28.0 : 56.0;
     final bottomPad = bottomBarSafePadding(context);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, topPad, 20, bottomPad),
-      child: MaxWidthContent(
-        maxWidth: kGridMaxWidth,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 搜索框（独立渐显）
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOut,
-              builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: child,
-                );
-              },
-              child: _buildSearchBar(),
-            ),
-            const SizedBox(height: 20),
-            // 分类标签
-            _buildTabBar(),
-            const SizedBox(height: 20),
-            // 应用网格
-            _buildContent(apps),
-          ],
+    // 与首页/设置页一致：GlassScaffold 不自动 SafeArea，顶部需自行
+    // 避开状态栏留白（否则标题顶到状态栏，上方无空白）；
+    // 底部由 bottomBarSafePadding 统一避让浮动玻璃导航栏。
+    return SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+            kIosPageHPadding, 10, kIosPageHPadding, bottomPad),
+        child: MaxWidthContent(
+          maxWidth: kGridMaxWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const IosLargeTitle(title: '应用'),
+              const SizedBox(height: 16),
+              // 搜索框（玻璃质感）
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: child,
+                  );
+                },
+                child: _buildSearchBar(),
+              ),
+              const SizedBox(height: 16),
+              // 分类宫格卡片
+              _buildTabBar(),
+              // 卡片四周留白等边：上下/左右均 16
+              const SizedBox(height: 16),
+              // 应用网格（分类切换左右滑动：新内容从右侧滑入 + 淡入；
+              // ⚠️ 性能：reverseDuration: zero 让旧网格立即移除——否则新旧
+              // 两个网格（各 30+ 卡片）同时渲染 220ms，双倍负载导致掉帧；
+              // layoutBuilder 顶部对齐防垂直跳动；搜索不换 key 不动画）
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                // 旧网格不播放退出动画，立即移除（只渲染新网格，减半负载）
+                reverseDuration: Duration.zero,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) => Stack(
+                  alignment: Alignment.topCenter,
+                  children: [...previousChildren, ?currentChild],
+                ),
+                transitionBuilder: (child, animation) => SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.15, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                ),
+                child: _buildContent(apps),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -406,101 +474,154 @@ class _AppsPageState extends State<_AppsPage> {
         ),
       );
     }
-    // 根据可用宽度自适应列数：横屏 / 桌面宽屏下展示更多列，避免浪费空间。
-    final isWide = isWideScreen(context);
-    final width = MediaQuery.of(context).size.width;
-    final available = width - (isWide ? kRailWidth : 0.0) - 40;
-    final columns = appGridColumns(available);
+    // 与首页「常用功能」宫格一致：固定 4 列，上下 14 / 左右 8，比例 0.82
     return GridView.builder(
       key: ValueKey('tab_$_tabIndex'),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.82,
       ),
       itemCount: apps.length,
-      itemBuilder: (context, index) => _buildAppCard(apps[index]),
+      // RepaintBoundary：隔离每张卡片（含玻璃组件）的绘制，切换/滚动时
+      // 只重绘变化的项，减少整片网格重绘导致的掉帧
+      itemBuilder: (context, index) =>
+          RepaintBoundary(child: _buildAppCard(apps[index])),
     );
   }
 
+  /// 搜索栏：静态玻璃样式（与内容卡片同款——半透明渐变 + 白色高光描边，
+  /// 无 BackdropFilter/shader 依赖，滚动与 overscroll 稳定）
   Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        controller: _searchCtrl,
-        decoration: InputDecoration(
-          hintText: '搜索应用名称…',
-          hintStyle: TextStyle(fontSize: 14, color: textHint(context)),
-          prefixIcon: Icon(Icons.search_rounded, color: textHint(context), size: 20),
-          suffixIcon: _searchText.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear_rounded, size: 18, color: textHint(context)),
-                  onPressed: () { _searchCtrl.clear(); },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+    final isDark = _isDark(context);
+    final baseColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kIosTileRadius),
+      child: Container(
+        height: 42,
+        decoration: BoxDecoration(
+          // 顶部略亮模拟玻璃反光，主体半透明透出背景
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              baseColor.withValues(alpha: isDark ? 0.55 : 0.45),
+              baseColor.withValues(alpha: isDark ? 0.48 : 0.38),
+            ],
+            stops: const [0.0, 0.45],
+          ),
+          borderRadius: BorderRadius.circular(kIosTileRadius),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.45),
+          ),
         ),
-        style: const TextStyle(fontSize: 14),
+        child: Material(
+          type: MaterialType.transparency,
+          child: TextField(
+            controller: _searchCtrl,
+            style: const TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: '搜索应用名称…',
+              hintStyle: TextStyle(fontSize: 14, color: textHint(context)),
+              prefixIcon: Icon(Icons.search_rounded,
+                  size: 20, color: textHint(context)),
+              suffixIcon: _searchText.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear_rounded,
+                          size: 18, color: textHint(context)),
+                      onPressed: _searchCtrl.clear,
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
+        ),
       ),
     );
   }
 
+  /// 分类选择：统一宫格卡片 + 内部分割线（iOS 分组风格，替代分段控件）
+  /// IntrinsicHeight + stretch：分割线与选中背景自动拉伸至内容全高，
+  /// 高度随文字行高动态适配，与选中状态天然契合
   Widget _buildTabBar() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _tabLabels.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final selected = i == _tabIndex;
-          return GestureDetector(
-            onTap: () => setState(() => _tabIndex = i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              decoration: BoxDecoration(
-                color: selected ? _accentBlue : Colors.grey.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _tabIcons[i],
-                      size: 16,
-                      color: selected ? Colors.white : textSecondary(context),
+    final accent = _accentBlue;
+    final lineColor =
+        (_isDark(context) ? Colors.white : Colors.black).withValues(alpha: 0.08);
+    return IosCard(
+      // 卡片内边距四周等边（上下左右 8）
+      padding: const EdgeInsets.all(8),
+      margin: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          // stretch：分割线与选中背景均撑满内容高度（IntrinsicHeight 提供）
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < _tabLabels.length; i++) ...[
+              if (i > 0)
+                // 内部分割线：0.5 细线，与 IosListGroup 分隔线同规格，
+                // 高度自动等于选中背景
+                Container(
+                  width: 0.5,
+                  color: lineColor,
+                ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _tabIndex = i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    decoration: BoxDecoration(
+                      color: i == _tabIndex
+                          ? accent.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _tabLabels[i],
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : textSecondary(context),
-                      ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _tabIcons[i],
+                          size: 20,
+                          color: i == _tabIndex
+                              ? accent
+                              : textSecondary(context),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _tabLabels[i],
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: i == _tabIndex
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: i == _tabIndex
+                                ? accent
+                                : textSecondary(context),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildAppCard(AppEntry entry) {
     final guestLocked = GuestMode.active && entry.requiresLogin;
+    final accent = _accentBlue;
     return GestureDetector(
       onTap: () {
         if (guestLocked) {
@@ -515,54 +636,38 @@ class _AppsPageState extends State<_AppsPage> {
         fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: _accentBlue.withValues(alpha: 0.1)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: guestLocked
-                          ? Colors.grey.withValues(alpha: 0.08)
-                          : _accentBlue.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(entry.icon,
-                        color: guestLocked ? Colors.grey : _accentBlue, size: 20),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    entry.name,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: guestLocked ? Colors.grey : null,
-                    ),
-                  ),
-                ],
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 静态玻璃方块（与内容卡片同款；不用 GlassButton——
+              // shader 组件 GLES 不渲染且网格 30+ 个同时渲染掉帧/耗电）
+              appTileGlass(
+                context: context,
+                icon: entry.icon,
+                iconColor: guestLocked ? Colors.grey : accent,
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                entry.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: guestLocked ? Colors.grey : null,
+                ),
+              ),
+            ],
           ),
           if (guestLocked)
             Positioned(
               top: 4,
-              right: 4,
+              right: 6,
               child: Container(
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.15),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(Icons.lock_rounded, size: 12, color: Colors.grey),
@@ -571,7 +676,7 @@ class _AppsPageState extends State<_AppsPage> {
           else if (entry.badge != null)
             Positioned(
               top: 4,
-              right: 4,
+              right: 6,
               child: entry.badge!,
             ),
         ],

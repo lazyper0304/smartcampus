@@ -601,7 +601,7 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
 
   Widget _buildChangeCard(ClassCourseChange c) {
     final typeColor = c.changeType == '停课'
-        ? Colors.red
+        ? const Color(0xFFC2410C)
         : c.changeType == '补课'
             ? Colors.green
             : Colors.orange;

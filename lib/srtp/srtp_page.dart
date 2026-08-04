@@ -620,7 +620,7 @@ Widget _stageTag(BuildContext context, int stage) {
 /// 状态色点：-1=终止(红) / 0=申报中(橙) / 4=已结题(绿) / 其他=蓝
 Widget _stateDot(BuildContext context, int state) {
   final (text, color) = switch (state) {
-    -1 => ('已终止', Colors.red),
+    -1 => ('已终止', const Color(0xFFC2410C)),
     0 => ('申报中', Colors.orange),
     4 => ('已结题', Colors.green),
     _ => ('状态 $state', Colors.blue),

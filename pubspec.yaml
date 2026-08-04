@@ -22,7 +22,7 @@ license: MIT
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.6+8
+version: 1.1.7+9
 
 environment:
   sdk: ^3.12.0
@@ -50,7 +50,9 @@ dependencies:
   # 临时文件路径
   path_provider: ^2.1.0
   # 液态玻璃 UI 风格
-  liquid_glass_widgets: ^0.21.3
+  liquid_glass_widgets: ^0.29.1
+  # 动态流体气泡背景
+  fluid_background: ^1.0.5
   # 图片缓存
   cached_network_image: ^3.4.1
   # 打开外部链接
@@ -65,8 +67,6 @@ dependencies:
   crypto: ^3.0.3
   # 平滑动画下拉/选择/折叠组件（渲染层动画）
   smooth_dropdown: ^1.0.0
-  # 页面转场动画
-  page_transition: ^2.2.1
   # 从设备选择图片
   image_picker: ^1.1.2
   # SVG 图标渲染

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/ios_kit.dart';
 
 import '../core/data_cache.dart';
 import '../core/navigation.dart';
@@ -289,25 +290,7 @@ class _ColumnListPageState extends State<ColumnListPage> {
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('加载中...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    showGlassLoadingDialog(context, message: '加载中...');
     try {
       final detail = await _service.fetchDetail(item.url);
       if (!mounted) return;

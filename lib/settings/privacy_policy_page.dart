@@ -62,7 +62,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   Widget _buildIntro(BuildContext context) {
     return Card(
       elevation: 0,
-      color: accentColorNotifier.value.withValues(alpha: 0.06),
+      // color 不传：跟随全局 cardTheme 静态玻璃（半透明白/深灰）
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.12)),
@@ -89,9 +89,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   Widget _buildSection(BuildContext context, String title, List<String> paragraphs) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF2A2A3E)
-          : Colors.white,
+      // color 不传：跟随全局 cardTheme 静态玻璃（半透明白/深灰）
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.08)),
