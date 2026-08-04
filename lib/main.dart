@@ -366,13 +366,14 @@ class _SplashPageState extends State<SplashPage>
       return;
     }
 
-    final isValid = await client.verifySession();
-
-    if (!mounted) return;
-
-    if (isValid) {
-      final savedUser = await LocalStorage.getString('saved_username') ?? '';
+    // ⚠️ 每次进入应用都用本地保存的账号密码走**真实 CAS 登录**（全新 cookie），
+    // 不再复用可能已过期的本地 cookie（服务端 TTL 过期后本地是"死 cookie"，
+    // 注入 WebView 只会触发 CAS 刷新回环 → 学科竞赛等模块获取失败）。
+    // 登录成功后 Cookie 已全部刷新并落盘，会话永远新鲜，无需手动重新登录。
+    final autoAuth = AuthService(sharedClient: client);
+    if (await autoAuth.autoRelogin()) {
       if (!mounted) return;
+      final savedUser = await LocalStorage.getString('saved_username') ?? '';
 
       // 首次进入需先获取到个人信息（无缓存时走 FetchInfoPage 阻塞获取），
       // 后续有缓存直接进主界面
@@ -385,23 +386,13 @@ class _SplashPageState extends State<SplashPage>
 
       if (!mounted) return;
       replacePage(context, MainScreen(client: client, userId: savedUser));
-    } else {
-      // 会话失效：若用户"记住密码"且存有凭据，先尝试自动重登（静默续期）
-      final autoAuth = AuthService(sharedClient: client);
-      if (await autoAuth.autoRelogin()) {
-        if (!mounted) return;
-        final savedUser = await LocalStorage.getString('saved_username') ?? '';
-        final cached = await StudentInfoManager.getCached();
-        if (!mounted) return;
-        if (cached == null) {
-          replacePage(context, FetchInfoPage(client: client));
-        } else {
-          replacePage(context, MainScreen(client: client, userId: savedUser));
-        }
-        return;
-      }
-      replacePage(context, const LoginPage());
+      return;
     }
+
+    // 无本地凭据（首次使用 / 已退出登录 / 自动重登失败）→ 登录页；
+    // 登录成功后凭据会保存，下次启动即可自动重登。
+    if (!mounted) return;
+    replacePage(context, const LoginPage());
   }
 
   @override

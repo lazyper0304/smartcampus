@@ -28,7 +28,10 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
-  bool _rememberPassword = false;
+
+  /// 默认勾选"记住密码"：凭据总是会保存用于会话自动续期，
+  /// 该标志仅决定下次打开登录页时是否自动填充账号密码。
+  bool _rememberPassword = true;
 
   @override
   void initState() {
@@ -56,15 +59,12 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _saveCredentials() async {
-    if (_rememberPassword) {
-      await LocalStorage.setString('username', _usernameController.text.trim());
-      await LocalStorage.setString('password', _passwordController.text);
-      await LocalStorage.setBool('remember_password', true);
-    } else {
-      await LocalStorage.remove('username');
-      await LocalStorage.remove('password');
-      await LocalStorage.setBool('remember_password', false);
-    }
+    // 凭据总是保存：登录成功后本地始终有账号密码，会话过期时
+    // AuthService.autoRelogin 才能静默重登（用户无需手动重新登录）。
+    // remember_password 仅控制下次打开登录页是否自动填充。
+    await LocalStorage.setString('username', _usernameController.text.trim());
+    await LocalStorage.setString('password', _passwordController.text);
+    await LocalStorage.setBool('remember_password', _rememberPassword);
   }
 
   Future<void> _handleLogin() async {

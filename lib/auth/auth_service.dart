@@ -62,15 +62,14 @@ class AuthService {
   /// 使用已保存的账号密码自动重登（静默续期）
   ///
   /// 适用场景：启动期 [SharedHttpClient.verifySession] 失败、或运行时请求返回
-  /// 401/404 会话过期。仅当用户勾选过"记住密码"（`remember_password=true`）
-  /// 且本地存有账号密码时才尝试；否则直接返回 false，由调用方降级为手动登录页。
+  /// 401/404 会话过期。登录成功后凭据总是会保存（见 login_page._saveCredentials），
+  /// 因此只要有账号密码即尝试；无凭据（首次未登录/已退出登录）返回 false，
+  /// 由调用方降级为手动登录页。
   ///
   /// 走 [CasLoginService] 完整真实登录链路（刷新 ehall 会话 + https 补 CASTGC），
   /// 比注入 cookie 可靠（Chromium 常忽略注入的 Secure/HttpOnly cookie）。
   /// 成功后落盘 Cookie，返回 true；任何失败（无凭据 / 超时 / 账号错误）均返回 false。
   Future<bool> autoRelogin() async {
-    final remember = await LocalStorage.getBool('remember_password');
-    if (!remember) return false;
     final username = await LocalStorage.getString('username') ?? '';
     final password = await LocalStorage.getString('password') ?? '';
     if (username.trim().isEmpty || password.isEmpty) return false;
