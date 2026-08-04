@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 🔧 版本号升级至 1.1.6
+- `VERSION` / `pubspec.yaml`（1.1.6+8）/ `lib/core/version.dart` / `README.md` 徽章 四处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1（7→8）。
+- 1.1.6 新增内容：全校方案查询模块（列表/年级筛选/详情课程组树）。
+
 ### 🔧 版本号升级至 1.1.5
 - `VERSION` / `pubspec.yaml`（1.1.5+7）/ `lib/core/version.dart` 三处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1。
 - 1.1.5 新增内容：玻尔科研平台（CAS SSO 内置 WebView）、课程查询（搜索/筛选/分页/详情）及 403 与转圈修复。
@@ -35,6 +39,15 @@
   - `bohrium_page.dart`：`BohriumPage` —— 加载平台首页，initState 先注入 cookie 再进 WebView；CAS 登录页停留检测（提示条引导手动登录兜底）、加载进度条、底部工具栏（后退/前进/首页/刷新）、菜单（外部浏览器打开/清除缓存，清缓存后自动重注入 cookie）。
 - 平台认证链路已确认：未登录 302 到 `authserver.yibinu.edu.cn` CAS → 回跳 `/cas_login?ticket=...` → `POST /platform-gateway/v1/account/cas_login` 兑换 token（localStorage `brmToken`）。
 - `lib/home/app_data.dart` 注册 `BohriumPage` 入口。
+
+### ✨ 新增（全校方案查询）
+- 新增「全校方案」应用入口（教务分类，需登录），基于 ehall jwapp「全校方案查询」（qxfacx 模块，入口 `appShow?appId=4766860087431764`）查询全校已发布培养方案。
+- 新模块 `lib/qxfacx/`（严格模块化：Model / Service / Page 三层）：
+  - `qxfacx.dart`：`QxFacxPlan`（培养方案：PYFAMC 方案名 / NJDM 年级 / DWDM 院系 / ZYDM 专业 / ZYFXDM 专业方向 / XDLXDM 修读类型 / XQLXDM 学期类型 / XZNX 学制 / XWDM 学位 / KSXNDM·KSXQDM 开始学年学期 / ZSYQXF 最少学分 / PYMB 培养目标 / XDYQ 修读要求 / FATS 方案特色 / ZGXK 主干学科 / ZYZYSY 主要专业实验 / ZGKC 主干课程 / FAZTDM 状态 / SHYJ 审核意见 等，手写 fromJson 兜底；`qxfacxHtmlToText` 用 html 包把富文本 HTML 转纯文本——PYMB/XDYQ 等字段有的是 HTML、有的是纯文本，统一处理）、`QxFacxPageResult`（分页结果）、`QxFacxKz`（课程组：KZH 课组号 / KZM 课组名 / KZLXDM 课组类型(01课组/02平台) / KCZXF·KCZXS 组内学分·学时 / ZSXDXF 最少修读学分 / ZSXDMS 最少门数 / KCZMS 门数 / XDYQ 修读要求 / FKZH 父组号，FKZH↔KZH 构建树）、`QxFacxKzCourse`（课组课程：KCH/KCM/XF/XS/KCXZDM 必修选修/KSLXDM 考试考查/SFZGKC 是否主干/KZH 所属课组/XNXQ 开课学期）；
+  - `qxfacx_service.dart`：`ensureSession`（appMultiGroupEntranceList?appId=4766860087431764 → 带 gid_ 的 targetUrl → 门户 → qxfacx 首页，noRedirect 手动跟随重定向建 `_WEU` 网关会话）、`fetchPlans`（qxpyfacx.do，querySetting 支持 **NJDM 年级过滤**（与网页端"点击年级分类"一致，条件首位）+ 默认过滤已发布 FAZTDM=99 + PYFAMC 名称包含搜索，`*order=-NJDM,+DWDM,+ZYDM` 与网页端一致，分页无限滚动；403 → `AuthService.autoRelogin` 重登重试一次）、`fetchKzcx`（kzcx.do 课程组）+ `fetchKzkccx`（kzkccx.do 课组课程，均按 PYFADM，共用 `_parseRows` 通用解析）；
+  - `qxfacx_page.dart`：**年级分类 chips**（全部/2026级~2021级，横向滚动，点击即筛选）+ 方案名称搜索框 + 四态 + 分页无限滚动 + 下拉刷新；卡片展示 方案名/年级/院系/专业标签/修读类型·学制·学分；
+  - `qxfacx_detail_page.dart`：方案详情（列表接口已返回完整字段，无需二次请求）——头部卡片（方案名+已发布状态+年级）+ 基本信息 + 培养目标/修读要求/主干学科/主干课程/主要专业实验/方案特色 富文本区块 + **课程设置**（并行加载课程组 `kzcx.do` + 课组课程 `kzkccx.do`，按 FKZH↔KZH 构建课程组树，平台/课组分层缩进，点击组展开/收起：组信息（学分/学时/门数/修读要求）+ 组内课程列表（课程名/课程号/学分学时/必修选修/考试考查/主干/开课学期））+ 审核信息；
+- `lib/home/app_data.dart` 注册 `QxFacxPage` 入口。
 
 ### 🎯 优化（进入应用强制重新登录，彻底告别手动重登）
 - **问题**：会话过期后（服务端 TTL）本地 cookie 是"死 cookie"，复用会触发 CAS 刷新回环；此前自动续期依赖用户勾选"记住密码"保存凭据，未勾选则只能手动重新登录。
