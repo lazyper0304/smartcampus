@@ -29,6 +29,7 @@ import '../kxjas/kxjas_page.dart';
 import '../bohrium/bohrium_page.dart';
 import '../kccx/kccx_page.dart';
 import '../qxfacx/qxfacx_page.dart';
+import '../mail/mail_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -123,6 +124,9 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.business_center_rounded, name: '办公网', category: AppCategory.service,
     badge: const OfficeCampusCornerBadge(),
     pageBuilder: (ctx, c, uid) => const OfficeHomePage()),
+  AppEntry(icon: Icons.mail_rounded, name: '邮件系统', category: AppCategory.service,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => MailPage(client: c)),
   AppEntry(icon: Icons.forum_rounded, name: 'QQ频道', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const WebViewPage(
       url: 'https://pd.qq.com/s/bq4dam2kg',

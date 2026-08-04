@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### ✨ 新增（邮件系统）
+- 新增「邮件系统」应用入口（服务分类，需登录），内置 WebView 打开 `http://mailmid.yibinu.edu.cn/index/index/oauthLogin`（宜宾学院邮箱，phpCAS 1.3.2 接入学校统一认证），复用统一登录免密进入邮箱。
+- 认证链路（curl 实测确认）：未登录访问 oauthLogin → 302 到 `authserver.yibinu.edu.cn/authserver/login?service=http://mailmid.../oauthLogin` → CAS 验证 CASTGC → 302 回 `oauthLogin?ticket=ST-xxx` → phpCAS 验证 → 服务端 Set-Cookie 建立邮件会话。
+- 新模块 `lib/mail/`（Service / Page 两层）：
+  - `mail_service.dart`：`MailService` —— `injectCasCookiesToWebView` 按原域注入统一认证 cookie（**CASTGC → 父域 `.yibinu.edu.cn`** Secure+HttpOnly 供 https authserver 放行 SSO；authserver 自身 cookie → authserver 域；不注入 ehall 业务 cookie）；`hasLocalCasSession` 检查本地会话；
+  - `mail_page.dart`：`MailPage` —— 加载 oauthLogin 自动 SSO；CAS 登录页停留检测（提示条引导手动登录兜底）、加载进度条、底部工具栏（后退/前进/首页/刷新）、菜单（外部浏览器打开/清除缓存，清缓存后自动重注入 cookie）。
+- 注：mailmid 为 http 明文站点，Android 已全局开启 `usesCleartextTraffic`（无需改 Manifest）；CAS 顶层导航不受混合内容限制，WebView 已设 `MIXED_CONTENT_ALWAYS_ALLOW` 兜底。
+- `lib/home/app_data.dart` 注册 `MailPage` 入口（服务分类，✉️ 图标）。
+
 ### 🔧 版本号升级至 1.1.6
 - `VERSION` / `pubspec.yaml`（1.1.6+8）/ `lib/core/version.dart` / `README.md` 徽章 四处同步升级；Android versionCode 由 flutter.versionCode 从 pubspec 读取，自动 +1（7→8）。
 - 1.1.6 新增内容：全校方案查询模块（列表/年级筛选/详情课程组树）。
