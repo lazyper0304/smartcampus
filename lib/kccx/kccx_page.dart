@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
+import '../core/navigation.dart';
+import '../core/glass_filter_chip.dart';
+import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'kccx.dart';
 import 'kccx_service.dart';
@@ -254,13 +257,12 @@ class _KccxPageState extends State<KccxPage> {
             ),
           ),
           const SizedBox(height: 10),
-          FilledButton.icon(
+          // 查询按钮：玻璃操作按钮（GlassActionButton）
+          GlassActionButton(
+            label: _isLoading ? '查询中…' : '查询课程',
+            icon: Icons.search,
+            loading: _isLoading,
             onPressed: _isLoading ? null : _submitSearch,
-            icon: const Icon(Icons.search),
-            label: const Text('查询课程'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
           ),
         ],
       ),
@@ -270,24 +272,14 @@ class _KccxPageState extends State<KccxPage> {
   /// 考试类型筛选 chip
   Widget _filterChip(String value, String label) {
     final selected = _kslxdm == value;
-    return GestureDetector(
-      onTap: () => setState(() => _kslxdm = value),
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? accentColorNotifier.value
-              : accentColorNotifier.value.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : textSecondary(context),
-          ),
-        ),
+    // 玻璃筛选按钮（GlassFilterChip）
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GlassFilterChip(
+        label: label,
+        selected: selected,
+        onTap: () => setState(() => _kslxdm = value),
+        radius: 14,
       ),
     );
   }
@@ -295,24 +287,14 @@ class _KccxPageState extends State<KccxPage> {
   /// 课程层次筛选 chip
   Widget _filterChip2(String value, String label) {
     final selected = _kcccdm == value;
-    return GestureDetector(
-      onTap: () => setState(() => _kcccdm = value),
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? accentColorNotifier.value
-              : accentColorNotifier.value.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : textSecondary(context),
-          ),
-        ),
+    // 玻璃筛选按钮（GlassFilterChip）
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GlassFilterChip(
+        label: label,
+        selected: selected,
+        onTap: () => setState(() => _kcccdm = value),
+        radius: 14,
       ),
     );
   }
@@ -339,10 +321,12 @@ class _KccxPageState extends State<KccxPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: textHint(context))),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
+              GlassActionButton(
+                label: '重试',
+                icon: Icons.refresh,
                 onPressed: _loadFirstPage,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('重试'),
+                secondary: true,
+                fullWidth: false,
               ),
             ],
           ),
@@ -426,13 +410,13 @@ class _KccxPageState extends State<KccxPage> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => KccxDetailPage(
-                client: widget.client,
-                kch: c.kch,
-                initialTitle: c.kcm,
-              ),
+          // 统一 iOS 右滑转场
+          pushPage(
+            context,
+            KccxDetailPage(
+              client: widget.client,
+              kch: c.kch,
+              initialTitle: c.kcm,
             ),
           );
         },

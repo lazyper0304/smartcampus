@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
+import '../core/navigation.dart';
+import '../core/glass_filter_chip.dart';
+import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'qxfacx.dart';
 import 'qxfacx_service.dart';
@@ -178,12 +181,12 @@ class _QxFacxPageState extends State<QxFacxPage> {
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
+          GlassActionButton(
+            label: '查询',
             onPressed: _isLoading ? null : _submitSearch,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            child: const Text('查询'),
+            fullWidth: false,
+            height: 48,
+            fontSize: 14,
           ),
         ],
       ),
@@ -207,32 +210,19 @@ class _QxFacxPageState extends State<QxFacxPage> {
 
   Widget _gradeChip(String label, String value) {
     final selected = _njd == value;
+    // 玻璃筛选按钮（GlassFilterChip）
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
+      child: GlassFilterChip(
+        label: label,
+        selected: selected,
         onTap: () {
           if (_njd == value) return;
           setState(() => _njd = value);
           _loadFirstPage();
         },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: selected
-                ? accentColorNotifier.value
-                : accentColorNotifier.value.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? Colors.white : accentColorNotifier.value,
-            ),
-          ),
-        ),
+        radius: 14,
+        fontSize: 12.5,
       ),
     );
   }
@@ -257,10 +247,12 @@ class _QxFacxPageState extends State<QxFacxPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: textHint(context))),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
+              GlassActionButton(
+                label: '重试',
+                icon: Icons.refresh,
                 onPressed: _loadFirstPage,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('重试'),
+                secondary: true,
+                fullWidth: false,
               ),
             ],
           ),
@@ -427,10 +419,10 @@ class _QxFacxPageState extends State<QxFacxPage> {
   }
 
   void _openDetail(QxFacxPlan plan) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => QxFacxDetailPage(client: widget.client, plan: plan),
-      ),
+    // 统一 iOS 右滑转场
+    pushPage(
+      context,
+      QxFacxDetailPage(client: widget.client, plan: plan),
     );
   }
 }

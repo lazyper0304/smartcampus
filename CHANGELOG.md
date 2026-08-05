@@ -18,7 +18,76 @@
 
 ## [Unreleased]
 
-### 🐛 修复（自定义背景时页面内容消失）
+### 🎯 优化（深度功耗优化，样式不变）
+- **后台/锁屏零动画**：`LiquidBackground` 改为 StatefulWidget + 生命周期监听——App 切后台/锁屏时整棵背景子树 `TickerMode` 暂停（气泡动画 + 页面内容动画一并停），前台恢复继续，零视觉变化。
+- **消除被遮挡背景层动画**：新增全局页面层计数 `pageBgCount`——全局垫底层（`isGlobal`）被二级页/详情页背景覆盖时自动暂停气泡（TickerMode 暂停而非移除组件，恢复无跳变）；每屏只保留一层气泡动画（此前二级页 = 全局层 + 页面层两层气泡同时跑）。
+- 全局垫底层标记：main.dart builder 两处 `LiquidBackground` → `isGlobal: true`。
+
+### ✨ 新增（应用页「最近」分类容量 6 → 16）
+- 最近使用列表上限从 6 提升到 16（`_recentLimit` 常量）；`_recordUsage` 截断与 `_loadRecents` 加载均按新上限处理（老数据兼容）。
+
+### 🎨 UI 优化（综合素质卡片徽章玻璃化 + 删除标题栏分割线）
+- 右上角"合格/等级"徽章从实色浅绿/浅橙底改为**玻璃徽章**（半透明渐变 + 同色描边，合格=绿/其它=橙）。
+- 删除学期标题栏底部灰色分割线（`Border(bottom: grey[100])`），卡片标题与内容自然衔接。
+
+### 🔧 重构（抽取玻璃操作按钮 GlassActionButton + 5 页按钮全面玻璃化）
+- 新增 `lib/core/glass_action_button.dart`：`GlassActionButton`——玻璃操作按钮（primary 主题色玻璃 30%→22% + 主题色描边 + 主题色文字；secondary 中性玻璃 + 白描边），支持 icon / loading（转圈）/ disabled（弱化）/ 自定义色（安全页红）/ height / fullWidth / fontSize；Material+InkWell 水波纹；⚠️ 命名避开 liquid_glass_widgets `GlassButton`。
+- 替换实心按钮：空闲教室（查询+重试+日期/节次 chips→GlassFilterChip）、课程查询（查询+重试+考试类型/课程层次 chips→GlassFilterChip）、全校方案（查询+重试+年级 chips→GlassFilterChip）、电费（绑定并查询+生成订单，未选金额自动禁用弱化）、校园安全（拨打按钮→GlassActionButton；110/119/120 紧急按钮→红色玻璃）、kccx/qxfacx 详情页重试按钮。
+
+### 🔧 重构（抽取玻璃筛选按钮公共组件 GlassFilterChip）
+- 新增 `lib/core/glass_filter_chip.dart`：`GlassFilterChip`——玻璃按钮（半透明渐变 + 白描边，选中态 accent 玻璃 + accent 描边 + 加粗 + 200ms 动画），圆角/字号/内边距可配；⚠️ 命名避开 liquid_glass_widgets 自带 `GlassChip`。
+- 全校课表学院筛选 chips 改引用公共组件（原手写 AnimatedContainer 玻璃实现）。
+
+### 🎨 UI 优化（全校课表学院分类按钮玻璃化）
+- 学院筛选 chips 从实色（选中 accent 实心 / 未选中 accent 8% 浅底）改为**玻璃按钮**：半透明渐变 + 白色高光描边（内容卡同款参数）；选中态 accent 玻璃 + accent 描边 + 加粗 + 200ms 动画。保持按钮形态（横向滚动 chips，非分段栏）。
+
+### 🎨 UI 优化（全校课表搜索框玻璃化）
+- 搜索框去掉手写实色填充（浅色 `grey.shade100` / 深色 `2A2A3E`，盖住玻璃背景），`fillColor` 改跟随全局主题（静态玻璃半透明白/深灰），与课程查询搜索框一致。
+
+### 🎨 UI 优化（课程表 / 学科竞赛 / 创新创业切换栏统一玻璃化）
+- 课程表「周课表/学期课表」：Material `SegmentedButton` → `GlassCategoryBar`。
+- 学科竞赛「学科竞赛/我的竞赛」、创新创业「我参与的项目/我申请的项目」：实心胶囊 `PillTabBar` → `GlassCategoryBar`（选中态从实心 accent 滑块改为玻璃卡 + accent12% 背景，与全 App 统一）。
+- 删除已无引用的 `lib/core/pill_tab_bar.dart`。
+
+### 🔧 重构（抽取玻璃分类栏公共组件 GlassCategoryBar）
+- 新增 `lib/core/glass_category_bar.dart`：`GlassCategoryBar` + `GlassCategoryItem`——玻璃卡 + 0.5px 竖分割线 + 选中项 accent12% 圆角背景 + 200ms 切换动画；`IntrinsicHeight + Row(stretch)` 等高；支持 `vertical`（图标上文字下，主界面应用页 tab）/ 横排（二级页分段）两种布局，容器圆角/内边距/字号可配。
+- 替换两处重复实现：`main_screen.dart` 应用页分类栏（原手写 IosCard + Row）与 `dianfei_page.dart` 近7/30天切换（原手写 contentCardGlass + Row）均改为引用公共组件。
+
+### 🎨 UI 优化（电费近7天/近30天选择栏玻璃化）
+- 选择栏从 Material `SegmentedButton`（实色分段样式）改为**玻璃分类栏**：`contentCardGlass` 玻璃卡 + 0.5px 竖分割线 + 选中项 accent12% 圆角背景（`IntrinsicHeight + Row(stretch)` 保证分割线与选中背景等高），与应用页分类栏同款规范，替代项目弃用的 SegmentedControl 样式。
+
+### 🎨 UI 优化（电费逐日明细玻璃化）
+- 逐日明细每行从手写 `Card`（深色模式 `Colors.grey[850]` 实色覆盖、圆角 8、灰描边）改为 `contentCardGlass` 玻璃卡（圆角 12、半透明渐变 + 白描边），与页面剩余电量/本月汇总/折线图等卡片统一；深色模式不再盖住玻璃背景。
+
+### 🐛 修复（临港电费进入时透明阶段——唯一未包 SimplePage 的二级页）
+- 根因：全局背景（LiquidBackground）在 Navigator 下层、**不随路由滑动**；电费页裸 `Scaffold`（透明背景、无自己的背景层）转场时"透明页面滑入、透出底层"，表现为**只有临港电费**进入时有透明阶段——其它二级页均包了 `SimplePage`（自带 LiquidBackground 背景层，随路由一起滑入）。
+- 修复：电费页 build 外包 `SimplePage`（statusBarStyle 默认 auto），与 course/kccx/qxfacx/erke 等全部二级页一致。
+
+### 🔧 重构（统一所有二级页面转场为 iOS 右滑）
+- 根因：race / my_race / srtp / kccx / qxfacx / office_search / 第二课堂（erke ×2 处）内部二级跳转用 `MaterialPageRoute`（Android 默认**淡入透明**转场），与应用页统一的 `pushPage`（CupertinoPageRoute 右滑）混用——进入部分页面先出现"透明阶段"，转场体验不一致。
+- 修复：全部替换为 `pushPage` / `replacePage`（navigation.dart，CupertinoPageRoute）；补 5 个文件 navigation import；清理 erke_page 未用 `nav` 变量、`context.mounted` 守卫跨 async gap。全 App 二级页面统一右滑推入 + 边缘返回。
+
+### 🎨 UI 优化（电费页加载态）
+- 查询加载态从裸转圈改为玻璃卡 + 转圈 + 「正在查询电费…」文案，转场滑入时页面有内容，避免"全透明页面"空感。
+
+### 🎨 UI 优化（电费查询链接输入框样式统一）
+- 输入框去掉手写实色 `Card` 包装（会盖住玻璃背景），改用全局 `inputDecorationTheme`（玻璃填充 + 圆角 12 描边 + accent 聚焦边框），与登录页 / 课程查询搜索框风格一致；新增 `link_rounded` 前缀图标、`alignLabelWithHint`，多行限制 4 行。
+- 说明文字改 `textSecondary(context)` 主题色；查询失败错误文字由红色改规范深橙 `Color(0xFFC2410C)`；清理 `_buildSetup` 无用 `isDark` 参数；去掉输入框 `autofocus`（进页面不自动聚焦，避免一直显示主题色聚焦边框）。
+- 全局输入框 `focusedBorder` 由主题色（accent，浅色模式紫色聚焦边框）改为中性白描边（加亮加粗仅作聚焦反馈，与主题色解耦），全 App 输入框一致。
+- 电费链接输入框改单行（`maxLines: 1`）：多行框内容不满时文字贴顶不居中，单行保证文字垂直居中，长链接横向滚动。
+
+### 🐛 修复（今日课表周数不符：进入显示旧值/离谱值，手动刷新才正确）
+- **根因一（会话缺失）**：`fetchCurrentWeek` 未先 `ensureSession()`——无 wdkb 模块会话时 `dqzc.do` 被 ehall 网关 302 到 CAS 登录页（postForm 自动跟随 → 200 登录页 HTML），jsonDecode 失败后静默回退。
+- **根因二（回退离谱）**：回退走 `_calcCurrentWeek()` 硬编码 3/1 估算，暑假（8 月）算出第 23 周——正是"进入显示 23 周、刷新后变 1 周（服务器真实值，负 ZC clamp）"的直接原因。
+- **根因三（缓存跨周）**：`fetchCurrentWeek`/`fetchClassCurrentWeek` 缓存 key 固定 + DataCache 1 天 TTL，跨周后旧缓存仍有效。
+- **修复**：① 两处周次请求前置 `ensureSession()`/`ensureKcbcxSession()`（与 fetchCourses/fetchClassSchedule 一致，幂等）；② 回退改为基于校历 firstMonday 估算（`_estimateWeekFromMonday`：未开学/寒暑假 → 1，与服务器 clamp 一致），删除硬编码 3/1 的 `_calcCurrentWeek`；③ 缓存 key 追加日期，跨天自动失效。首页今日课程 / 课表页 / 全校课表高亮一并受益。
+
+### 🐛 修复（学科竞赛等 scjx2 模块"用久了只有手动重新登录才成功"）
+- **根因一**：`AuthService.autoRelogin()` 复用已 `loadCookies()` 的旧 client，内存罐是"多代 cookie 混合"（过期 CASTGC/JSESSIONID/route 残留 + 本次新 cookie）；`Scjx2ApiService` 把脏罐注入 WebView 干扰 authserver CAS 会话判定 → SSO 刷新回环 → bootstrap 失败。手动登录页用全新 client（无旧 cookie）所以天然成功。
+- **根因二**：`_captureCastgcOverHttps` 从客户端 cookie 罐抓 CASTGC 而非本次登录响应头——补登录被验证码/风控拦截时会把 loadCookies 加载的"死 TGC"误判为成功并落盘。
+- **修复**：① `autoRelogin()` 登录前 `client.clearCookies()`（内存+磁盘，与手动登录行为一致）+ static 互斥锁链串行化并发调用（SplashPage / scjx2 401 自愈 / kccx / qxfacx 403 重试共用）；② `_captureCastgcOverHttps` 改从 302 响应 `Set-Cookie: CASTGC=` 解析本次新 TGC，解析不到不落盘不误报。
+
+
 - 根因：`LiquidBackground` 有自定义背景时返回 `SizedBox.shrink()`，把 `child`（页面内容）一并丢弃——空闲教室/学业完成等用 SimplePage(background) 的页面只剩背景。
 - 修复：改为 `return child ?? const SizedBox.shrink();`——透出全局背景图同时保留内容。
 

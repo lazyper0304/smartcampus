@@ -215,7 +215,8 @@ class _SmartCampusAppState extends State<SmartCampusApp>
                             File(bgPath),
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) =>
-                                const LiquidBackground(),
+                                // 全局垫底层（isGlobal）：被页面层覆盖时自动暂停气泡省电
+                                const LiquidBackground(isGlobal: true),
                           ),
                           // 半透明遮罩确保内容可读性
                           Container(
@@ -226,7 +227,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
                           ),
                         ],
                       )
-                    : const LiquidBackground();
+                    : const LiquidBackground(isGlobal: true);
                 return Stack(
                   fit: StackFit.expand,
                   children: [
@@ -341,7 +342,14 @@ class _SmartCampusAppState extends State<SmartCampusApp>
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF5C5CFF) : accent, width: 2),
+          // 聚焦边框用中性白描边（不加主题色）：仅加亮加粗提供聚焦反馈，
+          // 颜色与主题色解耦，避免输入框聚焦时显示紫色等强调色边框。
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.35)
+                : Colors.white.withValues(alpha: 0.65),
+            width: 1.5,
+          ),
         ),
         // 表单校验错误文字统一用深橙（应用界面文字不用红色）
         errorStyle: const TextStyle(color: Color(0xFFC2410C), fontSize: 12),

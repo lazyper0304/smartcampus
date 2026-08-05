@@ -6,7 +6,7 @@ import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
 import '../core/data_cache.dart';
 import '../core/navigation.dart';
-import '../core/pill_tab_bar.dart';
+import '../core/glass_category_bar.dart';
 import 'race.dart';
 import 'race_service.dart';
 import 'race_detail_page.dart';
@@ -56,9 +56,19 @@ class _RacePageState extends State<RacePage>
           centerTitle: true,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(56),
-            child: PillTabBar(
-              controller: _tabCtrl,
-              labels: const ['学科竞赛', '我的竞赛'],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              // 统一玻璃分类栏（GlassCategoryBar，替代实心胶囊 PillTabBar）
+              child: GlassCategoryBar(
+                items: const [
+                  GlassCategoryItem(
+                      label: '学科竞赛', icon: Icons.emoji_events_outlined),
+                  GlassCategoryItem(
+                      label: '我的竞赛', icon: Icons.stars_outlined),
+                ],
+                selectedIndex: _tabCtrl.index,
+                onSelected: (i) => _tabCtrl.animateTo(i),
+              ),
             ),
           ),
         ),
@@ -373,13 +383,13 @@ class _RaceListTabState extends State<_RaceListTab>
   }
 
   void _openDetail(RaceCompetition race) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RaceDetailPage(
-          client: widget.client,
-          raceId: race.id,
-          raceName: race.name,
-        ),
+    // 统一 iOS 右滑转场（与全 App 二级页面一致，避免 MaterialPageRoute 淡入透明）
+    pushPage(
+      context,
+      RaceDetailPage(
+        client: widget.client,
+        raceId: race.id,
+        raceName: race.name,
       ),
     );
   }

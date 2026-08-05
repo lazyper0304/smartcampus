@@ -6,6 +6,7 @@ import '../core/local_storage.dart';
 import '../core/simple_page.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
+import '../core/navigation.dart';
 import '../main.dart';
 import 'erke_login_page.dart';
 import 'erke_models.dart';
@@ -77,10 +78,8 @@ class _ErkePageState extends State<ErkePage> {
   }
 
   Future<void> _openLogin() async {
-    // token 失效时的兜底：直接替换到登录页（不堆叠中间页）
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ErkeLoginPage()),
-    );
+    // token 失效时的兜底：直接替换到登录页（不堆叠中间页）；统一 iOS 右滑转场
+    replacePage(context, const ErkeLoginPage());
   }
 
   @override
@@ -99,14 +98,10 @@ class _ErkePageState extends State<ErkePage> {
                 onPressed: () async {
                   // 仅清除登录态（token）；若此前勾选过「记住密码」，
                   // 账号密码仍保留在本地，下次进入登录页会自动预填
-                  final nav = Navigator.of(context);
                   await LocalStorage.remove('erke_token');
-                  if (mounted) {
-                    nav.pushReplacement(
-                      MaterialPageRoute(
-                          builder: (_) => const ErkeLoginPage()),
-                    );
-                  }
+                  if (!context.mounted) return;
+                  // 统一 iOS 右滑转场
+                  replacePage(context, const ErkeLoginPage());
                 },
               ),
           ],

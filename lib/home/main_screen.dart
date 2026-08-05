@@ -13,6 +13,7 @@ import '../core/local_storage.dart';
 import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
 import '../core/ios_kit.dart';
+import '../core/glass_category_bar.dart';
 import '../settings/settings_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'home_dashboard.dart';
@@ -307,7 +308,8 @@ class _AppsPageState extends State<_AppsPage> {
   String _searchText = '';
   int _tabIndex = 0;
 
-  // 最近使用列表（最多 6 个，存名称）
+  // 最近使用列表（最多 16 个，存名称）
+  static const int _recentLimit = 16;
   List<String> _recents = [];
 
   static const _tabLabels = ['最近', '全部', '教务', '服务', '资讯'];
@@ -333,14 +335,16 @@ class _AppsPageState extends State<_AppsPage> {
     final cached = await LocalStorage.getString('app_recents');
     if (cached != null && cached.isNotEmpty && mounted) {
       final list = (jsonDecode(cached) as List).cast<String>();
-      setState(() => _recents = list);
+      setState(() => _recents = list.take(_recentLimit).toList());
     }
   }
 
   void _recordUsage(String name) {
     _recents.remove(name);
     _recents.insert(0, name);
-    if (_recents.length > 6) _recents = _recents.sublist(0, 6);
+    if (_recents.length > _recentLimit) {
+      _recents = _recents.sublist(0, _recentLimit);
+    }
     LocalStorage.setString('app_recents', jsonEncode(_recents));
   }
 
@@ -546,76 +550,18 @@ class _AppsPageState extends State<_AppsPage> {
     );
   }
 
-  /// 分类选择：统一宫格卡片 + 内部分割线（iOS 分组风格，替代分段控件）
-  /// IntrinsicHeight + stretch：分割线与选中背景自动拉伸至内容全高，
-  /// 高度随文字行高动态适配，与选中状态天然契合
+  /// 分类选择：统一玻璃分类栏（GlassCategoryBar，替代原 IosCard 手写实现）
+  /// 图标在文字上方（vertical），选中项 accent 背景 + 竖分割线
   Widget _buildTabBar() {
-    final accent = _accentBlue;
-    final lineColor =
-        (_isDark(context) ? Colors.white : Colors.black).withValues(alpha: 0.08);
-    return IosCard(
-      // 卡片内边距四周等边（上下左右 8）
+    return GlassCategoryBar(
+      items: [
+        for (var i = 0; i < _tabLabels.length; i++)
+          GlassCategoryItem(label: _tabLabels[i], icon: _tabIcons[i]),
+      ],
+      selectedIndex: _tabIndex,
+      onSelected: (i) => setState(() => _tabIndex = i),
+      vertical: true,
       padding: const EdgeInsets.all(8),
-      margin: EdgeInsets.zero,
-      child: IntrinsicHeight(
-        child: Row(
-          // stretch：分割线与选中背景均撑满内容高度（IntrinsicHeight 提供）
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < _tabLabels.length; i++) ...[
-              if (i > 0)
-                // 内部分割线：0.5 细线，与 IosListGroup 分隔线同规格，
-                // 高度自动等于选中背景
-                Container(
-                  width: 0.5,
-                  color: lineColor,
-                ),
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _tabIndex = i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                    decoration: BoxDecoration(
-                      color: i == _tabIndex
-                          ? accent.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _tabIcons[i],
-                          size: 20,
-                          color: i == _tabIndex
-                              ? accent
-                              : textSecondary(context),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _tabLabels[i],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: i == _tabIndex
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: i == _tabIndex
-                                ? accent
-                                : textSecondary(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 

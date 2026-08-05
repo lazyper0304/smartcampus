@@ -6,6 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/local_storage.dart' as store;
 import '../core/data_cache.dart';
 import '../core/ios_kit.dart';
+import '../core/theme_utils.dart';
+import '../core/simple_page.dart';
+import '../core/glass_category_bar.dart';
+import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'dianfei_models.dart';
 import 'dianfei_service.dart';
@@ -202,34 +206,39 @@ class _DianfeiPageState extends State<DianfeiPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('临港电费'),
-        centerTitle: true,
-        actions: [
-          if (!_firstTime) ...[
-            IconButton(
-              icon: const Icon(Icons.link_off_rounded, size: 20),
-              tooltip: '解绑电表',
-              onPressed: _unbind,
-            ),
-            IconButton(icon: const Icon(Icons.refresh_rounded, size: 20),
-                onPressed: _loading ? null : () { DataCache().invalidate('dianfei_$_meterId'); _query(); }),
-            IconButton(
-              icon: _recharging
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.payments_rounded, size: 20),
-              tooltip: '电费充值',
-              onPressed: _recharging ? null : _showRechargeSheet,
-            ),
+    // ⚠️ 必须包 SimplePage（自带 LiquidBackground 背景层，随路由一起滑入）：
+    // 裸 Scaffold（透明背景）转场时"透明页面滑入、透出底层"，
+    // 表现为只有临港电费进入时有透明阶段（其它二级页均有 SimplePage）。
+    return SimplePage(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('临港电费'),
+          centerTitle: true,
+          actions: [
+            if (!_firstTime) ...[
+              IconButton(
+                icon: const Icon(Icons.link_off_rounded, size: 20),
+                tooltip: '解绑电表',
+                onPressed: _unbind,
+              ),
+              IconButton(icon: const Icon(Icons.refresh_rounded, size: 20),
+                  onPressed: _loading ? null : () { DataCache().invalidate('dianfei_$_meterId'); _query(); }),
+              IconButton(
+                icon: _recharging
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.payments_rounded, size: 20),
+                tooltip: '电费充值',
+                onPressed: _recharging ? null : _showRechargeSheet,
+              ),
+            ],
           ],
-        ],
+        ),
+        body: _firstTime ? _buildSetup() : _buildResult(isDark),
       ),
-      body: _firstTime ? _buildSetup(isDark) : _buildResult(isDark),
     );
   }
 
-  Widget _buildSetup(bool isDark) {
+  Widget _buildSetup() {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -243,48 +252,68 @@ class _DianfeiPageState extends State<DianfeiPage> {
           child: Text(
             '首次使用请在小程序中打开电费查询页面，\n复制链接粘贴到下方输入框中',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.grey[600], height: 1.5),
+            style: TextStyle(
+                fontSize: 13, color: textSecondary(context), height: 1.5),
           ),
         ),
         const SizedBox(height: 24),
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.withValues(alpha: 0.15))),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: TextField(
-              controller: _meterCtrl,
-              decoration: const InputDecoration(
-                labelText: '查询链接',
-                hintText: '粘贴完整的电费查询链接…',
-                border: InputBorder.none,
-              ),
-              maxLines: null,
-              autofocus: true,
-            ),
+        // 链接输入框：直接用全局输入框主题（玻璃填充 + 圆角 12 描边 +
+        // 中性白聚焦边框），与登录页 / 课程查询搜索框风格统一；
+        // 去掉手写实色 Card 包装（会盖住玻璃背景）。
+        // 单行输入：链接粘贴场景文字垂直居中（多行框内容不满时文字
+        // 贴顶、看起来没居中）；长链接自动横向滚动。
+        TextField(
+          controller: _meterCtrl,
+          maxLines: 1,
+          style: const TextStyle(fontSize: 14),
+          decoration: const InputDecoration(
+            labelText: '查询链接',
+            hintText: '粘贴完整的电费查询链接…',
+            prefixIcon: Icon(Icons.link_rounded, size: 20),
           ),
         ),
         const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity, height: 48,
-          child: ElevatedButton.icon(
-            icon: _loading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.link_rounded, size: 20),
-            label: Text(_loading ? '查询中…' : '绑定并查询'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accentColorNotifier.value, foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: _loading ? null : () { DataCache().invalidate('dianfei_$_meterId'); _query(); },
-          ),
+        // 绑定并查询：玻璃操作按钮（GlassActionButton）
+        GlassActionButton(
+          label: _loading ? '查询中…' : '绑定并查询',
+          icon: Icons.link_rounded,
+          loading: _loading,
+          onPressed: _loading
+              ? null
+              : () {
+                  DataCache().invalidate('dianfei_$_meterId');
+                  _query();
+                },
         ),
       ],
     );
   }
 
   Widget _buildResult(bool isDark) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      // 玻璃卡加载态：转场滑入时页面有内容，避免"全透明页面 + 转圈"的空感
+      return Center(
+        child: contentCardGlass(
+          context: context,
+          borderRadius: BorderRadius.circular(16),
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              const SizedBox(height: 14),
+              Text('正在查询电费…',
+                  style:
+                      TextStyle(fontSize: 13, color: textSecondary(context))),
+            ],
+          ),
+        ),
+      );
+    }
     if (_error.isNotEmpty) {
       return Center(
         child: Column(
@@ -292,9 +321,10 @@ class _DianfeiPageState extends State<DianfeiPage> {
           children: [
             Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
             const SizedBox(height: 12),
+            // 应用界面错误文字统一深橙（不用红色）
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(_error, textAlign: TextAlign.center, style: TextStyle(color: Colors.red[600], fontSize: 13)),
+              child: Text(_error, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFC2410C), fontSize: 13)),
             ),
             const SizedBox(height: 20),
             TextButton.icon(icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('重试'), onPressed: () { DataCache().invalidate('dianfei_$_meterId'); _query(); }),
@@ -443,18 +473,15 @@ class _DianfeiPageState extends State<DianfeiPage> {
             ),
           ),
         if (_monthKwh > 0) const SizedBox(height: 12),
-        // 7天/30天 切换
-        SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('近7天'), icon: Icon(Icons.today, size: 16)),
-            ButtonSegment(value: 1, label: Text('近30天'), icon: Icon(Icons.date_range, size: 16)),
+        // 近7天/近30天切换：统一玻璃分类栏（GlassCategoryBar 公共组件，
+        // 与应用页分类栏同款：玻璃卡 + 竖分割线 + 选中项 accent 背景）
+        GlassCategoryBar(
+          items: const [
+            GlassCategoryItem(label: '近7天', icon: Icons.today),
+            GlassCategoryItem(label: '近30天', icon: Icons.date_range),
           ],
-          selected: {_viewMode},
-          onSelectionChanged: (v) => setState(() => _viewMode = v.first),
-          style: ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+          selectedIndex: _viewMode,
+          onSelected: (i) => setState(() => _viewMode = i),
         ),
         const SizedBox(height: 12),
         // 可切换内容（带动画）
@@ -563,33 +590,32 @@ class _DianfeiPageState extends State<DianfeiPage> {
               const SizedBox(height: 8),
               ...days.reversed.map((d) {
           final ratio = maxKwh > 0 ? d.kwh / maxKwh : 0.0;
+          // 逐日明细行玻璃化：与页面其它卡片（contentCardGlass）一致，
+          // 去掉手写 Card 实色覆盖（深色模式 grey[850] 会盖住玻璃背景）
           return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Card(
-              elevation: 0,
-              color: isDark ? Colors.grey[850] : null,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.withValues(alpha: 0.08))),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    SizedBox(width: 36, child: Text(d.date, style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.grey[700]))),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(
-                          value: ratio, minHeight: 6,
-                          backgroundColor: accentColorNotifier.value.withValues(alpha: 0.06),
-                          valueColor: AlwaysStoppedAnimation<Color>(d.kwh > 15 ? Colors.orange : accentColorNotifier.value.withValues(alpha: 0.7)),
-                        ),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: contentCardGlass(
+              context: context,
+              borderRadius: BorderRadius.circular(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  SizedBox(width: 36, child: Text(d.date, style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.grey[700]))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: ratio, minHeight: 6,
+                        backgroundColor: accentColorNotifier.value.withValues(alpha: 0.06),
+                        valueColor: AlwaysStoppedAnimation<Color>(d.kwh > 15 ? Colors.orange : accentColorNotifier.value.withValues(alpha: 0.7)),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(width: 52, child: Text('${d.kwh.toStringAsFixed(1)}', textAlign: TextAlign.right,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87))),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 52, child: Text('${d.kwh.toStringAsFixed(1)}', textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87))),
+                ],
               ),
             ),
           );
@@ -681,24 +707,17 @@ class _DianfeiPageState extends State<DianfeiPage> {
                     }).toList(),
                   ),
                   const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity, height: 48,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.receipt_long_rounded, size: 20),
-                      label: const Text('生成订单', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedAmount != null ? accentColorNotifier.value : Colors.grey[300],
-                        foregroundColor: selectedAmount != null ? Colors.white : Colors.grey[500],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      onPressed: selectedAmount == null
-                          ? null
-                          : () {
-                              Navigator.pop(ctx);
-                              _doRecharge(selectedAmount!);
-                            },
-                    ),
+                  // 生成订单：玻璃操作按钮（未选金额时自动禁用弱化）
+                  GlassActionButton(
+                    label: '生成订单',
+                    icon: Icons.receipt_long_rounded,
+                    fontSize: 16,
+                    onPressed: selectedAmount == null
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            _doRecharge(selectedAmount!);
+                          },
                   ),
                 ],
               ),

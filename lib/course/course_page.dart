@@ -14,6 +14,7 @@ import 'course_changes_page.dart';
 import '../main.dart';
 import '../core/navigation.dart';
 import '../core/simple_page.dart';
+import '../core/glass_category_bar.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 /// 从当前主题色生成 12 级课程卡片色阶的逻辑已抽到 course_grid.dart 的
@@ -533,44 +534,17 @@ class _CourseTablePageState extends State<CourseTablePage> {
   }
 
   Widget _buildToggleBar() {
+    // 周课表 / 学期课表切换：统一玻璃分类栏（GlassCategoryBar）
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: accentColorNotifier.value.withValues(alpha: isDark(context) ? 0.08 : 0.04),
-        border: Border(
-          bottom: BorderSide(color: dividerColor(context)),
-        ),
-      ),
-      child: Row(
-        children: [
-          // 周课表 / 学期课表 切换
-          Expanded(
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('周课表', style: TextStyle(fontSize: 13))),
-                ButtonSegment(value: false, label: Text('学期课表', style: TextStyle(fontSize: 13))),
-              ],
-              selected: {_isWeeklyView},
-              onSelectionChanged: (v) => setState(() => _isWeeklyView = v.first),
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return accentColorNotifier.value.withValues(alpha: 0.12);
-                  }
-                  return Colors.transparent;
-                }),
-                foregroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return accentColorNotifier.value;
-                  }
-                  return textHint(context);
-                }),
-              ),
-            ),
-          ),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: GlassCategoryBar(
+        items: const [
+          GlassCategoryItem(label: '周课表', icon: Icons.view_week_outlined),
+          GlassCategoryItem(
+              label: '学期课表', icon: Icons.calendar_view_month_outlined),
         ],
+        selectedIndex: _isWeeklyView ? 0 : 1,
+        onSelected: (i) => setState(() => _isWeeklyView = i == 0),
       ),
     );
   }

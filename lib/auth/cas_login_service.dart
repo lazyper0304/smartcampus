@@ -293,24 +293,35 @@ class CasLoginService {
       }
     }
 
-    // 6. 从客户端 cookie 存储中抓取 CASTGC（_send 已自动解析 Set-Cookie）
-    final all = client.getAllCookies();
-    String? castgc;
-    for (final bucket in all.values) {
-      final v = bucket['CASTGC'];
-      if (v != null && v.isNotEmpty) {
-        castgc = v;
-        break;
-      }
-    }
+    // 6. 从 302 响应头的 Set-Cookie 解析**本次登录**产生的 CASTGC（权威值）。
+    // 不能从客户端 cookie 罐里找：罐里可能残留 loadCookies 加载的旧 CASTGC
+    // （服务端 TTL 已过期），若本次 https 补登录被验证码/风控拦截（非 302），
+    // 会把"死 TGC"误判为登录成功并落盘 → WebView 注入后必然 CAS 回环
+    // （"用久了只有手动重新登录才成功"的另一成因）。
+    final castgcValues = <String>[];
+    try {
+      postResp.headers?.forEach((name, values) {
+        if (name.toLowerCase() == 'set-cookie') {
+          for (final v in values) {
+            if (v.startsWith('CASTGC=')) {
+              var end = v.indexOf(';');
+              if (end < 0) end = v.length;
+              final val = v.substring(7, end).trim();
+              if (val.isNotEmpty) castgcValues.add(val);
+            }
+          }
+        }
+      });
+    } catch (_) {}
 
-    if (castgc != null && castgc.isNotEmpty) {
+    final castgc = castgcValues.isNotEmpty ? castgcValues.first : null;
+    if (castgc != null) {
       // 显式落到注入器读取的桶（无前导点，匹配 scjx2 / 学工）
       client.setCookiesForDomain('yibinu.edu.cn', {'CASTGC': castgc});
       client.setCookiesForDomain('authserver.yibinu.edu.cn', {'CASTGC': castgc});
-      debugPrint('CASTGC capture: found and persisted via https login');
+      debugPrint('CASTGC capture: found via https login Set-Cookie');
     } else {
-      debugPrint('CASTGC capture: NOT found after https login (status=${postResp.statusCode})');
+      debugPrint('CASTGC capture: NOT found (status=${postResp.statusCode})');
     }
     return castgc;
   }

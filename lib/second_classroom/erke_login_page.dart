@@ -4,6 +4,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/local_storage.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
+import '../core/navigation.dart';
 import '../main.dart';
 import 'erke_page.dart';
 import 'erke_service.dart';
@@ -77,10 +78,9 @@ class _ErkeLoginPageState extends State<ErkeLoginPage> {
         await LocalStorage.remove('erke_password');
       }
       if (!mounted) return;
-      // 登录成功直接进入成绩页（替换登录页，返回即退出模块，无中间页）
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ErkePage()),
-      );
+      // 登录成功直接进入成绩页（替换登录页，返回即退出模块，无中间页）；
+      // 统一 iOS 右滑转场
+      replacePage(context, const ErkePage());
     } catch (e) {
       if (!mounted) return;
       setState(() {

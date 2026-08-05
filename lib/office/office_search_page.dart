@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/simple_page.dart';
+import '../core/navigation.dart';
 import 'office_list_page.dart';
 
 /// 办公网搜索结果页（独立全屏页面）
@@ -32,12 +33,8 @@ class _OfficeSearchResultsPageState extends State<OfficeSearchResultsPage> {
   void _submit(String value) {
     final kw = value.trim();
     if (kw.isEmpty || kw == widget.keyword) return;
-    // 用新关键词重建结果页（替换当前，避免栈堆积）
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => OfficeSearchResultsPage(keyword: kw),
-      ),
-    );
+    // 用新关键词重建结果页（替换当前，避免栈堆积）；统一 iOS 右滑转场
+    replacePage(context, OfficeSearchResultsPage(keyword: kw));
   }
 
   @override

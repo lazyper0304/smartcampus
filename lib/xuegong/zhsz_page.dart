@@ -115,12 +115,9 @@ class _ZhszPageState extends State<ZhszPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 学期标题栏
+          // 学期标题栏（无底部分割线）
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
-            ),
             child: Row(children: [
               Container(
                 width: 4, height: 16,
@@ -130,15 +127,8 @@ class _ZhszPageState extends State<ZhszPage> {
               Text(record.semester,
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: record.grade == '合格' ? Colors.green[50] : Colors.orange[50],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(record.grade,
-                    style: TextStyle(fontSize: 11, color: record.grade == '合格' ? Colors.green[700] : Colors.orange[700])),
-              ),
+              // 合格/等级徽章：玻璃样式（半透明渐变 + 同色描边）
+              _gradeBadge(record.grade),
             ]),
           ),
           // 分数
@@ -169,6 +159,34 @@ class _ZhszPageState extends State<ZhszPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 等级徽章（合格/不合格）：玻璃样式——半透明渐变 + 同色描边
+  /// 合格=绿、其它=橙（状态色，非错误红）
+  Widget _gradeBadge(String grade) {
+    final isPass = grade == '合格';
+    final color = isPass ? Colors.green : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withValues(alpha: 0.30),
+            color.withValues(alpha: 0.22),
+          ],
+          stops: const [0.0, 0.45],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Text(grade,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isPass ? Colors.green[700] : Colors.orange[700])),
     );
   }
 

@@ -20,6 +20,11 @@ class AuthService {
   final SharedHttpClient client;
   late final CasLoginService _casLoginService;
 
+  /// autoRelogin 互斥锁链：多个调用方（SplashPage 启动重登 / scjx2 401 自愈 /
+  /// kccx 403 重试 / qxfacx）可能并发触发"清 cookie + 完整重登"，
+  /// 必须串行执行，避免互相清空对方刚登录的会话。
+  static Future<void>? _autoReloginLock;
+
   AuthService({SharedHttpClient? sharedClient})
       : client = sharedClient ?? SharedHttpClient() {
     _casLoginService = CasLoginService(sharedClient: client);
@@ -66,15 +71,35 @@ class AuthService {
   /// 因此只要有账号密码即尝试；无凭据（首次未登录/已退出登录）返回 false，
   /// 由调用方降级为手动登录页。
   ///
+  /// ⚠️ 登录前先 [SharedHttpClient.clearCookies]（清内存 + 磁盘）：
+  /// 复用旧 client 时，内存罐里是"多代 cookie 混合"——loadCookies 加载的
+  /// 旧 CASTGC/JSESSIONID/route 残留（服务端 TTL 已过期）与本次新 cookie 并存。
+  /// 把这种脏罐子注入 WebView 会干扰 authserver 的 CAS 会话判定 → SSO 刷新
+  /// 回环 → 学科竞赛等模块表现为"只有手动重新登录才能成功"（手动登录页用
+  /// 全新 client、无旧 cookie，天然干净）。清空后行为与手动登录一致。
+  ///
   /// 走 [CasLoginService] 完整真实登录链路（刷新 ehall 会话 + https 补 CASTGC），
   /// 比注入 cookie 可靠（Chromium 常忽略注入的 Secure/HttpOnly cookie）。
   /// 成功后落盘 Cookie，返回 true；任何失败（无凭据 / 超时 / 账号错误）均返回 false。
-  Future<bool> autoRelogin() async {
+  Future<bool> autoRelogin() {
+    // 互斥锁：串行化"清 cookie + 重登"，防止并发调用互相清空会话
+    final prev = _autoReloginLock ?? Future.value();
+    final run = prev.then((_) => _doAutoRelogin());
+    // 无论成败都推进锁链，避免一次失败卡死后续所有重登
+    _autoReloginLock = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
+  Future<bool> _doAutoRelogin() async {
     final username = await LocalStorage.getString('username') ?? '';
     final password = await LocalStorage.getString('password') ?? '';
     if (username.trim().isEmpty || password.isEmpty) return false;
 
     try {
+      // 先清空旧 cookie（内存 + 磁盘），保证本次登录产生全新、干净的 cookie 罐，
+      // 与手动登录页行为一致。旧 cookie 已过期时注入 WebView 只会触发
+      // CAS 刷新回环（"用久了只有手动重登才成功"的根因）。
+      await client.clearCookies();
       await _casLoginService
           .login(
             loginUrl: CasLoginService.yibinLoginUrl,

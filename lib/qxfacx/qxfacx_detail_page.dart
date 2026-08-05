@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
+import '../core/glass_action_button.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 import 'qxfacx.dart';
@@ -196,10 +197,14 @@ class _QxFacxDetailPageState extends State<QxFacxDetailPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: textHint(context))),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
+              GlassActionButton(
+                label: '重试',
+                icon: Icons.refresh,
                 onPressed: _loadGroups,
-                icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('重试'),
+                secondary: true,
+                fullWidth: false,
+                fontSize: 13,
+                height: 40,
               ),
             ],
           ),

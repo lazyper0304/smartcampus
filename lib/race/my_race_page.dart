@@ -394,12 +394,12 @@ class _MyRacePageState extends State<MyRacePage> {
   }
 
   void _openDetail(MyRaceItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MyRaceDetailPage(
-          client: widget.client,
-          item: item,
-        ),
+    // 统一 iOS 右滑转场
+    pushPage(
+      context,
+      MyRaceDetailPage(
+        client: widget.client,
+        item: item,
       ),
     );
   }

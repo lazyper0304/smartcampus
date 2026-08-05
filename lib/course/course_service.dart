@@ -175,13 +175,25 @@ class CourseService {
 
   /// 返回当前周次和学期第一周周一日期
   Future<CurrentWeekInfo> fetchCurrentWeek({String? xnxqdm, bool forceRefresh = false}) async {
-    const cacheKey = 'course_current_week';
+    final host = _host;
+    xnxqdm ??= _calcXnxqdm();
+    // ⚠️ 周次随日期变化：缓存 key 必须带日期，跨天自动失效。
+    // 固定 key + DataCache 1 天 TTL 会在跨周后继续返回旧缓存
+    // （现象：进入应用显示周数与服务器不符，手动刷新才更新）。
+    // 同一天内教学周不会变，带日期 key 命中缓存仍安全。
+    final today = DateTime.now();
+    final cacheKey =
+        'course_current_week_${today.year}-${today.month}-${today.day}';
     if (!forceRefresh) {
       final cached = DataCache().get<CurrentWeekInfo>(cacheKey);
       if (cached != null) return cached;
     }
-    final host = _host;
-    xnxqdm ??= _calcXnxqdm();
+    // ⚠️ 必须先建立 wdkb 模块会话：无会话时 dqzc.do 被 ehall 网关 302 到
+    // CAS 登录页（postForm 自动跟随 → 200 登录页 HTML），jsonDecode 失败
+    // 静默回退——旧回退用硬编码 3/1 估算，暑假算出离谱周数（如 23；
+    // 正是"进入显示 23 周、手动刷新后变 1 周"的根因）。
+    await ensureSession();
+
     // 第一周周一优先取校历 XQKSRQ 所在周的周一（cxxljc.do）。
     // ⚠️ 不能用 dqzc.do 的 ZC 反推：寒暑假期间服务端返回负 ZC（如 -6），
     // 反推会错位一周（2026-2027-1 第一周无排课，XQKSRQ=9/9 周三 → 周一 9/7）。
@@ -193,7 +205,6 @@ class CourseService {
     }
     try {
       // 构造 dqzc.do 参数（JS 源码：需要 XN + XQ + RQ）
-      final today = DateTime.now();
       final params = <String, String>{
         'RQ': '${today.year}-${today.month}-${today.day}',
       };
@@ -215,8 +226,8 @@ class CourseService {
         final rows = module?['rows'] as List?;
         if (rows != null && rows.isNotEmpty) {
           final row = rows[0] as Map<String, dynamic>;
-          var zc =
-              int.tryParse(row['ZC']?.toString() ?? '0') ?? _calcCurrentWeek();
+          var zc = int.tryParse(row['ZC']?.toString() ?? '') ??
+              _estimateWeekFromMonday(firstMonday);
           // 寒暑假/未开学时服务端返回负 ZC（如 -6），clamp 到第 1 周
           if (zc < 1) zc = 1;
           final info = CurrentWeekInfo(week: zc, firstMonday: firstMonday);
@@ -225,18 +236,22 @@ class CourseService {
         }
       }
     } catch (_) {}
-    // 回退
-    return CurrentWeekInfo(week: _calcCurrentWeek(), firstMonday: firstMonday);
+    // 回退：dqzc.do 失败时用校历 firstMonday 估算（寒暑假/未开学 → 1，
+    // 与服务器 clamp 行为一致），不再用硬编码 3/1 估算（会出 23 周）。
+    return CurrentWeekInfo(
+      week: _estimateWeekFromMonday(firstMonday),
+      firstMonday: firstMonday,
+    );
   }
 
-  /// 从学期起始日期推算当前周次
-  int _calcCurrentWeek() {
-    // 春季学期大约3月初开学（第1周），估算
+  /// 从学期第一周周一估算当前周次（dqzc.do 失败时的回退）。
+  ///
+  /// 寒暑假/未开学（firstMonday 在未来）→ 1；异常数据 → 1。
+  int _estimateWeekFromMonday(DateTime firstMonday) {
     final now = DateTime.now();
-    final semesterStart = DateTime(now.year, 3, 1);
-    final diff = now.difference(semesterStart).inDays;
-    if (diff < 0) return 1;
-    return (diff ~/ 7) + 1;
+    if (firstMonday.isAfter(now)) return 1;
+    final est = now.difference(firstMonday).inDays ~/ 7 + 1;
+    return (est < 1 || est > 30) ? 1 : est;
   }
 
   // ==================== 获取学期列表 ====================
@@ -726,14 +741,21 @@ class CourseService {
   /// 获取当前教学周次（dqzc.do，bjkcb 模块），用于班级课表默认高亮
   Future<int> fetchClassCurrentWeek(String xnxqdm,
       {bool forceRefresh = false}) async {
-    const cacheKey = 'class_current_week';
+    // ⚠️ 周次随日期变化：缓存 key 带日期，跨天自动失效
+    // （固定 key + 1 天 TTL 跨周后仍返回旧缓存，需手动刷新才更新）。
+    final today = DateTime.now();
+    final cacheKey =
+        'class_current_week_${today.year}-${today.month}-${today.day}';
     if (!forceRefresh) {
       final cached = DataCache().get<int>(cacheKey);
       if (cached != null) return cached;
     }
     final host = _host;
     final xnq = _parseXnxq(xnxqdm);
-    final today = DateTime.now();
+    // ⚠️ 必须先建立 kcbcx 模块会话：无会话时 dqzc.do 被网关 302/403，
+    // 与 fetchClassSchedule 并行调用时会竞态（可能先于其 ensureKcbcxSession
+    // 发请求而失败，返回兜底 1）。幂等，重复执行无害。
+    await ensureKcbcxSession();
     try {
       final resp = await client.postForm(
         Uri.parse('$baseUrl/jwapp/sys/kcbcx/modules/bjkcb/dqzc.do'),

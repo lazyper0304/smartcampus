@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
+import '../core/glass_action_button.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 import 'kccx.dart';
@@ -99,10 +100,12 @@ class _KccxDetailPageState extends State<KccxDetailPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: textHint(context))),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
+              GlassActionButton(
+                label: '重试',
+                icon: Icons.refresh,
                 onPressed: _load,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('重试'),
+                secondary: true,
+                fullWidth: false,
               ),
             ],
           ),

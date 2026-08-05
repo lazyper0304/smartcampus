@@ -7,6 +7,7 @@ import '../core/data_cache.dart';
 import '../core/theme_utils.dart';
 import '../core/smooth_styles.dart';
 import '../core/simple_page.dart';
+import '../core/glass_filter_chip.dart';
 import '../main.dart';
 import 'course.dart';
 import 'course_service.dart';
@@ -319,10 +320,9 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          fillColor: isDark(context)
-              ? const Color(0xFF2A2A3E)
-              : Colors.grey.shade100,
           filled: true,
+          // fillColor 跟随全局 theme（静态玻璃半透明白/深灰），
+          // 不再手写实色（grey.shade100 / 2A2A3E 会盖住玻璃背景）
         ),
         onChanged: (v) {
           _keyword = v;
@@ -347,29 +347,16 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
   }
 
   Widget _collegeChip(String label, bool selected) {
-    return GestureDetector(
+    // 玻璃按钮（GlassFilterChip 公共组件）
+    return GlassFilterChip(
+      label: label,
+      selected: selected,
       onTap: () {
         setState(() {
           _collegeFilter = selected ? null : (label == '全部' ? null : label);
           _applyFilter();
         });
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? accentColorNotifier.value
-              : accentColorNotifier.value.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : textPrimary(context),
-          ),
-        ),
-      ),
     );
   }
 

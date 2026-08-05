@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../core/simple_page.dart';
+import '../core/glass_action_button.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 const Color _redAccent = Color.fromRGBO(211, 47, 47, 1);
@@ -94,6 +95,7 @@ class SafetyPage extends StatelessWidget {
   }
 
   Widget _emergencyBtn(String number, String label, IconData icon) {
+    // 紧急电话按钮：红色玻璃（半透明红渐变 + 红描边，与玻璃按钮同参数）
     return GestureDetector(
       onTap: () => launchUrl(Uri.parse('tel:$number'),
           mode: LaunchMode.externalApplication),
@@ -101,8 +103,17 @@ class SafetyPage extends StatelessWidget {
         width: 88,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: _redAccent.withValues(alpha: 0.1),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _redAccent.withValues(alpha: 0.30),
+              _redAccent.withValues(alpha: 0.22),
+            ],
+            stops: const [0.0, 0.45],
+          ),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _redAccent.withValues(alpha: 0.6)),
         ),
         child: Column(
           children: [
@@ -212,21 +223,14 @@ class SafetyPage extends StatelessWidget {
             ],
           ),
         ),
-        GestureDetector(
-          onTap: () => launchUrl(Uri.parse('tel:$phone'),
+        GlassActionButton(
+          label: '拨打',
+          onPressed: () => launchUrl(Uri.parse('tel:$phone'),
               mode: LaunchMode.externalApplication),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: accentColorNotifier.value,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text('拨打',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-          ),
+          fullWidth: false,
+          height: 36,
+          fontSize: 13,
+          borderRadius: 10,
         ),
       ],
     );

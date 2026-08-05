@@ -3,6 +3,12 @@ import 'package:fluid_background/fluid_background.dart';
 
 import '../main.dart';
 
+/// 页面级液态玻璃背景挂载计数：页面级背景（SimplePage / 页面自用）挂载时
+/// 递增、卸载递减。全局垫底层（isGlobal: true）据此判断自己是否被覆盖：
+/// 被覆盖时暂停气泡动画（省电），回到主界面（无页面级背景覆盖）自动恢复。
+/// 用 TickerMode 暂停而非移除组件 → 气泡位置冻结、恢复无跳变。
+final ValueNotifier<int> pageBgCount = ValueNotifier(0);
+
 /// 液态玻璃背景：主题渐变底色 + 动态流体气泡（fluid_background 包）。
 ///
 /// 首页 / 全局路由底层 / 登录页等所有界面统一使用。
@@ -10,7 +16,13 @@ import '../main.dart';
 /// 平坦；动态气泡被底部导航栏/玻璃卡片模糊折射后才有真实玻璃质感。
 ///
 /// 模块化说明：所有页面背景必须使用本组件，禁止手写纯色背景。
-class LiquidBackground extends StatelessWidget {
+///
+/// 功耗设计（2026-08-05 深度优化，不改样式）：
+/// - [isGlobal] 垫底层：被页面级背景覆盖时气泡自动暂停（TickerMode）；
+///   页面层（SimplePage 等）继续动画 → 每屏只跑一层气泡动画。
+/// - 后台/锁屏：监听生命周期，整个子树 ticker 暂停（含页面内容动画），
+///   前台恢复继续，零视觉变化。
+class LiquidBackground extends StatefulWidget {
   /// 覆盖在背景之上的内容（可选，全局路由底层使用）
   final Widget? child;
 
@@ -21,15 +33,49 @@ class LiquidBackground extends StatelessWidget {
   /// 浅色 accent 掺白渐变 + 清新气泡；深色暗黑渐变 + 霓虹气泡）
   final List<Color>? colors;
 
+  /// 全局垫底层标记（main.dart builder 使用）：不参与页面层计数，
+  /// 被页面层覆盖时自动暂停气泡动画省电。
+  final bool isGlobal;
+
   const LiquidBackground({
     super.key,
     this.child,
     this.animated = true,
     this.colors,
+    this.isGlobal = false,
   });
 
+  @override
+  State<LiquidBackground> createState() => _LiquidBackgroundState();
+}
+
+class _LiquidBackgroundState extends State<LiquidBackground>
+    with WidgetsBindingObserver {
+  AppLifecycleState _lifecycle = AppLifecycleState.resumed;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (!widget.isGlobal) pageBgCount.value++;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (!widget.isGlobal) pageBgCount.value--;
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (mounted && state != _lifecycle) {
+      setState(() => _lifecycle = state);
+    }
+  }
+
   /// 主题渐变（浅色 accent 掺白系 / 深色暗黑系）
-  List<Color> _themeGradient(BuildContext context) {
+  List<Color> _themeGradient() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = accentColorNotifier.value;
     return isDark
@@ -44,7 +90,7 @@ class LiquidBackground extends StatelessWidget {
   }
 
   /// 主题气泡色（浅色清新 / 深色霓虹，4 色）
-  List<Color> _themeBubbles(BuildContext context) {
+  List<Color> _themeBubbles() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = accentColorNotifier.value;
     return isDark
@@ -67,53 +113,65 @@ class LiquidBackground extends StatelessWidget {
     // ⚠️ 外观设置自定义背景已提升到全局（main.dart builder）统一应用：
     // 有自定义背景图时不渲染本组件（其不透明渐变会盖住背景图），
     // 直接透出全局背景图；无自定义背景时正常渲染液态玻璃背景。
-    // ValueListenableBuilder 监听：设置/重置背景时立即刷新（Stateless
-    // 直接读 value 不会响应变化）。
     return ValueListenableBuilder<String?>(
       valueListenable: backgroundNotifier,
       builder: (context, customBg, _) {
         if (customBg != null && customBg.isNotEmpty) {
-          // ⚠️ 有自定义背景时透出全局背景图，但必须保留 child（页面内容）！
-          return child ?? const SizedBox.shrink();
+          return widget.child ?? const SizedBox.shrink();
         }
-        return _buildDefault(context);
+        return _buildDefault();
       },
     );
   }
 
-  Widget _buildDefault(BuildContext context) {
-    final gradientColors = colors ?? _themeGradient(context);
-    final bubbleColors = colors ?? _themeBubbles(context);
+  Widget _buildDefault() {
+    final gradientColors = widget.colors ?? _themeGradient();
+    final bubbleColors = widget.colors ?? _themeBubbles();
 
-    // 动态流体气泡层（气泡彩色渐隐圆 + 内置 blur，缓慢漂移）
-    // ⚠️ 性能：velocity 已从 55 降至 28（持续动画是功耗主源，所有页面
-    // 背景都在跑）；形变周期 4s → 6s 进一步降低 GPU 负载。
-    final bubbles = FluidBackground(
-      initialPositions: InitialOffsets.random(bubbleColors.length),
-      initialColors: InitialColors.custom(bubbleColors),
-      velocity: animated ? 28 : 10,
-      bubblesSize: 100,
-      sizeChangingRange: const [80, 150],
-      bubbleMutationDuration: const Duration(seconds: 6),
-      child: const SizedBox.expand(),
-    );
+    // 后台/锁屏：暂停整个子树 ticker（含页面内容动画），前台恢复继续
+    final backgroundPaused = _lifecycle != AppLifecycleState.resumed;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // 渐变底色（保证任何模式下页面整体观感）
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: gradientColors,
+    return TickerMode(
+      enabled: !backgroundPaused,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 渐变底色（保证任何模式下页面整体观感）
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: gradientColors,
+              ),
             ),
           ),
-        ),
-        bubbles,
-        ?child,
-      ],
+          // 动态流体气泡层
+          // ⚠️ 性能：velocity 28 / 形变周期 6s（持续动画是功耗主源）。
+          // 全局垫底层被页面级背景覆盖时暂停气泡（TickerMode，不重建组件
+          // → 恢复无跳变），每屏只保留一层气泡动画。
+          ValueListenableBuilder<int>(
+            valueListenable: pageBgCount,
+            builder: (context, count, _) {
+              final overlaid = widget.isGlobal && count > 0;
+              return TickerMode(
+                enabled: widget.animated && !overlaid,
+                child: FluidBackground(
+                  initialPositions:
+                      InitialOffsets.random(bubbleColors.length),
+                  initialColors: InitialColors.custom(bubbleColors),
+                  velocity: widget.animated ? 28 : 10,
+                  bubblesSize: 100,
+                  sizeChangingRange: const [80, 150],
+                  bubbleMutationDuration: const Duration(seconds: 6),
+                  child: const SizedBox.expand(),
+                ),
+              );
+            },
+          ),
+          ?widget.child,
+        ],
+      ),
     );
   }
 }

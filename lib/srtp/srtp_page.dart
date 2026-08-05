@@ -6,7 +6,7 @@ import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
 import '../core/data_cache.dart';
 import '../core/navigation.dart';
-import '../core/pill_tab_bar.dart';
+import '../core/glass_category_bar.dart';
 import 'srtp.dart';
 import 'srtp_service.dart';
 import 'srtp_detail_page.dart';
@@ -55,9 +55,19 @@ class _SrtpPageState extends State<SrtpPage>
           centerTitle: true,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(56),
-            child: PillTabBar(
-              controller: _tabCtrl,
-              labels: const ['我参与的项目', '我申请的项目'],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              // 统一玻璃分类栏（GlassCategoryBar，替代实心胶囊 PillTabBar）
+              child: GlassCategoryBar(
+                items: const [
+                  GlassCategoryItem(
+                      label: '我参与的项目', icon: Icons.groups_outlined),
+                  GlassCategoryItem(
+                      label: '我申请的项目', icon: Icons.edit_note_outlined),
+                ],
+                selectedIndex: _tabCtrl.index,
+                onSelected: (i) => _tabCtrl.animateTo(i),
+              ),
             ),
           ),
         ),
@@ -287,16 +297,16 @@ class _JoinedTabState extends State<_JoinedTab>
   }
 
   void _openDetail(SrtpProjectItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SrtpDetailPage(
-          client: widget.client,
-          projectId: item.id,
-          projectName: item.name,
-          planName: item.subject,
-          stage: item.stage,
-          state: item.state,
-        ),
+    // 统一 iOS 右滑转场
+    pushPage(
+      context,
+      SrtpDetailPage(
+        client: widget.client,
+        projectId: item.id,
+        projectName: item.name,
+        planName: item.subject,
+        stage: item.stage,
+        state: item.state,
       ),
     );
   }
@@ -539,16 +549,16 @@ class _AppliedTabState extends State<_AppliedTab>
   }
 
   void _openDetail(SrtpAppliedProjectItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SrtpDetailPage(
-          client: widget.client,
-          projectId: item.id,
-          projectName: item.name,
-          stage: item.stage,
-          state: item.state,
-          routePath: SrtpService.myProjectRoutePath,
-        ),
+    // 统一 iOS 右滑转场
+    pushPage(
+      context,
+      SrtpDetailPage(
+        client: widget.client,
+        projectId: item.id,
+        projectName: item.name,
+        stage: item.stage,
+        state: item.state,
+        routePath: SrtpService.myProjectRoutePath,
       ),
     );
   }
