@@ -20,6 +20,23 @@
 
 ## [1.1.8] - 2026-08-05
 
+### ✨ 新增（CARSI 服务）
+- 应用中心「服务」新增「CARSI」：`WebViewPage` 打开教育网统一认证资源共享登录（`ds.carsi.edu.cn/Shibboleth.sso/Login`，entityID=宜宾学院 IdP，target=wxds），`app_data.dart` 注册 service 分类入口（手机 UA，与常规浏览一致）。
+- `WebViewPage` 新增可选 `notice` 参数（标题下方提示条，深橙 0xFFC2410C + info 图标）；CARSI 传入「部分资源（如知网）不支持在线阅读和下载」——知网在线阅读/下载在 WebView 内无法通过来源/Token 校验（已尝试 UA 伪装 + supportMultipleWindows + 去 X-Requested-With + Referer 补全均失败），明示用户避免困惑。
+
+### 🐛 修复（CARSI 在线阅读/下载「来源应用不正确」）
+- 根因①：Android WebView **默认 `supportMultipleWindows=false` 时静默忽略 `window.open()`**——知网下载/阅读弹窗根本没打开（日志 `bar.cnki.net common.js: jQuery is not defined` 是页面移动版/窗口异常的连带现象），SID 会话校验失败即报「来源应用不正确」。
+- 根因②：知网等 CARSI 资源站点对移动/WebView UA 返回精简页面并拒绝服务。
+- `WebViewPage` 修复：① 开启 `supportMultipleWindows: true` + `javaScriptCanOpenWindowsAutomatically: true`，`onCreateWindow` 拦截新窗口请求（6.x 返回 `Future<bool?>`，false=不创建新窗口）在当前 WebView 内 `loadUrl` 加载；② 新增 `desktopUserAgent` 参数（桌面 Chrome UA 伪装），CARSI 入口开启；③ 补 JS 弹窗自动确认（alert/confirm/prompt）防阻塞。
+- ⚠️ 原生 WebView 设置（supportMultipleWindows）**必须重新编译安装生效，热更新无效**。
+
+### 🔧 重构（WebViewPage 统一邮件系统）
+- `WebViewPage` 新增可选 `onWebViewReady` 回调（WebView 创建后、加载 URL 前执行），加载方式由 `initialUrlRequest` 改为手动 `loadUrl`，保证 SSO cookie 注入先于页面加载。
+- `mail_page.dart` 重写为复用 `WebViewPage` 的薄壳：仅保留 `MailService.injectCasCookiesToWebView` 注入（onWebViewReady），**删除底部工具栏（后退/前进/首页/刷新）、AppBar 刷新/菜单、CAS 登录提示条、自定义 UA/JS 弹窗处理**；返回按钮/手势行为与 WebViewPage 一致（按钮直接退出，手势回退历史）。
+
+### 🔧 重构（WebViewPage 迁移 SimplePage）
+- `webview_page.dart` 由裸 `LiquidBackground` + `Scaffold` 改为 `SimplePage(child: PopScope(...))`（默认自带液态背景），对齐二级页规范（转场透明滑入透底隐患消除）。
+
 ### ✨ 新增（网上评教）
 - 应用中心「教务」新增「网上评教」：`lib/wspj/`（`wspj.dart` 模型 / `wspj_service.dart` 服务 / `wspj_page.dart` 页面），对接 ehall jwwspj 应用（入口 appId=`5077744448763966`）。
 - 服务层：`ensureSession`（appMultiGroupEntranceList 入口链预热 `_WEU` 会话，302 过期 / 403 自动重登同 kccx 范式）；`fetchModules`（emappagelog/config/jwwspj.do 模块列表）；`fetchConfig`（cxcssz.do 评教系统参数：PJXNXQ 学期 / PJKSSJ / PJJSSJ 时间窗口等，querySetting 与网页端一致）；`fetchSemesters`（xnxqcx.do 学年学期）；`fetchQuestionnaires`（cxxspjwjlb.do 学生评教问卷列表，CPR=学号&XNXQDM=学期&SFFB=1）。

@@ -136,6 +136,13 @@ final List<AppEntry> allApps = [
       url: 'https://pd.qq.com/s/bq4dam2kg',
       title: 'QQ频道',
     )),
+  AppEntry(icon: Icons.cloud_rounded, name: 'CARSI', category: AppCategory.service,
+    pageBuilder: (ctx, c, uid) => const WebViewPage(
+      url: 'https://ds.carsi.edu.cn/Shibboleth.sso/Login?entityID=https://idp.yibinu.edu.cn/idp/shibboleth&target=https%3A%2F%2Fds.carsi.edu.cn%2Fwxds',
+      title: 'CARSI',
+      // 提示：部分资源（如知网）在线阅读/下载在 App 内无法通过来源校验
+      notice: '部分资源（如知网）不支持在线阅读和下载',
+    )),
 
   // ── 资讯 ──
   AppEntry(icon: Icons.newspaper_rounded, name: '校园新闻', category: AppCategory.news,

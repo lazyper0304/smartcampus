@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/liquid_background.dart';
+import '../core/simple_page.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,7 +8,30 @@ class WebViewPage extends StatefulWidget {
   final String url;
   final String title;
 
-  const WebViewPage({super.key, required this.url, this.title = ''});
+  /// WebView 创建后、加载 [url] 前执行的回调（如注入 SSO cookie）。
+  /// 为空时不等待，创建后直接加载。
+  final Future<void> Function(InAppWebViewController controller)?
+      onWebViewReady;
+
+  /// 使用桌面版 Chrome User-Agent 加载页面。
+  ///
+  /// 部分资源站点（如知网 CNKI、CARSI 联盟资源）对移动/WebView UA
+  /// 返回精简页面甚至拒绝服务（「来源应用不正确」/ JS 库未注入），
+  /// 需伪装桌面浏览器访问。
+  final bool desktopUserAgent;
+
+  /// 页面顶部提示条文案（标题下方），非空时显示，如知网
+  /// 「只支持查找，不支持在线阅读和下载」。
+  final String? notice;
+
+  const WebViewPage({
+    super.key,
+    required this.url,
+    this.title = '',
+    this.onWebViewReady,
+    this.desktopUserAgent = false,
+    this.notice,
+  });
 
   @override
   State<WebViewPage> createState() => _WebViewPageState();
@@ -21,7 +44,7 @@ class _WebViewPageState extends State<WebViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LiquidBackground(
+    return SimplePage(
       child: PopScope(
       canPop: false,
       // 系统返回手势/返回键：优先回退 WebView 浏览历史，
@@ -39,24 +62,88 @@ class _WebViewPageState extends State<WebViewPage> {
         appBar: AppBar(
           title: Text(widget.title.isNotEmpty ? widget.title : '加载中...'),
           centerTitle: true,
-          bottom: _isLoading
+          // 左上角返回按钮：直接退出页面返回应用页（不走 PopScope 历史回退；
+          // 手势/系统返回键才走 onPopInvokedWithResult 回退 WebView 历史）
+          leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+          // 标题下方：加载进度条（可选）+ 顶部提示条（notice 非空时）
+          bottom: (_isLoading || widget.notice != null)
               ? PreferredSize(
-                  preferredSize: const Size.fromHeight(2),
-                  child: LinearProgressIndicator(
-                    value: _progress,
-                    minHeight: 2,
+                  preferredSize: Size.fromHeight(
+                      (_isLoading ? 2 : 0) + (widget.notice != null ? 34.0 : 0)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isLoading)
+                        LinearProgressIndicator(
+                          value: _progress,
+                          minHeight: 2,
+                        ),
+                      if (widget.notice != null)
+                        Container(
+                          width: double.infinity,
+                          color: const Color(0xFFC2410C)
+                              .withValues(alpha: 0.08),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline_rounded,
+                                  size: 15, color: Color(0xFFC2410C)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  widget.notice!,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFFC2410C)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 )
               : null,
         ),
         body: InAppWebView(
-          onWebViewCreated: (controller) => _controller = controller,
-          initialUrlRequest: URLRequest(url: WebUri(widget.url)),
+          onWebViewCreated: (controller) async {
+            _controller = controller;
+            // 可选的预加载回调（如注入 SSO cookie），完成后手动加载初始 URL，
+            // 保证注入先于页面加载
+            final ready = widget.onWebViewReady;
+            if (ready != null) {
+              try {
+                await ready(controller);
+              } catch (e) {
+                debugPrint('WebViewPage onWebViewReady error: $e');
+              }
+            }
+            await controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri(widget.url)),
+            );
+          },
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
             domStorageEnabled: true,
             useWideViewPort: true,
             supportZoom: true,
+            // ⚠️ 必须开启多窗口支持，否则 Android WebView 会**静默忽略**
+            // window.open()（知网等资源站点下载/阅读必用）→ 页面无响应 /
+            // 「来源应用不正确」。开启后新窗口请求进入 onCreateWindow 回调，
+            // 由我们在当前 WebView 内加载。
+            supportMultipleWindows: true,
+            javaScriptCanOpenWindowsAutomatically: true,
+            // 空 allow-list = 所有请求不发送 X-Requested-With 头（部分 WebView
+            // 版本会带应用包名，暴露"应用内浏览器"身份，知网据此拒绝服务）
+            requestedWithHeaderOriginAllowList: const <String>{},
+            // 桌面 UA 伪装：知网等 CARSI 资源站点对移动/WebView UA
+            // 返回精简页面或拒绝服务（来源应用不正确）
+            userAgent: widget.desktopUserAgent
+                ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/120.0.0.0 Safari/537.36'
+                : null,
           ),
           onProgressChanged: (controller, progress) {
             setState(() {
@@ -88,9 +175,50 @@ class _WebViewPageState extends State<WebViewPage> {
             }
             return NavigationActionPolicy.ALLOW;
           },
+          // 资源站点（知网等）常用 JS 弹窗交互，WebView 默认弹原生对话框
+          // 会阻塞页面（尤其自动触发 confirm 时无法点击），统一自动确认
+          onJsAlert: (controller, jsAlertRequest) async {
+            return JsAlertResponse(
+              action: JsAlertResponseAction.CONFIRM,
+              message: '',
+            );
+          },
+          onJsConfirm: (controller, jsConfirmRequest) async {
+            return JsConfirmResponse(
+              action: JsConfirmResponseAction.CONFIRM,
+              message: '',
+            );
+          },
+          onJsPrompt: (controller, jsPromptRequest) async {
+            return JsPromptResponse(
+              action: JsPromptResponseAction.CONFIRM,
+              message: '',
+            );
+          },
+          // 资源站点新窗口打开（target=_blank / window.open）：
+          // 全部在当前 WebView 内加载，避免丢失会话或新窗口无响应。
+          // ⚠️ 知网等站点校验新窗口 Referer（来源应用不正确），手动 loadUrl
+          // 默认不带 Referer，必须显式补上当前页 URL。
+          onCreateWindow: (controller, createWindowAction) async {
+            final url = createWindowAction.request.url;
+            if (url != null) {
+              String? referer;
+              try {
+                referer = (await controller.getUrl())?.toString();
+              } catch (_) {}
+              await controller.loadUrl(
+                urlRequest: URLRequest(
+                  url: url,
+                  headers: referer != null && referer.isNotEmpty
+                      ? {'Referer': referer}
+                      : null,
+                ),
+              );
+            }
+            return false;
+          },
         ),
       ),
-    
     ));
   }
 }
