@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide LocalStorage;
 
+import '../core/cas_webview.dart' as cas_webview;
 import '../core/http_client.dart';
 
 /// 宜宾学院邮件系统（mailmid.yibinu.edu.cn）Service
@@ -34,65 +34,13 @@ class MailService {
   /// - authserver 自己的 cookie（JSESSIONID 等）→ authserver 域。
   /// 邮件系统自身的 PHPSESSID 无需注入（服务端回跳时 Set-Cookie 建立）。
   ///
+  /// 公共实现见 [injectCasCookiesToWebView]（core/cas_webview.dart，
+  /// 邮件 / CARSI 等 SSO WebView 共用）。注入前建议先预热会话
+  /// （[AuthService.ensureFreshSession]），避免注入运行期已过期的死 CASTGC。
+  ///
   /// 返回成功注入数量；0 表示本地没有可用的统一认证会话。
-  Future<int> injectCasCookiesToWebView(CookieManager cookieManager) async {
-    try {
-      final allCookies = _client.getAllCookies();
-      debugPrint('Mail: client cookie buckets = ${allCookies.keys.toList()}');
-
-      // 兜底：CASTGC 可能落在任意桶，必须确保进入注入集合
-      String? castgc;
-      for (final bucket in allCookies.values) {
-        final v = bucket['CASTGC'];
-        if (v != null && v.isNotEmpty) {
-          castgc = v;
-          break;
-        }
-      }
-
-      var ok = 0;
-      var total = 0;
-      void inject(String url, String name, String value,
-          {String? domain, bool secure = false, bool httpOnly = false}) {
-        total++;
-        if (name.isEmpty || value.contains(';')) return;
-        try {
-          cookieManager.setCookie(
-            url: WebUri(url),
-            name: name,
-            value: value,
-            domain: domain,
-            path: '/',
-            isSecure: secure,
-            isHttpOnly: httpOnly,
-          );
-          ok++;
-        } catch (err) {
-          debugPrint('Mail: failed to set $name: $err');
-        }
-      }
-
-      // 1) CASTGC → 父域（Secure + HttpOnly，https authserver 才携带）
-      if (castgc != null && castgc.isNotEmpty) {
-        inject('https://authserver.yibinu.edu.cn', 'CASTGC', castgc,
-            domain: '.yibinu.edu.cn', secure: true, httpOnly: true);
-      }
-
-      // 2) authserver 自己的 cookie → authserver 域
-      final authCookies = allCookies['authserver.yibinu.edu.cn'] ?? {};
-      for (final e in authCookies.entries) {
-        if (e.key == 'CASTGC') continue;
-        inject('https://authserver.yibinu.edu.cn', e.key, e.value,
-            domain: 'authserver.yibinu.edu.cn');
-      }
-
-      debugPrint('Mail: injected $ok/$total cookies'
-          '${castgc != null && castgc.isNotEmpty ? " (CASTGC present)" : " (CASTGC missing)"}');
-      return ok;
-    } catch (e) {
-      debugPrint('Mail.injectCasCookiesToWebView error: $e');
-      return 0;
-    }
+  Future<int> injectCasCookiesToWebView(CookieManager cookieManager) {
+    return cas_webview.injectCasCookiesToWebView(_client, cookieManager);
   }
 
   /// 本地是否存在可用的统一认证会话（仅判断有没有 CASTGC 可注入；
