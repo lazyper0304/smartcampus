@@ -29,6 +29,7 @@ import '../kxjas/kxjas_page.dart';
 import '../bohrium/bohrium_page.dart';
 import '../kccx/kccx_page.dart';
 import '../qxfacx/qxfacx_page.dart';
+import '../wspj/wspj_page.dart';
 import '../mail/mail_page.dart';
 
 /// 应用分类
@@ -107,6 +108,9 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.menu_book_rounded, name: '全校方案', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => QxFacxPage(client: c)),
+  AppEntry(icon: Icons.rate_review_rounded, name: '网上评教', category: AppCategory.jiaowu,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => WspjPage(client: c, userId: uid)),
 
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,

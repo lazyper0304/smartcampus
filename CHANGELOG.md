@@ -18,6 +18,12 @@
 
 ## [Unreleased]
 
+### ✨ 新增（网上评教）
+- 应用中心「教务」新增「网上评教」：`lib/wspj/`（`wspj.dart` 模型 / `wspj_service.dart` 服务 / `wspj_page.dart` 页面），对接 ehall jwwspj 应用（入口 appId=`5077744448763966`）。
+- 服务层：`ensureSession`（appMultiGroupEntranceList 入口链预热 `_WEU` 会话，302 过期 / 403 自动重登同 kccx 范式）；`fetchModules`（emappagelog/config/jwwspj.do 模块列表）；`fetchConfig`（cxcssz.do 评教系统参数：PJXNXQ 学期 / PJKSSJ / PJJSSJ 时间窗口等，querySetting 与网页端一致）；`fetchSemesters`（xnxqcx.do 学年学期）；`fetchQuestionnaires`（cxxspjwjlb.do 学生评教问卷列表，CPR=学号&XNXQDM=学期&SFFB=1）。
+- 页面：评教时间窗口信息卡（进行中/未开始/已结束状态徽标）+ 学年学期切换（GlassFilterChip）+ 问卷列表卡片（总分/类型标签、已完成/待评教徽标、WJSM 问卷说明弹窗），四态 + 下拉刷新。
+- `app_data.dart` 注册「网上评教」教务分类入口（requiresLogin）。
+
 ### ✨ 新增（学科竞赛·公示公告）
 - 学科竞赛主页新增第三 Tab「公示公告」：`listNoticeStuPage` 公告列表（缓存优先 + 静默刷新 + 滚动分页 + 置顶标签 + 四态），`getNoticeById` 详情页（标题/发布人/时间/正文 HTML 转纯文本），附件 PDF 带 cookie 下载后应用内预览（`flutter_pdfview`），非 PDF 附件用系统浏览器打开。
 - 新增 `lib/race/notice.dart`（模型 + HTML 转文本）、`notice_page.dart`（列表）、`notice_detail_page.dart`（详情）、`notice_pdf_page.dart`（PDF 预览）；`race_service.dart` 增加 `fetchNotices`/`cachedNotices`/`fetchNoticeDetail`/`cachedNoticeDetail`（scjx2 `/config/sys/baseNotice/*`，currentRoutePath=`/homeageStu`，签名/401 自愈复用 Scjx2ApiService）。
