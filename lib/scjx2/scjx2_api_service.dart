@@ -217,6 +217,71 @@ class Scjx2ApiService {
     return json;
   }
 
+  // ==================== 带签名 GET 下载（文件类接口） ====================
+
+  /// 发起带签名头的 GET 请求，返回原始字节（下载接口用）
+  ///
+  /// scjx2 文件下载接口（如 `/config/sys/download/downNotice`）是 GET，
+  /// 但同样需要 nonce/timestamp/signature/zhxhsign 等签名头。
+  ///
+  /// ⚠️ [params] 的值传**原始值**（如中文文件名）即可：
+  /// - zhxhsign 对原始 UTF-8 值签名（离线验证：抓包 zhxhsign 与
+  ///   `id=<id>name=<原始中文>` 完全匹配，DevTools 负载里的 `%E5%85%B3...`
+  ///   只是展示形态，签名用的是未编码字符串）；
+  /// - URL 拼接时对 value 做 `Uri.encodeComponent`（大写十六进制，与
+  ///   前端一致），保证请求 URL 合法且不被二次编码。
+  Future<List<int>> downloadBytes({
+    required String path,
+    Map<String, dynamic>? params,
+    required String currentRoutePath,
+    String apiName = 'scjx2',
+    String? moduleId,
+  }) async {
+    final token = await getAuthToken(moduleId: moduleId);
+    if (token == null || token.isEmpty) {
+      throw Exception('未登录 scjx2，请先登录');
+    }
+
+    final menuId = await LocalStorage.getString(_kMenuId) ?? '';
+
+    // params 传原始值：签名（generateZhxhSign）与 URL 编码分离处理
+    final headers = _signer.buildHeaders(
+      data: null,
+      params: params,
+      menuId: menuId,
+      authorization: token,
+      currentRoutePath: currentRoutePath,
+    );
+
+    final query = (params ?? {}).entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
+        .join('&');
+    final uri = Uri.parse(
+        '$baseUrl$path${query.isEmpty ? '' : '?$query'}');
+
+    debugPrint('$apiName API: GET $uri');
+    // getRaw 返回状态码 + 已解压字节（getBytes 的 _sendBytes 曾在部分
+    // 服务器 gzip 响应下返回压缩字节，且无状态码可判断错误原因）
+    final raw = await _client.getRaw(uri, headers: headers);
+    debugPrint('$apiName download: HTTP ${raw.statusCode}, '
+        '${raw.bodyBytes.length} bytes');
+
+    if (raw.statusCode != 200) {
+      final hint =
+          utf8.decode(raw.bodyBytes, allowMalformed: true).trim();
+      debugPrint('$apiName download error body: $hint');
+      if (raw.statusCode == 401 || raw.statusCode == 404) {
+        throw Exception('登录已过期，请重新登录后再试');
+      }
+      throw Exception('$apiName 下载失败 (HTTP ${raw.statusCode})');
+    }
+
+    if (raw.bodyBytes.isEmpty) {
+      throw Exception('$apiName 下载失败（服务器返回空内容）');
+    }
+    return raw.bodyBytes;
+  }
+
   // ==================== 引导登录 ====================
 
   /// 通过 HeadlessInAppWebView 引导登录 scjx2 某个模块，提取 JWT

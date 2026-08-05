@@ -344,7 +344,8 @@ class _GraduationPageState extends State<GraduationPage> {
       ),
       child: SmoothExpansionTile(
         initiallyExpanded: false,
-        style: smoothStyle(context),
+        // 玻璃化：背景同色填充（公共 smoothGlassStyle）
+        style: smoothGlassStyle(context),
         headerBuilder: (context, expand, controller) => GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {

@@ -367,6 +367,18 @@ Future<RawResponse> getRaw(Uri uri,
     await for (final chunk in resp) {
       chunks.addAll(chunk);
     }
+    // 手动解压（与 _send / _sendRaw 一致；服务器可能对响应做 gzip/deflate）
+    final contentEncoding =
+        resp.headers.value('content-encoding')?.toLowerCase() ?? '';
+    try {
+      if (contentEncoding.contains('gzip')) {
+        return gzip.decode(chunks);
+      } else if (contentEncoding.contains('deflate')) {
+        return zlib.decode(chunks);
+      }
+    } catch (e) {
+      debugPrint('SharedHttpClient: content decode failed ($contentEncoding): $e');
+    }
     return chunks;
   }
 

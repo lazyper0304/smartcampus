@@ -124,7 +124,8 @@ class _ScorePageState extends State<ScorePage> {
           const SizedBox(height: 18),
           // 各学期（首个学期默认展开）
           for (final entry in grouped.entries.toList().asMap().entries) ...[
-            _buildSemesterCard(entry.value.key, entry.value.value, initiallyExpanded: false),
+            _buildSemesterCard(
+                entry.value.key, entry.value.value, initiallyExpanded: false),
             const SizedBox(height: 14),
           ],
         ],
@@ -190,16 +191,19 @@ class _ScorePageState extends State<ScorePage> {
     );
   }
 
-  Widget _buildSemesterCard(String semester, List<Score> scores, {bool initiallyExpanded = false}) {
+  Widget _buildSemesterCard(String semester, List<Score> scores,
+      {bool initiallyExpanded = false}) {
     double termCredits = 0;
     double weightedGpa = 0;
     for (final s in scores) {
       termCredits += s.credit;
       weightedGpa += s.credit * s.gpa;
     }
-    final termAvgGpa = termCredits > 0 ? (weightedGpa / termCredits).toStringAsFixed(2) : '0.00';
+    final termAvgGpa =
+        termCredits > 0 ? (weightedGpa / termCredits).toStringAsFixed(2) : '0.00';
 
-    final semesterName = scores.isNotEmpty ? scores.first.semesterDisplay : semester;
+    final semesterName =
+        scores.isNotEmpty ? scores.first.semesterDisplay : semester;
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -243,7 +247,10 @@ class _ScorePageState extends State<ScorePage> {
 
     return SmoothExpansionTile(
       initiallyExpanded: initiallyExpanded,
-      style: smoothStyle(context),
+      // 玻璃化（保留 SmoothExpansionTile）：公共 smoothGlassStyle——
+      // 背景渐变同色填充，卡片与背景融为一体（painter 写死 alpha 0.90，
+      // 半透明不可行），accent 描边/高光由 painter 绘制
+      style: smoothGlassStyle(context),
       headerBuilder: (context, expand, controller) => GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => controller.toggle(),

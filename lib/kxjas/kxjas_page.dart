@@ -275,7 +275,8 @@ class _KxjasPageState extends State<KxjasPage> {
                       style: TextStyle(
                           color: accentColorNotifier.value
                               .withValues(alpha: 0.4))),
-                  style: smoothStyle(context),
+                  // 玻璃化：背景同色填充（公共 smoothGlassStyle）
+                  style: smoothGlassStyle(context),
                   highlight: smoothHighlight(context),
                   menuMaxHeight: 300,
                   items: [
@@ -299,7 +300,8 @@ class _KxjasPageState extends State<KxjasPage> {
                       style: TextStyle(
                           color: accentColorNotifier.value
                               .withValues(alpha: 0.4))),
-                  style: smoothStyle(context),
+                  // 玻璃化：背景同色填充（公共 smoothGlassStyle）
+                  style: smoothGlassStyle(context),
                   highlight: smoothHighlight(context),
                   menuMaxHeight: 300,
                   items: [

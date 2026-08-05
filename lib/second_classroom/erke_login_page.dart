@@ -5,6 +5,7 @@ import '../core/local_storage.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import '../core/navigation.dart';
+import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'erke_page.dart';
 import 'erke_service.dart';
@@ -209,25 +210,12 @@ class _ErkeLoginPageState extends State<ErkeLoginPage> {
                     style: const TextStyle(fontSize: 13, color: Color(0xFFC2410C))),
               ],
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('登录', style: TextStyle(fontSize: 16)),
-                ),
+              // 登录按钮：玻璃操作按钮（GlassActionButton，含 loading）
+              GlassActionButton(
+                label: _loading ? '登录中…' : '登录',
+                loading: _loading,
+                fontSize: 16,
+                onPressed: _loading ? null : _login,
               ),
               const SizedBox(height: 16),
               Text('提示：本系统仅校园内网可访问，请确保在校园网环境下登录。',

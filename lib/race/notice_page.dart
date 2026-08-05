@@ -3,107 +3,33 @@ import 'package:flutter/material.dart';
 import '../auth/login_page.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
-import '../core/simple_page.dart';
 import '../core/data_cache.dart';
 import '../core/navigation.dart';
-import '../core/glass_category_bar.dart';
-import 'race.dart';
+import '../core/simple_page.dart';
+import 'notice.dart';
 import 'race_service.dart';
-import 'race_detail_page.dart';
-import 'my_race_page.dart';
-import 'notice_page.dart';
+import 'notice_detail_page.dart';
 
-/// 学科竞赛页面
+/// 公示公告列表页（scjx2 `/config/sys/baseNotice/listNoticeStuPage`）
 ///
-/// 三 Tab（玻璃分类栏切换）：公示公告（baseNotice/listNoticeStuPage）/
-/// 学科竞赛（listStuRacePage）/ 我的竞赛（listMyRacePage）
-class RacePage extends StatefulWidget {
+/// [embedded] 为 true 时不渲染自身 SimplePage/Scaffold/AppBar，
+/// 直接嵌入学科竞赛主页 TabBarView（与 MyRacePage 同范式）；
+/// 独立使用时（embedded: false）自动带液态玻璃背景 + 标题栏。
+class NoticePage extends StatefulWidget {
   final SharedHttpClient client;
+  final bool embedded;
 
-  const RacePage({super.key, required this.client});
+  const NoticePage({super.key, required this.client, this.embedded = true});
 
   @override
-  State<RacePage> createState() => _RacePageState();
+  State<NoticePage> createState() => _NoticePageState();
 }
 
-class _RacePageState extends State<RacePage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-    // 监听 tab 变化以驱动药丸滑块
-    _tabCtrl.addListener(_onTabChanged);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.removeListener(_onTabChanged);
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  void _onTabChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SimplePage(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('学科竞赛'),
-          centerTitle: true,
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(56),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-              // 统一玻璃分类栏（GlassCategoryBar，替代实心胶囊 PillTabBar）
-              child: GlassCategoryBar(
-                items: const [
-                  GlassCategoryItem(
-                      label: '公示公告', icon: Icons.campaign_outlined),
-                  GlassCategoryItem(
-                      label: '学科竞赛', icon: Icons.emoji_events_outlined),
-                  GlassCategoryItem(
-                      label: '我的竞赛', icon: Icons.stars_outlined),
-                ],
-                selectedIndex: _tabCtrl.index,
-                onSelected: (i) => _tabCtrl.animateTo(i),
-              ),
-            ),
-          ),
-        ),
-        body: TabBarView(
-          controller: _tabCtrl,
-          children: [
-            NoticePage(client: widget.client, embedded: true),
-            _RaceListTab(client: widget.client),
-            MyRacePage(client: widget.client, embedded: true),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 学科竞赛列表（listStuRacePage）
-class _RaceListTab extends StatefulWidget {
-  final SharedHttpClient client;
-
-  const _RaceListTab({required this.client});
-
-  @override
-  State<_RaceListTab> createState() => _RaceListTabState();
-}
-
-class _RaceListTabState extends State<_RaceListTab>
+class _NoticePageState extends State<NoticePage>
     with AutomaticKeepAliveClientMixin {
   late final RaceService _service;
 
-  List<RaceCompetition> _list = [];
+  List<RaceNotice> _list = [];
   bool _isLoading = true;
   String? _error;
 
@@ -145,9 +71,8 @@ class _RaceListTabState extends State<_RaceListTab>
 
   Future<void> _loadData({bool force = false}) async {
     // 缓存优先：非强制刷新且有缓存 → 秒开旧数据，后台静默刷新。
-    // 避免每次进页面 forceRefresh 绕过缓存，网络/会话抖动时拿不到任何数据。
     if (!force) {
-      final cached = _service.cachedCompetitions();
+      final cached = _service.cachedNotices();
       if (cached != null && cached.list.isNotEmpty) {
         if (!mounted) return;
         setState(() {
@@ -167,7 +92,7 @@ class _RaceListTabState extends State<_RaceListTab>
       _error = null;
     });
     try {
-      final result = await _service.fetchCompetitions(forceRefresh: true);
+      final result = await _service.fetchNotices(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _list = result.list;
@@ -194,7 +119,7 @@ class _RaceListTabState extends State<_RaceListTab>
   /// 后台静默刷新：成功则更新列表，失败静默保留缓存数据
   Future<void> _refreshSilently() async {
     try {
-      final result = await _service.fetchCompetitions(forceRefresh: true);
+      final result = await _service.fetchNotices(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _list = result.list;
@@ -238,7 +163,8 @@ class _RaceListTabState extends State<_RaceListTab>
   Future<void> _loadMore() async {
     setState(() => _isLoadingMore = true);
     try {
-      final result = await _service.fetchCompetitions(page: _currentPage + 1);
+      final result =
+          await _service.fetchNotices(page: _currentPage + 1, forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _list.addAll(result.list);
@@ -259,6 +185,20 @@ class _RaceListTabState extends State<_RaceListTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final content = _buildBody();
+    if (widget.embedded) return content;
+    return SimplePage(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('公示公告'),
+          centerTitle: true,
+        ),
+        body: content,
+      ),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -306,10 +246,10 @@ class _RaceListTabState extends State<_RaceListTab>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.emoji_events_outlined, size: 64,
+            Icon(Icons.campaign_outlined, size: 64,
                 color: Colors.amber.shade300),
             const SizedBox(height: 12),
-            Text('暂无竞赛记录',
+            Text('暂无公示公告',
                 style: TextStyle(fontSize: 15, color: textHint(context))),
           ],
         ),
@@ -329,13 +269,13 @@ class _RaceListTabState extends State<_RaceListTab>
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             );
           }
-          return _buildRaceCard(_list[index]);
+          return _buildNoticeCard(_list[index]);
         },
       ),
     );
   }
 
-  Widget _buildRaceCard(RaceCompetition race) {
+  Widget _buildNoticeCard(RaceNotice notice) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0.5,
@@ -345,7 +285,7 @@ class _RaceListTabState extends State<_RaceListTab>
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _openDetail(race),
+        onTap: () => _openDetail(notice),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -355,26 +295,52 @@ class _RaceListTabState extends State<_RaceListTab>
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.12),
+                  color: Colors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.emoji_events_rounded,
-                    color: Colors.amber.shade600, size: 22),
+                child: Icon(Icons.campaign_rounded,
+                    color: Colors.orange.shade700, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(race.name,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      notice.subject,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.bold),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 6),
-                    _buildInfoRow(Icons.person_outline, race.teacherName),
-                    const SizedBox(height: 2),
-                    _buildInfoRow(Icons.business_outlined, race.depName),
+                    Row(
+                      children: [
+                        Icon(Icons.person_outline,
+                            size: 14, color: textHint(context)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            notice.teacherName.isNotEmpty
+                                ? notice.teacherName
+                                : '教务处',
+                            style: TextStyle(
+                                fontSize: 12, color: textHint(context)),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(Icons.schedule_rounded,
+                            size: 14, color: textHint(context)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(notice.modifyTime,
+                              style: TextStyle(
+                                  fontSize: 12, color: textHint(context)),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -387,29 +353,15 @@ class _RaceListTabState extends State<_RaceListTab>
     );
   }
 
-  void _openDetail(RaceCompetition race) {
-    // 统一 iOS 右滑转场（与全 App 二级页面一致，避免 MaterialPageRoute 淡入透明）
+  void _openDetail(RaceNotice notice) {
+    // 统一 iOS 右滑转场（与全 App 二级页面一致）
     pushPage(
       context,
-      RaceDetailPage(
+      NoticeDetailPage(
         client: widget.client,
-        raceId: race.id,
-        raceName: race.name,
+        noticeId: notice.id,
+        noticeSubject: notice.subject,
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: textHint(context)),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(text,
-              style: TextStyle(fontSize: 12, color: textHint(context)),
-              overflow: TextOverflow.ellipsis),
-        ),
-      ],
     );
   }
 }

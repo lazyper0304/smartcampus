@@ -47,9 +47,36 @@ SmoothStyle smoothStyle(BuildContext context) {
   );
 }
 
-/// 获取主题对应的 SmoothSelect 高亮
-SmoothHighlight smoothHighlight(BuildContext context) {
+/// 获取主题对应的 Smooth 组件「玻璃版」样式（背景同色系填充）
+///
+/// smooth_dropdown 1.0.0 的卡片 painter（smooth_card_painter.dart）把填充
+/// alpha 写死 0.90/0.92，半透明 palette 会被强制覆盖（真半透明不可行）。
+/// 改为填充用 LiquidBackground 背景渐变同色系 → 卡片/下拉面板与背景
+/// 融为一体，视觉即玻璃面板；accent 描边/顶部高光由 painter 绘制。
+///
+/// 用于 SmoothExpansionTile（成绩学期详情 / 教材订购 / 毕业要求）与
+/// SmoothSelect（课程表学期 / 空闲教室条件）等所有 smooth 组件。
+SmoothStyle smoothGlassStyle(BuildContext context) {
   final dark = isDark(context);
+  final accent = accentColorNotifier.value;
+  final top = dark
+      ? Color.lerp(accent, const Color(0xFF1A1A2E), 0.82)!
+      : Color.lerp(accent, Colors.white, 0.88)!;
+  final bottom = dark
+      ? Color.lerp(accent, const Color(0xFF000000), 0.88)!
+      : Color.lerp(accent, const Color(0xFFF2F5FF), 0.93)!;
+  final palette = SmoothPalette(
+    accent: accent,
+    accentBright: Color.lerp(accent, Colors.white, 0.3)!,
+    accentDeep: Color.lerp(accent, Colors.black, 0.2)!,
+    fillTop: top,
+    fillBottom: bottom,
+  );
+  return smoothStyle(context).copyWith(palette: palette);
+}
+
+/// 获取主题对应的 SmoothSelect 高亮
+SmoothHighlight smoothHighlight(BuildContext context) {  final dark = isDark(context);
   return SmoothHighlight(
     color: accentColorNotifier.value.withValues(alpha: dark ? 0.30 : 0.10),
     borderRadius: BorderRadius.circular(10),

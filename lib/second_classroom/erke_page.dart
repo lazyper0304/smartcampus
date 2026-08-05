@@ -7,6 +7,7 @@ import '../core/simple_page.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
 import '../core/navigation.dart';
+import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'erke_login_page.dart';
 import 'erke_models.dart';
@@ -146,20 +147,12 @@ class _ErkePageState extends State<ErkePage> {
                 style: TextStyle(fontSize: 13, color: textSecondary(context)),
                 textAlign: TextAlign.center),
             const SizedBox(height: 24),
-            SizedBox(
-              width: 220,
-              height: 46,
-              child: ElevatedButton.icon(
-                onPressed: _openLogin,
-                icon: const Icon(Icons.login_rounded),
-                label: const Text('登录第二课堂'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
+            // 登录按钮：玻璃操作按钮（GlassActionButton）
+            GlassActionButton(
+              label: '登录第二课堂',
+              icon: Icons.login_rounded,
+              onPressed: _openLogin,
+              fullWidth: false,
             ),
           ],
         ),
@@ -184,16 +177,12 @@ class _ErkePageState extends State<ErkePage> {
                 style: TextStyle(fontSize: 12, color: textSecondary(context)),
                 textAlign: TextAlign.center),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
+            GlassActionButton(
+              label: '重试',
+              icon: Icons.refresh,
               onPressed: _init,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('重试'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentColorNotifier.value,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
+              secondary: true,
+              fullWidth: false,
             ),
           ],
         ),
@@ -400,7 +389,8 @@ class _ErkePageState extends State<ErkePage> {
       ),
       child: SmoothExpansionTile(
         initiallyExpanded: false,
-        style: smoothStyle(context),
+        // 玻璃化：背景同色填充（公共 smoothGlassStyle）
+        style: smoothGlassStyle(context),
         headerBuilder: (ctx, expand, controller) => GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => controller.toggle(),

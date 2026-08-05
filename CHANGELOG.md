@@ -18,6 +18,35 @@
 
 ## [Unreleased]
 
+### ✨ 新增（学科竞赛·公示公告）
+- 学科竞赛主页新增第三 Tab「公示公告」：`listNoticeStuPage` 公告列表（缓存优先 + 静默刷新 + 滚动分页 + 置顶标签 + 四态），`getNoticeById` 详情页（标题/发布人/时间/正文 HTML 转纯文本），附件 PDF 带 cookie 下载后应用内预览（`flutter_pdfview`），非 PDF 附件用系统浏览器打开。
+- 新增 `lib/race/notice.dart`（模型 + HTML 转文本）、`notice_page.dart`（列表）、`notice_detail_page.dart`（详情）、`notice_pdf_page.dart`（PDF 预览）；`race_service.dart` 增加 `fetchNotices`/`cachedNotices`/`fetchNoticeDetail`/`cachedNoticeDetail`（scjx2 `/config/sys/baseNotice/*`，currentRoutePath=`/homeageStu`，签名/401 自愈复用 Scjx2ApiService）。
+- **PDF 预览右上角新增「下载」**：官方下载通道 `GET /config/sys/download/downNotice?id=<公告id>&name=<URL编码文件名>`（带签名头）→ 临时文件 → FileProvider 交给系统应用打开（可保存/分享）；`Scjx2ApiService` 新增带签名 GET 字节下载 `downloadBytes`（⚠️ params 传已编码形态参与签名，URL 手动拼接防双重编码），`RaceService` 新增 `downloadNoticeFile`。
+- 微调：移除公告列表/详情的「置顶」文字标签显示（模型字段保留）。
+
+### 🐛 修复（下载接口返回非 PDF）
+- `SharedHttpClient._sendBytes`（getBytes）补上缺失的 gzip/deflate 手动解压——此前服务器 gzip 响应时 getBytes 返回压缩字节（downNotice 错误响应 73 字节被误判为非 PDF）；验证码/附件预览等 getBytes 调用方一并受益。
+- `Scjx2ApiService.downloadBytes` 改用 `getRaw`（带 HTTP 状态码 + 已解压字节），非 200 时打印服务端错误 body 便于定位，401/404 提示重新登录。
+- **downNotice 下载 500「参数错误!」根因**：zhxhsign 必须对**原始未编码 name**（UTF-8 中文）签名——离线反推验证与抓包值完全匹配（DevTools 负载的 `%E5%85%B3...` 仅为展示形态）；`downloadBytes` 改为「签名用原始值 + URL 拼接时 `Uri.encodeComponent`」，`downloadNoticeFile` 传原始文件名。
+
+### 🎨 UI 优化（第二课堂登录按钮玻璃化 + 展开卡/下拉同色填充）
+- 登录按钮（erke_login_page「登录」含 loading、erke_page「登录第二课堂」）→ `GlassActionButton`（primary 玻璃），重试按钮 → secondary。
+- 成绩单展开卡（erke_page SmoothExpansionTile）→ `smoothGlassStyle(context)` 背景同色填充。
+
+### 🎨 UI 优化（smooth 组件全面玻璃化：教材查询/学业完成/课程表/空闲教室）
+- 抽取公共 `smoothGlassStyle(context)`（lib/core/smooth_styles.dart）：背景渐变同色系填充（LiquidBackground 同款参数），painter 写死 alpha 0.90 下卡片/下拉面板与背景融为一体（视觉玻璃面板），accent 描边/高光由 painter 绘制。
+- 应用：教材查询（SmoothExpansionTile）、学业完成/毕业要求（SmoothExpansionTile）、课程表学期选择（SmoothSelect）、空闲教室周次/教学楼选择（SmoothSelect）；成绩页 `_glassStyle` 收敛为公共函数。
+
+### 🎨 UI 优化（成绩查询学期详情卡片玻璃化·终版）
+- 保留 `SmoothExpansionTile`（用户要求，交互/动画不变）。smooth_dropdown 1.0.0 painter 写死填充 alpha 0.90/0.92（真半透明不可行）→ 改用**背景渐变同色系填充**（`_glassStyle` 的 palette fillTop/fillBottom 取 LiquidBackground 同款渐变参数）：卡片区域与背景融为一体，视觉即玻璃面板；accent 描边/高光由 painter 绘制。移除手写 _SemesterCard。
+
+### 🎨 UI 优化（成绩查询学期详情卡片玻璃化·二次修复）
+- 首次尝试给 SmoothExpansionTile 传半透明 palette 无效：smooth_dropdown 1.0.0 的卡片 painter（smooth_card_painter.dart）把填充 alpha **写死 0.90/0.92**，半透明色被强制覆盖成实色。
+- 改为**手写玻璃展开卡** `_SemesterCard`：contentCardGlass（玻璃卡，圆角 14）+ AnimatedSize 展开动画 + chevron 旋转指示；标题栏/表头/成绩行样式与内容不变；移除 SmoothExpansionTile 依赖（成绩页删 smooth_dropdown/smooth_styles import）。
+
+### 🎨 UI 优化（成绩查询学期详情卡片玻璃化）
+- 各学期展开卡片（SmoothExpansionTile）填充从实色 accent 掺白/深灰改为**半透明玻璃填充**（`SmoothPalette.fillTop/fillBottom` 用 contentCardGlass 同款参数：白 45%/38%、深灰 55%/48%），透出液态玻璃背景；描边/圆角/动效继承公共 smoothStyle（新增 `_glassStyle`）。
+
 ### 🎯 优化（深度功耗优化，样式不变）
 - **后台/锁屏零动画**：`LiquidBackground` 改为 StatefulWidget + 生命周期监听——App 切后台/锁屏时整棵背景子树 `TickerMode` 暂停（气泡动画 + 页面内容动画一并停），前台恢复继续，零视觉变化。
 - **消除被遮挡背景层动画**：新增全局页面层计数 `pageBgCount`——全局垫底层（`isGlobal`）被二级页/详情页背景覆盖时自动暂停气泡（TickerMode 暂停而非移除组件，恢复无跳变）；每屏只保留一层气泡动画（此前二级页 = 全局层 + 页面层两层气泡同时跑）。
