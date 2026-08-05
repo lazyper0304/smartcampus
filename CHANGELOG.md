@@ -18,6 +18,8 @@
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-08-05
+
 ### ✨ 新增（网上评教）
 - 应用中心「教务」新增「网上评教」：`lib/wspj/`（`wspj.dart` 模型 / `wspj_service.dart` 服务 / `wspj_page.dart` 页面），对接 ehall jwwspj 应用（入口 appId=`5077744448763966`）。
 - 服务层：`ensureSession`（appMultiGroupEntranceList 入口链预热 `_WEU` 会话，302 过期 / 403 自动重登同 kccx 范式）；`fetchModules`（emappagelog/config/jwwspj.do 模块列表）；`fetchConfig`（cxcssz.do 评教系统参数：PJXNXQ 学期 / PJKSSJ / PJJSSJ 时间窗口等，querySetting 与网页端一致）；`fetchSemesters`（xnxqcx.do 学年学期）；`fetchQuestionnaires`（cxxspjwjlb.do 学生评教问卷列表，CPR=学号&XNXQDM=学期&SFFB=1）。
