@@ -136,6 +136,17 @@ class SharedHttpClient {
     return copy;
   }
 
+  /// 本地是否存在统一认证 TGC（CASTGC，可能落在任意 bucket）
+  ///
+  /// 注意：只代表本地有这份 cookie，不代表服务端仍有效（运行期 TGC 会过期，
+  /// 需要 [verifySession] 探测后决定是否重登刷新）。
+  bool hasCastgc() {
+    for (final bucket in _cookiesByDomain.values) {
+      if ((bucket['CASTGC']?.isNotEmpty ?? false)) return true;
+    }
+    return false;
+  }
+
   /// 注入 cookie 到指定域名 bucket（用于 WebView 登录后同步）
   ///
   /// 会覆盖同名 cookie。多个域名都会注入（如同时给

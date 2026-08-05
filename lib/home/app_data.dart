@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../core/cas_webview.dart' as cas_webview;
 import '../core/http_client.dart';
+import '../auth/auth_service.dart';
 import '../course/course_page.dart';
 import '../course/all_class_schedule_page.dart';
 import '../exam/exam_page.dart';
@@ -137,11 +140,23 @@ final List<AppEntry> allApps = [
       title: 'QQ频道',
     )),
   AppEntry(icon: Icons.cloud_rounded, name: 'CARSI', category: AppCategory.service,
-    pageBuilder: (ctx, c, uid) => const WebViewPage(
+    // ⚠️ 不能 const：需要 onWebViewReady 做会话预热 + cookie 注入
+    pageBuilder: (ctx, c, uid) => WebViewPage(
       url: 'https://ds.carsi.edu.cn/Shibboleth.sso/Login?entityID=https://idp.yibinu.edu.cn/idp/shibboleth&target=https%3A%2F%2Fds.carsi.edu.cn%2Fwxds',
       title: 'CARSI',
+      // 桌面 UA：CARSI 联盟资源站（知网等）对移动/WebView UA 返回精简
+      // 页面甚至拒绝服务（「来源应用不正确」），整页伪装桌面浏览器
+      desktopUserAgent: true,
       // 提示：部分资源（如知网）在线阅读/下载在 App 内无法通过来源校验
       notice: '部分资源（如知网）不支持在线阅读和下载',
+      onWebViewReady: (controller) async {
+        // 会话预热 + 注入：CARSI 跳学校 IdP（idp.yibinu.edu.cn）时凭
+        // .yibinu.edu.cn 父域 CASTGC 自动放行（不再依赖学科竞赛 bootstrap
+        // 先刷新的副作用；App 运行期间 TGC 过期时这里会自动重登刷新）
+        await AuthService(sharedClient: c).ensureFreshSession();
+        await cas_webview.injectCasCookiesToWebView(
+            c, CookieManager.instance());
+      },
     )),
 
   // ── 资讯 ──

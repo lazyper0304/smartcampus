@@ -20,6 +20,15 @@
 
 ## [1.1.8] - 2026-08-05
 
+### 🐛 修复（邮件 / CARSI 会话预热）
+- 修复「必须先成功访问学科竞赛，邮件系统和 CARSI 才能正常进入，否则卡在登录页」：App 运行期间 authserver 的 TGC（CASTGC）会在服务端过期，本地 cookie 罐留下「死 cookie」，此前只有学科竞赛（scjx2 bootstrap 失败 → autoRelogin）隐式刷新会话，邮件 / CARSI 直接注入死 cookie 卡 CAS 登录页。
+- `AuthService` 新增 `ensureFreshSession()` 会话预热：本地无 CASTGC 或 `verifySession` 探测（302 = 过期）判定失效 → autoRelogin 用已存账号密码静默重登刷新。
+- `SharedHttpClient` 新增 `hasCastgc()`（遍历 cookie 桶判断本地是否持有 TGC）。
+- 邮件 `MailPage.onWebViewReady` 注入前先 `ensureFreshSession()`；CARSI 入口新增 `onWebViewReady`（预热 + 注入统一认证 cookie，凭 `.yibinu.edu.cn` 父域 CASTGC 在 IdP 自动放行）并补上桌面 UA 伪装（CARSI 联盟资源站对移动 UA 拒绝服务）。
+
+### 🔧 重构（CAS cookie 注入器抽取）
+- 新增 `core/cas_webview.dart`：`injectCasCookiesToWebView` 公共注入器（按原域注入 CASTGC → 父域、authserver cookie → authserver 域），邮件 / CARSI 等 SSO WebView 共用；`MailService.injectCasCookiesToWebView` 改为委托公共实现。
+
 ### ✨ 新增（CARSI 服务）
 - 应用中心「服务」新增「CARSI」：`WebViewPage` 打开教育网统一认证资源共享登录（`ds.carsi.edu.cn/Shibboleth.sso/Login`，entityID=宜宾学院 IdP，target=wxds），`app_data.dart` 注册 service 分类入口（手机 UA，与常规浏览一致）。
 - `WebViewPage` 新增可选 `notice` 参数（标题下方提示条，深橙 0xFFC2410C + info 图标）；CARSI 传入「部分资源（如知网）不支持在线阅读和下载」——知网在线阅读/下载在 WebView 内无法通过来源/Token 校验（已尝试 UA 伪装 + supportMultipleWindows + 去 X-Requested-With + Referer 补全均失败），明示用户避免困惑。
