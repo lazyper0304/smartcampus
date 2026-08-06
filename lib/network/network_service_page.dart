@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../news/webview_page.dart';
+import 'campus_network_service_detail_page.dart';
+import 'campus_network_service_page.dart';
+import 'campus_network_service_service.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
 import '../main.dart';
@@ -18,12 +20,16 @@ class NetworkServiceItem {
   final String? url;
   final Color? color;
 
+  /// 非空时点击跳转该页（如校园网服务抓取列表），优先级高于 url
+  final Widget? page;
+
   const NetworkServiceItem({
     required this.icon,
     required this.name,
     this.detail,
     this.url,
     this.color,
+    this.page,
   });
 }
 
@@ -36,13 +42,20 @@ class NetworkServicePage extends StatelessWidget {
         icon: Icons.school_rounded,
         name: '校园网服务',
         detail: '临港一期 0831-3583376\n临港二期 0831-8235303\nA区一平台 0831-3545009\nA区二、三平台 0831-3530932\nB区 0831-3545323',
-        url: 'https://nm.yibinu.edu.cn/xywfw.htm',
+        page: CampusNetworkServicePage(
+          service: CampusNetworkService(),
+          title: '校园网服务',
+        ),
       ),
       NetworkServiceItem(
         icon: Icons.meeting_room_rounded,
         name: '多媒体服务',
         detail: '教室多媒体设备与系统软件维护',
-        url: 'https://nm.yibinu.edu.cn/dmtjsfw.htm',
+        page: CampusNetworkServicePage(
+          service: CampusNetworkService(
+              listUrl: 'https://nm.yibinu.edu.cn/dmtjsfw.htm'),
+          title: '多媒体服务',
+        ),
       ),
     ]),
     _Category('智慧校园 & 网络安全', Icons.security_rounded, _accentGreen, [
@@ -55,7 +68,11 @@ class NetworkServicePage extends StatelessWidget {
         icon: Icons.vpn_key_rounded,
         name: 'VPN 服务',
         detail: '服务电话 0831-8227212',
-        url: 'https://nm.yibinu.edu.cn/VPNfw.htm',
+        page: CampusNetworkServicePage(
+          service: CampusNetworkService(
+              listUrl: 'https://nm.yibinu.edu.cn/VPNfw.htm'),
+          title: 'VPN 服务',
+        ),
       ),
       NetworkServiceItem(
         icon: Icons.alternate_email_rounded,
@@ -71,7 +88,12 @@ class NetworkServicePage extends StatelessWidget {
       NetworkServiceItem(
         icon: Icons.cloud_rounded,
         name: '虚拟机服务',
-        url: 'https://nm.yibinu.edu.cn/xnjfw.htm',
+        detail: '虚拟机申请与使用说明',
+        page: CampusNetworkServicePage(
+          service: CampusNetworkService(
+              listUrl: 'https://nm.yibinu.edu.cn/xnjfw.htm'),
+          title: '虚拟机服务',
+        ),
       ),
     ]),
     _Category('网站服务', Icons.language_rounded, Colors.purple, [
@@ -79,7 +101,11 @@ class NetworkServicePage extends StatelessWidget {
         icon: Icons.web_rounded,
         name: '网站服务',
         detail: '新建网站、样式改动、栏目调整、账号密码修改等\n服务电话 0831-2201506',
-        url: 'https://nm.yibinu.edu.cn/wzfw.htm',
+        // 单页栏目（整页即一篇《网站申请与建设指南》，附插件安装包下载）
+        page: CampusNetworkArticlePage(
+          url: 'https://nm.yibinu.edu.cn/wzfw.htm',
+          title: '网站服务',
+        ),
       ),
       NetworkServiceItem(
         icon: Icons.admin_panel_settings_rounded,
@@ -217,20 +243,15 @@ class NetworkServicePage extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          if (item.url == null || item.url!.isEmpty) return;
-          if (item.url!.contains('yibinu.edu.cn') &&
-              !item.url!.contains('ms.yibinu') &&
-              !item.url!.contains('mail.yibinu') &&
-              !item.url!.contains('vpn.yibinu') &&
-              !item.url!.contains('oa.yibinu') &&
-              !item.url!.contains('web.yibinu')) {
-            pushPage(
-              context,
-              WebViewPage(url: item.url!, title: '网络服务'));
-          } else {
-            launchUrl(Uri.parse(item.url!),
-                mode: LaunchMode.externalApplication);
+          if (item.page != null) {
+            pushPage(context, item.page!);
+            return;
           }
+          if (item.url == null || item.url!.isEmpty) return;
+          // 一律走内置 WebView，不再跳系统浏览器
+          // （原先 ms/mail/vpn/oa/web 子域走 externalApplication，
+          //   离开 App 后回不到当前上下文，体验割裂）
+          pushPage(context, WebViewPage(url: item.url!, title: item.name));
         },
         child: Padding(
           padding: const EdgeInsets.all(14),

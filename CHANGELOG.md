@@ -22,6 +22,38 @@
 - 修复「通知公告（tzgg.htm）列表/详情页时间获取不到」：列表日期 HTML 为 `<div class="date"><p>MM.dd</p><span>yyyy</span></div>`，月日与年分处不同标签，`_extractDate` 旧正则用 `\s*` 连接无法跨越 `</p><span>` 标签，三条正则全部落空返回空；详情页 `发布[日期]` 字符类漏匹配「期」字（`发布日期：`），同样返回空。
 - `ColumnService._extractDate` 新增针对 `class="date"` 结构的精确匹配（`<p>MM.dd</p>` + `<span>yyyy</span>`），并保留宽松兜底；详情页日期正则修正为 `发布日期?`。已用官网真实 HTML 验证：6 条列表全部正确解析为 `yyyy-MM-dd`。
 
+### ✨ 新增（校园网服务 · 免 WebView 抓取 + 附件下载）
+- 网络服务页「校园网服务」项改为抓取 `nm.yibinu.edu.cn/xywfw.htm` 渲染（不再用内置 WebView）：列表解析 `info/1020/`，标题取 `<a title>`，日期取 `<span class="clock-ico">日期：yyyy-MM-dd</span>`，按日期倒序。
+- 详情页图文解析 `v_news_content`；日期 `日期：yyyy年MM月dd日`，附件走 `download.jsp?wbfileid=` 通道（文件名取自 `<a>` 文本，如「教职工校园网用户申请表.pdf」），无需登录态可直接 GET 下载。
+- 附件下载：字节落到本地临时文件 → PDF 应用内 `flutter_pdfview` 预览；其它类型（doc/xlsx/zip/图片）经 MethodChannel `openFile` 走系统 FileProvider 打开，`NetworkServiceItem` 新增 `page` 字段优先于 `url` 跳转。
+- 新增 `lib/network/campus_network_service*.dart`（model/service/list/detail/viewer 5 文件），与资讯栏目 ColumnService 解耦。
+- 「多媒体服务」（dmtjsfw.htm，栏目 1022）复用同一模块：`CampusNetworkService` 列表地址改为构造参数、`fetchList` 栏目匹配由 `info/1020/` 放宽为 `info/\d+/`，`CampusNetworkServicePage` 接收 `service`+`title` 通用化；附件实测 `virtual_attach_file.vsb?afc=...&e=.pdf` 直接返回 1.4MB 真实 PDF，可下载预览。
+- 「VPN 服务」（VPNfw.htm，栏目 1023）同样复用该模块，验证列表 4 条、详情页结构与 1020/1022 一致（`v_news_content` + 脚本内嵌 PDF 预览，已由脚本剔除修复覆盖）。
+- 「虚拟机服务」（xnjfw.htm，栏目 1029）同样复用该模块，验证列表 2 条（`宜宾学院虚拟机服务说明` 等，日期 2024-09-06），页面结构与前三个栏目完全一致；至此 nm.yibinu.edu.cn 下 4 个服务栏目全部脱离内置 WebView。
+- 「网站服务」（wzfw.htm）为**单页栏目**（整页即一篇《网站申请与建设指南》，无列表），新增 `CampusNetworkArticlePage`：按 URL 自行抓取详情后复用 `CampusNetworkDetailPage` 渲染，含加载/错误/重试三态。解析器同步兼容单页结构——标题优先取 `nry-tit > h1`（该页 `<title>` 是栏目名「网站服务」而非文章名）、日期兼容 `日期： yyyy-MM-dd`、正文容器 `v_news_content` 缺失时退回 `id="vsb_content"`。实测解析出 19 段正文 + 3 个附件（插件安装说明.docx 1.2MB / VSBBrowserHelperSetup.zip 70.6MB / VSBExtension.rar 20KB，均 HTTP 200 可直接下载）。
+
+### 🎯 优化（网络服务跳转与大附件下载）
+- 网络服务页所有链接项一律走内置 WebView：原先 `ms/mail/vpn/oa/web` 子域走 `LaunchMode.externalApplication` 跳系统浏览器，离开 App 后回不到原上下文；现统一 `pushPage(WebViewPage(...))`，AppBar 标题由固定「网络服务」改为具体服务名，并移除 `url_launcher` 依赖引用。
+- 附件下载改流式落盘：`CampusNetworkService.getBytes` → `downloadToFile`，边收边写 `IOSink` 并回调进度，不再用 `List<int>` 累积整包（Dart int 装箱会把 70MB 放大数倍，移动端易 OOM）；附件页显示百分比/已下载体积，setState 限流 120ms；PDF 判定改用流式捕获的文件头 4 字节。
+
+### 🐛 修复（栏目页标题）
+- `CampusNetworkServicePage` 的 AppBar 标题硬编码为「校园网服务」，导致多媒体服务 / VPN 服务 / 虚拟机服务三个栏目页顶部标题全部显示为「校园网服务」；改为使用传入的 `widget.title`。
+
+### 🐛 修复（校园网服务正文乱码）
+- 详情页 `v_news_content` 首段为 `<p><script>var vsb_pdf_image_data=...;showVsbpdfIframe("/virtual_attach_file.vsb?...&e=.pdf",...)</script></p>`（vsb 内嵌 PDF 预览），旧 `_parseContent` 把 `<p>` 内脚本源码去标签后当正文渲染成乱码。
+- 修复：`_parseContent` 提取段落文本前先剔除 `<script>/<style>` 内联块；PDF 仍经下方 `download.jsp?wbfileid=` 链接作为可下载附件（已验证正常捕获）。
+
+### ✨ 新增（校园网服务内嵌 PDF 预览）
+- VPN 服务详情页 7867（宜宾学院VPN管理办法）正文为 vsb 内嵌 PDF：正文容器首段仅含 `showVsbpdfIframe` 脚本，**无 `<a>` 附件、无 `<img>`**，旧逻辑剔除脚本后正文全空、PDF 不可见。
+- `_parseContent` 新增 `vsb_pdf_image_data` 分支：提取脚本内 `var vsb_pdf_image_data = ["/virtual_attach_file.vsb?afc=...&e=.jpg", ...]` 逐页预览 JPG 数组，作为内联 `ContentBlock(image)` 直接显示（7867 实测 7 张预览图）；新增 `_absolute()` 把相对路径拼成 `https://nm.yibinu.edu.cn/...`，`<img>` 分支同步复用。
+- `fetchDetail` 附件扫描：在 `<a>` 循环后，从 `showVsbpdfIframe("...")` 与 `<iframe src="...e=.pdf">` 两处提取 PDF 本体 URL，作为附件加入（7867 → 1 个 `宜宾学院VPN管理办法.pdf` 附件）。
+- **按用户要求不去重**：移除原先「已有 PDF 则跳过 vsb PDF」的按内容去重逻辑，现仅做 URL 级去重——3893 同时列出 `教职工校园网用户申请表.pdf`（download.jsp）与 `A区、B区教职工公寓校园网申请.pdf`（vsb），4037 同时列出 `PDF 文件`（iframe）与 `多媒体设备使用说明.pdf`（`<a>`）。
+- 三类内嵌 PDF 形态已验证：① 7867 仅脚本预览（0 `<a>` 附件）→ 7 图 + 1 PDF 附件；② 3893 1 图 + download.jsp PDF + vsb PDF（两文件内容相同，均保留）；③ 4037 iframe PDF + PC 下载兜底文本 + `<a>` PDF（均保留）。单页型（wzfw：19 段 + 3 附件）、纯列表型（1029：4 段 + 0 附件）回归无影响。
+
+### 🐛 修复（CARSI 游客模式拦截）
+- CARSI 入口（`app_data.dart` 的 `allApps`，`AppEntry(name:'CARSI')`）此前无 `requiresLogin` 标记，游客模式（无账号密码）可直接进入并打开 `ds.carsi.edu.cn` 的 Shibboleth 登录页，但本地无 CASTGC、IdP 放行失败，实际不可用却无提示。
+- 修复：给 CARSI 条目补 `requiresLogin: true`；拦截逻辑（`main_screen.dart _buildAppCard` 与 `ios_kit.dart _openApp` 已有的 `GuestMode.active && entry.requiresLogin` 判断 + `showGuestLoginDialog`）自动生效，游客点击弹「需要登录」并引导去登录页。`dart analyze lib/home/app_data.dart` 通过。
+
 ## [1.1.8] - 2026-08-05
 
 ### 🐛 修复（邮件 / CARSI 会话预热）

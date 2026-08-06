@@ -140,6 +140,7 @@ final List<AppEntry> allApps = [
       title: 'QQ频道',
     )),
   AppEntry(icon: Icons.cloud_rounded, name: 'CARSI', category: AppCategory.service,
+    requiresLogin: true,
     // ⚠️ 不能 const：需要 onWebViewReady 做会话预热 + cookie 注入
     pageBuilder: (ctx, c, uid) => WebViewPage(
       url: 'https://ds.carsi.edu.cn/Shibboleth.sso/Login?entityID=https://idp.yibinu.edu.cn/idp/shibboleth&target=https%3A%2F%2Fds.carsi.edu.cn%2Fwxds',
