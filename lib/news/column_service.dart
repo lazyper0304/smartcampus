@@ -161,12 +161,23 @@ class ColumnService {
 
   /// 从 HTML 片段中提取日期
   String _extractDate(String html) {
-    // 匹配 yyyy-MM-dd
+    // 匹配 yyyy-MM-dd（校园新闻等标准格式）
     final m1 = RegExp(r'(\d{4})-(\d{2})-(\d{2})').firstMatch(html);
     if (m1 != null) return m1.group(0)!;
 
-    // 匹配 MM.dd 格式 + 附近的 yyyy（通知公告格式）
-    final m2 = RegExp(r'(\d{2})\.(\d{2})\s*(\d{4})').firstMatch(html);
+    // 匹配通知公告格式：<div class="date"><p>MM.dd</p><span>yyyy</span></div>
+    // 月日与年分处不同标签内（被 </p><span> 分隔），\s* 无法跨越 HTML 标签，需单独处理
+    final mDate = RegExp(
+      r'class="date"[^>]*>\s*<p>(\d{2})\.(\d{2})</p>(?:<[^>]*>)*\s*(\d{4})',
+    ).firstMatch(html);
+    if (mDate != null) {
+      return '${mDate.group(3)}-${mDate.group(1)}-${mDate.group(2)}';
+    }
+
+    // 宽松匹配 MM.dd yyyy（旧格式 / 标签或空白分隔）
+    final m2 = RegExp(
+      r'(\d{2})\.(\d{2})(?:</p>)?(?:\s*<span[^>]*>)?\s*(\d{4})',
+    ).firstMatch(html);
     if (m2 != null) return '${m2.group(3)}-${m2.group(1)}-${m2.group(2)}';
 
     // 匹配 yyyy.MM 格式（科研动态格式）
@@ -197,7 +208,7 @@ class ColumnService {
       final title = titleMatch?.group(1)?.replaceAll('-宜宾学院', '').trim() ?? '';
 
       final dateMatch =
-          RegExp(r'发布[日期]\s*[：:]\s*(\d{4}/\d{2}/\d{2})').firstMatch(body);
+          RegExp(r'发布日期?\s*[：:]\s*(\d{4}/\d{2}/\d{2})').firstMatch(body);
       final publishDate = dateMatch?.group(1)?.replaceAll('/', '-') ?? '';
 
       final sourceMatch = RegExp(r'来源[：:]\s*([^<\|]+)').firstMatch(body);

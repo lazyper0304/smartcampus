@@ -18,6 +18,10 @@
 
 ## [Unreleased]
 
+### 🐛 修复（通知公告时间获取）
+- 修复「通知公告（tzgg.htm）列表/详情页时间获取不到」：列表日期 HTML 为 `<div class="date"><p>MM.dd</p><span>yyyy</span></div>`，月日与年分处不同标签，`_extractDate` 旧正则用 `\s*` 连接无法跨越 `</p><span>` 标签，三条正则全部落空返回空；详情页 `发布[日期]` 字符类漏匹配「期」字（`发布日期：`），同样返回空。
+- `ColumnService._extractDate` 新增针对 `class="date"` 结构的精确匹配（`<p>MM.dd</p>` + `<span>yyyy</span>`），并保留宽松兜底；详情页日期正则修正为 `发布日期?`。已用官网真实 HTML 验证：6 条列表全部正确解析为 `yyyy-MM-dd`。
+
 ## [1.1.8] - 2026-08-05
 
 ### 🐛 修复（邮件 / CARSI 会话预热）
