@@ -121,13 +121,16 @@ jobs:
             Write-Error "No exe found in $releaseDir"
             exit 1
           }
-          Compress-Archive -Path "$releaseDir\*" -DestinationPath "宜院宾果-windows-v$version.zip" -Force
+          # ⚠️ zip 名必须 ASCII：Windows runner 文件系统用 ANSI 编码落盘，
+          # upload-artifact(Node glob) 用 UTF-8 匹配，中文文件名会匹配失败
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath "smartcampus-windows-v$version.zip" -Force
+          Get-ChildItem -Name *.zip
 
       - name: Upload Windows EXE
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: 宜院宾果-windows-v*.zip
+          path: smartcampus-windows-v*.zip
           compression-level: 0
           if-no-files-found: error
 
