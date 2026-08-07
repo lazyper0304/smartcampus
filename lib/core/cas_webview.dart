@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide LocalStorage;
 
@@ -25,6 +27,15 @@ Future<int> injectCasCookiesToWebView(
   SharedHttpClient client,
   CookieManager cookieManager,
 ) async {
+  // ⚠️ Windows 防御：跳过 CookieManager 注入。flutter_inappwebview_windows
+  // 在 WebView 刚创建（onWebViewCreated）时调用 CookieManager 会与默认
+  // WebView2 环境并发初始化产生竞态，邮件/CARSI 实测闪退。
+  // 降级：WebView 自然加载 → 首次落到 CAS 登录页手动登录一次，
+  // WebView2 持久化 cookie 后续免登。
+  if (!kIsWeb && Platform.isWindows) {
+    debugPrint('CasWebview: Windows 跳过 cookie 注入（防 WebView2 竞态崩溃）');
+    return 0;
+  }
   try {
     final allCookies = client.getAllCookies();
     debugPrint('CasWebview: client cookie buckets = ${allCookies.keys.toList()}');
