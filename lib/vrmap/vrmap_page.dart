@@ -1,3 +1,4 @@
+import '../core/responsive.dart';
 import 'package:flutter/material.dart';
 import '../core/liquid_background.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';

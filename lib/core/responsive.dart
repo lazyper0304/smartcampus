@@ -10,6 +10,14 @@ const double kRailWidth = 88.0;
 /// 列表页（首页、设置等）在宽屏下的最大内容宽度，避免拉伸过宽。
 const double kContentMaxWidth = 760.0;
 
+/// 列表 / 详情 / 表单类二级页在宽屏下的内容限宽（SimplePage.contentMaxWidth
+/// 推荐值）。与 [kContentMaxWidth] 同值，语义上区分「主界面内容」与「二级页」。
+const double kListMaxWidth = kContentMaxWidth;
+
+/// 数据密集页（课表 / 校历 / 成绩 / 空闲教室 / 全校查询等）在宽屏下的内容限宽，
+/// 允许比普通列表页更宽以容纳更多信息列。
+const double kDenseMaxWidth = 1080.0;
+
 /// 应用网格页在宽屏下的最大内容宽度（允许比列表页更宽以容纳更多列）。
 const double kGridMaxWidth = 1200.0;
 
@@ -32,12 +40,28 @@ double bottomBarSafePadding(BuildContext context) =>
     isWideScreen(context) ? kBottomSafePaddingWide : kBottomBarSafePadding;
 
 /// 根据「可用宽度」计算应用网格列数，自适应横屏与桌面宽屏。
+/// 档位与首页「常用功能」宫格对齐（3 → 4 → 6 → 8），
+/// 调用方须传入**实际渲染宽度**（LayoutBuilder 约束），而非屏幕总宽，
+/// 否则在 MaxWidthContent 限宽内会出现列数虚高、卡片被挤压。
 int appGridColumns(double availableWidth) {
-  if (availableWidth >= 1000) return 6;
-  if (availableWidth >= 760) return 5;
+  if (availableWidth >= 1080) return 8;
+  if (availableWidth >= 760) return 6;
   if (availableWidth >= 520) return 4;
   return 3;
 }
+
+/// 宫格卡片文字自适应字号：随卡片**实际宽度**缩放（与图标方块 45% 同链路，
+/// 大屏卡片大字号大、窄屏小卡片小字号），clamp 到 [10, 14] 保证可读性。
+/// 窄屏 3 列卡片（~119px）≈ 10.5，大屏 8 列（~152px）≈ 13。
+double adaptiveTileFontSize(double cardWidth) =>
+    (cardWidth * 0.085).clamp(10.0, 14.0);
+
+/// 列表卡片（分组卡 / 信息卡）内部元素缩放系数：随卡片**实际宽度**自适应，
+/// 避免大屏宽卡片"大卡小内容"。以 520px 为基准（scale=1.0），
+/// clamp 到 [1.0, 1.2]；窄屏卡片 < 520 时为 1.0，行为与固定尺寸完全一致。
+/// 用法：`IosListTile(..., scale: adaptiveCardScale(cardWidth))`。
+double adaptiveCardScale(double cardWidth) =>
+    (cardWidth / 520).clamp(1.0, 1.2);
 
 /// 将内容居中并限制最大宽度，避免宽屏下拉伸过宽。
 ///

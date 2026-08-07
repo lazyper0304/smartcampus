@@ -8,6 +8,7 @@ import 'auth/auth_service.dart';
 import 'auth/login_page.dart';
 import 'core/guest_mode.dart';
 import 'core/http_client.dart';
+import 'core/input_adaptation.dart';
 import 'core/liquid_background.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
@@ -127,6 +128,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
   late ThemeMode _themeMode;
   SharedHttpClient? _client;
 
+  /// 全局 Navigator 句柄：供 AppShortcuts（Esc 返回）等位于 Navigator
+  /// 之上的层触达路由栈。
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
@@ -188,13 +193,18 @@ class _SmartCampusAppState extends State<SmartCampusApp>
     return MaterialApp(
       title: '宜院宾果',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       themeMode: _themeMode,
       builder: (context, child) {
-        return ValueListenableBuilder<Color>(
-          valueListenable: accentColorNotifier,
-          builder: (context, _, __) {
+        // ⚠️ 全局输入适配：Esc 返回 + 动态组件密度（触控宽松/桌面紧凑）。
+        // AppShortcuts 位于 Navigator 之上，Esc 经 navigatorKey 触达路由栈。
+        return AppShortcuts(
+          onEscape: () => _navigatorKey.currentState?.maybePop(),
+          child: ValueListenableBuilder<Color>(
+            valueListenable: accentColorNotifier,
+            builder: (context, _, __) {
             final brightness = _themeMode == ThemeMode.dark
                 ? Brightness.dark
                 : _themeMode == ThemeMode.light
@@ -236,12 +246,21 @@ class _SmartCampusAppState extends State<SmartCampusApp>
                   ],
                 );
               },
-              child: Theme(
-                data: _buildTheme(brightness),
-                child: child!,
+              child: Builder(
+                builder: (ctx) {
+                  // 多输入适配：组件密度随屏宽切换（触控 comfortable 宽松 /
+                  // 桌面 compact 紧凑），覆盖全部 Material 内置组件
+                  final width = MediaQuery.of(ctx).size.width;
+                  return Theme(
+                    data: _buildTheme(brightness)
+                        .copyWith(visualDensity: adaptiveVisualDensity(width)),
+                    child: child!,
+                  );
+                },
               ),
             );
           },
+        )
         );
       },
       home: const SplashPage(),

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/responsive.dart';
+import '../core/input_adaptation.dart';
 import '../core/theme_utils.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
@@ -208,34 +209,64 @@ class _MainScreenState extends State<MainScreen> {
         ),
       );
 
-  /// 宽屏 / 横屏 / 桌面下的玻璃风格侧边导航栏（替代底部栏）。
+  /// 宽屏 / 横屏 / 桌面下的液态玻璃风格侧边导航栏（替代底部栏）。
+  ///
+  /// ⚠️ 不用 GlassCard / GlassButton 等 shader 组件：GLES 设备（部分
+  /// Android 平板）shader 玻璃不渲染，会导致平板白屏——与「平板和
+  /// Windows 一致」冲突。此处用视觉液态玻璃：BackdropFilter 模糊 +
+  /// 顶部高光渐变模拟折射 + 右侧边缘亮线 + 悬浮投影，全平台稳定渲染。
   Widget _buildSideRail(BuildContext context) {
     final isDark = _isDark(context);
     return SizedBox(
       width: kRailWidth,
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            decoration: BoxDecoration(
-              color: (isDark ? const Color(0xFF1A1A2E) : Colors.white)
-                  .withValues(alpha: 0.45),
-              border: Border(
-                right: BorderSide(
-                  color: (isDark ? Colors.white : _accentBlue).withValues(alpha: 0.12),
+      child: DecoratedBox(
+        // 与内容区之间的悬浮投影（桌面端层次感）
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
+              blurRadius: 14,
+              offset: const Offset(2, 0),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              decoration: BoxDecoration(
+                // 液态玻璃渐变：顶部高光（反光）+ 主体半透明，模拟折射层次
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (isDark ? Colors.white : Colors.white)
+                        .withValues(alpha: isDark ? 0.14 : 0.55),
+                    (isDark ? const Color(0xFF1A1A2E) : Colors.white)
+                        .withValues(alpha: isDark ? 0.42 : 0.30),
+                  ],
+                  stops: const [0.0, 0.38],
+                ),
+                border: Border(
+                  right: BorderSide(
+                    color: (isDark ? Colors.white : _accentBlue)
+                        .withValues(alpha: 0.14),
+                  ),
                 ),
               ),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 28),
-                ...List.generate(
-                  _railDefs.length,
-                  (i) => _buildRailItem(context, i),
-                ),
-                const Spacer(),
-                const SizedBox(height: 16),
-              ],
+              child: Column(
+                children: [
+                  const SizedBox(height: 22),
+                  _buildRailBrand(context),
+                  const SizedBox(height: 12),
+                  ...List.generate(
+                    _railDefs.length,
+                    (i) => _buildRailItem(context, i),
+                  ),
+                  const Spacer(),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         ),
@@ -243,43 +274,131 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  /// 侧栏顶部品牌区：玻璃方块图标（液态玻璃质感小元素）。
+  Widget _buildRailBrand(BuildContext context) {
+    final isDark = _isDark(context);
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _accentBlue.withValues(alpha: isDark ? 0.75 : 0.90),
+            _accentBlue.withValues(alpha: isDark ? 0.55 : 0.70),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(13),
+        // 高光描边模拟玻璃边缘
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.20 : 0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _accentBlue.withValues(alpha: isDark ? 0.35 : 0.22),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.school_rounded, color: Colors.white, size: 22),
+    );
+  }
+
   /// 侧边栏单个标签项。
+  /// 选中态：胶囊更饱满（垂直/水平 padding 增大）+ 图标平滑放大 +
+  /// 文字加大加粗 + 左侧指示条，整体"长大"强化选中反馈。
   Widget _buildRailItem(BuildContext context, int i) {
     final selected = i == _currentIndex;
     final def = _railDefs[i];
+    final isDark = _isDark(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
+          // 桌面悬停反馈（平板触屏无 hover 不干扰）
+          hoverColor: _accentBlue.withValues(alpha: isDark ? 0.14 : 0.08),
+          splashColor: _accentBlue.withValues(alpha: 0.10),
+          // 桌面鼠标手型光标（键盘 Tab 聚焦 + Enter 激活由 InkWell 内置）
+          mouseCursor: SystemMouseCursors.click,
           onTap: () => setState(() => _currentIndex = i),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            // 选中态胶囊更饱满：水平 padding 增大让胶囊更宽，垂直同步加大
+            padding: EdgeInsets.symmetric(
+              vertical: selected ? 14 : 9,
+              horizontal: selected ? 12 : 6,
+            ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              color: selected
-                  ? _accentBlue.withValues(alpha: 0.16)
-                  : Colors.transparent,
+              // 选中：玻璃胶囊（accent 渐变 + 白色高光描边，静态玻璃无 shader）
+              gradient: selected
+                  ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        _accentBlue.withValues(alpha: isDark ? 0.30 : 0.20),
+                        _accentBlue.withValues(alpha: isDark ? 0.18 : 0.12),
+                      ],
+                    )
+                  : null,
               border: selected
-                  ? Border.all(color: _accentBlue.withValues(alpha: 0.3))
+                  ? Border.all(
+                      color: Colors.white.withValues(alpha: isDark ? 0.16 : 0.40),
+                    )
                   : null,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Stack(
+              // ⚠️ 指示条 left 为负会越界，Stack 默认 Clip.hardEdge 会裁掉，
+              // 必须显式 Clip.none（此前指示条可能因此不可见）
+              clipBehavior: Clip.none,
               children: [
-                Icon(def.icon,
-                    size: 24,
-                    color: selected ? _accentBlue : textSecondary(context)),
-                const SizedBox(height: 6),
-                Text(
-                  def.label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    color: selected ? _accentBlue : textSecondary(context),
-                  ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 图标选中平滑放大（基础 22，放大后约 26）
+                    AnimatedScale(
+                      scale: selected ? 1.18 : 1.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(def.icon,
+                          size: 22,
+                          color:
+                              selected ? _accentBlue : textSecondary(context)),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      def.label,
+                      style: TextStyle(
+                        fontSize: selected ? 12 : 11,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
+                        color: selected ? _accentBlue : textSecondary(context),
+                      ),
+                    ),
+                  ],
                 ),
+                if (selected)
+                  // 左侧指示条：贴胶囊左缘、垂直居中（Center 保证 22 高）
+                  Positioned(
+                    left: -12,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        width: 3,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: _accentBlue,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -478,22 +597,31 @@ class _AppsPageState extends State<_AppsPage> {
         ),
       );
     }
-    // 与首页「常用功能」宫格一致：固定 4 列，上下 14 / 左右 8，比例 0.82
-    return GridView.builder(
-      key: ValueKey('tab_$_tabIndex'),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 8,
-        childAspectRatio: 0.82,
-      ),
-      itemCount: apps.length,
-      // RepaintBoundary：隔离每张卡片（含玻璃组件）的绘制，切换/滚动时
-      // 只重绘变化的项，减少整片网格重绘导致的掉帧
-      itemBuilder: (context, index) =>
-          RepaintBoundary(child: _buildAppCard(apps[index])),
+    // 与首页「常用功能」宫格一致：上下 14 / 左右 8，比例 0.82；
+    // 列数按**实际渲染宽度**自适应（LayoutBuilder 约束，受外层
+    // MaxWidthContent(1200) 限宽），大屏（平板/桌面）自动 3→4→6→8 列。
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = appGridColumns(c.maxWidth);
+        return GridView.builder(
+          key: ValueKey('tab_$_tabIndex'),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 8,
+            // 0.95（接近正方形）减少图标卡片内的上下留白；
+            // 原 0.82 卡片偏高，图标居中后上下各 ~30px 留白过宽
+            childAspectRatio: 0.95,
+          ),
+          itemCount: apps.length,
+          // RepaintBoundary：隔离每张卡片（含玻璃组件）的绘制，切换/滚动时
+          // 只重绘变化的项，减少整片网格重绘导致的掉帧
+          itemBuilder: (context, index) =>
+              RepaintBoundary(child: _buildAppCard(apps[index])),
+        );
+      },
     );
   }
 
@@ -568,7 +696,7 @@ class _AppsPageState extends State<_AppsPage> {
   Widget _buildAppCard(AppEntry entry) {
     final guestLocked = GuestMode.active && entry.requiresLogin;
     final accent = _accentBlue;
-    return GestureDetector(
+    return Clickable(
       onTap: () {
         if (guestLocked) {
           showGuestLoginDialog(context, featureName: entry.name);
@@ -578,33 +706,44 @@ class _AppsPageState extends State<_AppsPage> {
         final page = entry.pageBuilder(context, widget.client, widget.userId);
         pushPage(context, page);
       },
+      borderRadius: 14,
       child: Stack(
         fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // 静态玻璃方块（与内容卡片同款；不用 GlassButton——
-              // shader 组件 GLES 不渲染且网格 30+ 个同时渲染掉帧/耗电）
-              appTileGlass(
-                context: context,
-                icon: entry.icon,
-                iconColor: guestLocked ? Colors.grey : accent,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                entry.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: guestLocked ? Colors.grey : null,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, c) {
+              // 玻璃方块随卡片宽度自适应（约 45%）：大屏 6/8 列大卡片
+              // 图标同步放大，手机 3 列小卡片同步缩小，避免"大卡片小图标"
+              final tileSize = c.maxWidth * 0.45;
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // 静态玻璃方块（与内容卡片同款；不用 GlassButton——
+                  // shader 组件 GLES 不渲染且网格 30+ 个同时渲染掉帧/耗电）
+                  appTileGlass(
+                    context: context,
+                    icon: entry.icon,
+                    iconColor: guestLocked ? Colors.grey : accent,
+                    size: tileSize,
+                  ),
+                  // 图标与文字间距收紧（8 → 5），卡片更紧凑
+                  const SizedBox(height: 5),
+                  Text(
+                    entry.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      // 字号随卡片宽度自适应（与图标方块同链路）
+                      fontSize: adaptiveTileFontSize(c.maxWidth),
+                      fontWeight: FontWeight.w600,
+                      color: guestLocked ? Colors.grey : null,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           if (guestLocked)
             Positioned(

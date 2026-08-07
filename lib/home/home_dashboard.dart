@@ -15,6 +15,7 @@ import '../news/news_list_page.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
 import '../core/responsive.dart';
+import '../core/adaptive_split_view.dart';
 import '../core/simple_page.dart';
 import '../core/ios_kit.dart';
 import '../xuegong/student_info_manager.dart';
@@ -174,6 +175,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   bottomBarSafePadding(context)),
               children: [
                 MaxWidthContent(
+                  // 大屏放宽限宽以容纳两栏（窄屏仍按可用宽度铺满）
+                  maxWidth: kGridMaxWidth,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -182,15 +185,24 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         eyebrow: _dateLabel,
                       ),
                       const SizedBox(height: 10),
-                      // ── 自定义常用功能（可增删 / 拖拽排序） ──
-                      QuickAppsSection(
-                        client: widget.client,
-                        userId: widget.userId ?? '',
+                      // ── 大屏两栏：左（常用功能）右（今日课程 + 校园新闻卡片）──
+                      // 窄屏自动回落单列（顺序与原先一致，零回归）
+                      AdaptiveSplitView(
+                        leftFlex: 2,
+                        rightFlex: 3,
+                        left: QuickAppsSection(
+                          client: widget.client,
+                          userId: widget.userId ?? '',
+                        ),
+                        right: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildTodayCoursesCard(context),
+                            const SizedBox(height: 16),
+                            _buildNewsCard(context),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      _buildTodayCoursesCard(context),
-                      const SizedBox(height: 16),
-                      _buildNewsCard(context),
                     ],
                   ),
                 ),

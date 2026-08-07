@@ -16,7 +16,21 @@
 ### 🎯 优化
 - 功耗：背景气泡动画降速、列表逐项动画移除、宫格方块去 shader 组件。
 
-## [Unreleased]
+## [1.1.9] - 2026-08-07
+
+### 🎯 优化（深度大屏适配 · 平板与 Windows 统一界面）
+- **多输入适配（触控 / 鼠标 / 键盘）**：新增 `lib/core/input_adaptation.dart` 模块——① `adaptiveVisualDensity`：全局组件密度随屏宽切换（触控 comfortable 宽松 / 桌面 compact 紧凑，经 MaterialApp builder 动态覆盖全部 Material 组件）；② `Clickable` 通用组件（组合 FocusableActionDetector + GestureDetector）：可点击元素统一获得鼠标手型光标 + 键盘 Enter/空格 激活 + 悬停/焦点高亮（触控零回归）；③ `AppShortcuts` 全局快捷键：Esc 返回上一页（经 MaterialApp.navigatorKey 触达路由栈）。已接入：IosCard、IosListTile、首页/应用页宫格卡片、侧栏项（InkWell mouseCursor）。
+- **宫格网格更紧凑**：图标卡片 `childAspectRatio` 0.82 → 0.95（接近正方形，减少图标在卡片内的上下留白）+ `mainAxisSpacing` 14 → 10（行间距收紧），首页常用功能与应用页网格同步。
+- **宫格图标间距收紧**：首页常用功能与应用页网格卡片图标与文字的间距 8 → 5，卡片更紧凑。
+- **设置页卡片自适应**：`IosListTile` 新增 `scale` 参数（图标容器/图标/标题/副标题按比例缩放，默认 1.0 行为不变）；responsive.dart 新增 `adaptiveCardScale`（`(卡片宽/520).clamp(1.0, 1.2)`）。设置页左右两栏各按实际栏宽计算 scale：个人信息卡（头像/字号/占位图）、外观/账号/关于分组卡同步放大，消除大屏"大卡小内容"；窄屏卡片 < 520 时 scale=1.0，行为与固定尺寸完全一致。
+- **宫格卡片字体自适应**：新增 `adaptiveTileFontSize`（responsive.dart）——宫格文字字号随卡片实际宽度缩放（`cardWidth × 0.085`，clamp 10~14），与图标方块 45% 同链路；大屏大卡片字号同步放大（8 列 ≈13）、窄屏小卡片缩小（3 列 ≈10.5），图标与文字比例全程协调。
+- **首页两栏内容重排**：宽屏左栏只放「常用功能」宫格（flex 2）、右栏堆叠「今日课程 + 校园新闻」卡片（flex 3），卡片区获得更多阅读宽度；窄屏回落顺序不变（常用功能 → 今日课程 → 新闻）。
+- **宫格卡片大小自适应**：首页常用功能与应用页网格的玻璃图标方块不再固定 56px——改为按卡片实际宽度 45% 计算（LayoutBuilder），`appTileGlass` 内部图标同步按方块 42% 缩放。大屏 6/8 列大卡片图标放大、窄屏 3 列小卡片缩小，整条链路（卡片宽 → 方块 → 图标）随容器自适应，消除"大卡片小图标"失衡。
+- **首页 / 设置大屏两栏布局**：新增通用分栏组件 `AdaptiveSplitView`（lib/core/adaptive_split_view.dart，`kSplitBreakpoint`=760）——宽屏左右两栏并排、窄屏上下堆叠（等价原单列，零回归），纯宽度驱动、首页与设置页复用。首页宽屏：左栏「常用功能 + 今日课程」、右栏「校园新闻」；设置宽屏：左栏「个人信息 + 外观」、右栏「账号 + 关于」。两页 `MaxWidthContent` 放宽至 `kGridMaxWidth`（1200）以容纳两栏。
+- **二级页面铺满全屏**（产品决策）：约 50 个二级页面的 `contentMaxWidth` 限宽参数全部移除，页面内容铺满整屏；`SimplePage.contentMaxWidth` 参数与限宽逻辑保留（默认 0 = 不限宽）备用，`kListMaxWidth`/`kDenseMaxWidth`/`kGridMaxWidth` 常量保留定义。仅登录页表单保留 480 居中限宽（非二级界面）。
+- **应用网格列数自适应**：应用页网格原写死 4 列 → 按实际渲染宽度 3→4→6→8 列；首页「常用功能」宫格同步改用统一 `appGridColumns`（基于 LayoutBuilder 约束而非 MediaQuery 全宽，避免 MaxWidthContent 限宽内列数虚高、卡片被挤压）。
+- **侧边导航栏液态玻璃化**：宽屏侧栏（任务栏）由简单毛玻璃升级为视觉液态玻璃——顶部高光渐变模拟折射、BackdropFilter 20px 模糊、与内容区悬浮投影分隔、右侧边缘亮线；选中项为玻璃胶囊（accent 渐变 + 白色高光描边 + 左侧指示条）并加桌面悬停/点按反馈；顶部新增品牌玻璃方块。⚠️ 不用 GlassCard/GlassButton 等 shader 组件（Android GLES 设备 shader 玻璃不渲染会白屏，与平板一致性冲突），视觉液态玻璃全平台稳定。
+- **侧栏选中态放大优化**：选中胶囊垂直/水平 padding 增大（9→14 / 6→12）更饱满，图标 AnimatedScale 平滑放大 22→约 26，文字 11→12 加粗；修复左侧指示条 `Positioned(left:-12)` 被 Stack 默认 Clip.hardEdge 裁剪不可见的问题（显式 `Clip.none` + Center 垂直居中），选中反馈更明确。
 
 ### 🐛 修复（通知公告时间获取）
 - 修复「通知公告（tzgg.htm）列表/详情页时间获取不到」：列表日期 HTML 为 `<div class="date"><p>MM.dd</p><span>yyyy</span></div>`，月日与年分处不同标签，`_extractDate` 旧正则用 `\s*` 连接无法跨越 `</p><span>` 标签，三条正则全部落空返回空；详情页 `发布[日期]` 字符类漏匹配「期」字（`发布日期：`），同样返回空。

@@ -9,6 +9,7 @@ import '../main.dart';
 import 'guest_guard.dart';
 import 'guest_mode.dart';
 import 'http_client.dart';
+import 'input_adaptation.dart';
 import 'local_storage.dart';
 import 'navigation.dart';
 import 'responsive.dart';
@@ -143,7 +144,7 @@ Widget appTileGlass({
             : Colors.white.withValues(alpha: 0.45),
       ),
     ),
-    child: Icon(icon, size: 24, color: iconColor),
+    child: Icon(icon, size: size * 0.42, color: iconColor),
   );
 }
 
@@ -374,9 +375,10 @@ class IosCard extends StatelessWidget {
       child: child,
     );
     if (onTap == null) return card;
-    return GestureDetector(
+    // 多输入适配：鼠标手型光标 + 键盘 Enter/空格 激活 + 焦点高亮
+    return Clickable(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      borderRadius: radius,
       child: card,
     );
   }
@@ -440,6 +442,10 @@ class IosListTile extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
 
+  /// 卡片内部元素整体缩放系数（大屏卡片自适应）：图标容器 / 图标 / 标题 /
+  /// 副标题按比例放大，避免大屏宽卡片"大卡小内容"；默认 1.0 行为不变。
+  final double scale;
+
   const IosListTile({
     super.key,
     this.icon,
@@ -449,34 +455,43 @@ class IosListTile extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.scale = 1.0,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = iconColor ?? accentOf(context);
-    return GlassListTile(
+    final tile = GlassListTile(
       leading: icon != null
           ? Container(
-              width: 30,
-              height: 30,
+              width: 30 * scale,
+              height: 30 * scale,
               decoration: BoxDecoration(
                 color: iconBackground ?? color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8 * scale),
               ),
-              child: Icon(icon, color: color, size: 17),
+              child: Icon(icon, color: color, size: 17 * scale),
             )
           : null,
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      title: Text(title,
+          style: TextStyle(
+              fontSize: 15 * scale, fontWeight: FontWeight.w500)),
       subtitle: subtitle != null
           ? Text(subtitle!,
-              style: TextStyle(fontSize: 12, color: textSecondary(context)))
+              style: TextStyle(fontSize: 12 * scale, color: textSecondary(context)))
           : null,
       trailing: trailing ?? (onTap != null ? GlassListTile.chevron : null),
       onTap: onTap,
     );
+    if (onTap == null) return tile;
+    // 多输入适配：鼠标手型光标 + 键盘 Enter/空格 激活 + 焦点高亮
+    return Clickable(
+      onTap: onTap,
+      borderRadius: 14,
+      child: tile,
+    );
   }
 }
-
 /// ---------------------------------------------------------------------------
 /// iOS 分段控件（GlassSegmentedControl 封装）
 /// ---------------------------------------------------------------------------
@@ -625,14 +640,6 @@ class _QuickAppsSectionState extends State<QuickAppsSection> {
     pushPage(ctx, page);
   }
 
-  int get _columns {
-    final width = MediaQuery.of(context).size.width;
-    final available = width - (isWideScreen(context) ? kRailWidth : 0.0) - 32;
-    if (available >= 900) return 8;
-    if (available >= 640) return 6;
-    return 4;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
@@ -640,20 +647,29 @@ class _QuickAppsSectionState extends State<QuickAppsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const IosSectionHeader('常用功能', padding: EdgeInsets.fromLTRB(4, 8, 4, 10)),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _columns,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemCount: _items.length,
-          itemBuilder: (context, i) => _QuickAppTile(
-            entry: _items[i],
-            onTap: () => _openApp(_items[i]),
-          ),
+        // ⚠️ 列数按实际渲染宽度（LayoutBuilder 约束）计算，勿用
+        // MediaQuery 全宽——外层 MaxWidthContent(760) 限宽时列数会虚高。
+        LayoutBuilder(
+          builder: (context, c) {
+            final cols = appGridColumns(c.maxWidth);
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 8,
+                // 0.95（接近正方形）减少图标卡片内的上下留白；
+                // 原 0.82 卡片偏高，图标居中后上下各 ~30px 留白过宽
+                childAspectRatio: 0.95,
+              ),
+              itemCount: _items.length,
+              itemBuilder: (context, i) => _QuickAppTile(
+                entry: _items[i],
+                onTap: () => _openApp(_items[i]),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -673,31 +689,41 @@ class _QuickAppTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = accentOf(context);
-    return GestureDetector(
+    return Clickable(
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 静态玻璃方块（同应用网格；不用 GlassButton——shader 组件
-          // GLES 不渲染且格子多时掉帧/耗电）
-          appTileGlass(
-            context: context,
-            icon: entry.icon,
-            iconColor: color,
-            size: 56,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            entry.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: textPrimary(context),
-            ),
-          ),
-        ],
+      borderRadius: 14,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // 玻璃方块随卡片宽度自适应（约 45%）：大屏卡片更大时图标同步
+          // 放大，窄屏小卡片同步缩小，避免固定 56 导致的"大卡片小图标"。
+          final tileSize = c.maxWidth * 0.45;
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 静态玻璃方块（同应用网格；不用 GlassButton——shader 组件
+              // GLES 不渲染且格子多时掉帧/耗电）
+              appTileGlass(
+                context: context,
+                icon: entry.icon,
+                iconColor: color,
+                size: tileSize,
+              ),
+              // 图标与文字间距收紧（8 → 5），卡片更紧凑
+              const SizedBox(height: 5),
+              Text(
+                entry.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  // 字号随卡片宽度自适应（与图标方块同链路）
+                  fontSize: adaptiveTileFontSize(c.maxWidth),
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary(context),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

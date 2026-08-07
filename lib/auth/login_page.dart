@@ -139,8 +139,11 @@ class _LoginPageState extends State<LoginPage> {
         backgroundColor: Colors.transparent,
         body: SafeArea(
           child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            // 大屏（平板/桌面）下登录卡片限宽 480 居中，避免表单拉伸过宽
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.0, end: 1.0),
                 duration: const Duration(milliseconds: 500),
@@ -174,6 +177,7 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
+            ),
             ),
           ),
         ),

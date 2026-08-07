@@ -3,6 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' show GlassStatusBarStyle;
 
 import 'liquid_background.dart';
+import 'responsive.dart';
+
+/// 转发大屏限宽常量（当前二级页面铺满全屏未启用，保留备用）。
+export 'responsive.dart'
+    show kListMaxWidth, kDenseMaxWidth, kGridMaxWidth;
 
 /// GlassPage 的替代方案 — 无玻璃遮罩，内容全屏显示。
 ///
@@ -12,11 +17,16 @@ import 'liquid_background.dart';
 /// [background] 为 true 时自动内置主界面同款液态玻璃背景
 /// （LiquidBackground，渐变 + 动态气泡），独立二级页面默认开启；
 /// 主界面 tab 页（MainScreen 已提供 GlassScaffold 背景）传 false 避免叠加。
+///
+/// [contentMaxWidth]（默认 0 = 不限宽）：> 0 时内容（含 AppBar）在大屏下
+/// 居中限宽、两侧透出背景。⚠️ 当前产品决策：所有二级页面**铺满全屏**，
+/// 全部页面使用默认值 0，不再传限宽参数；该参数与限宽逻辑保留备用。
 class SimplePage extends StatefulWidget {
   final Widget child;
   final GlassStatusBarStyle statusBarStyle;
   final bool edgeToEdge;
   final bool background;
+  final double contentMaxWidth;
 
   const SimplePage({
     super.key,
@@ -24,6 +34,7 @@ class SimplePage extends StatefulWidget {
     this.statusBarStyle = GlassStatusBarStyle.auto,
     this.edgeToEdge = false,
     this.background = true,
+    this.contentMaxWidth = 0,
   });
 
   @override
@@ -109,6 +120,20 @@ class _SimplePageState extends State<SimplePage> {
     // 外观设置选了背景图时不渲染渐变（避免盖住全局背景图）。
     if (widget.background) {
       content = LiquidBackground(child: content);
+    }
+
+    // 大屏限宽：内容（含 AppBar）居中、两侧透出背景（iPad 风格）。
+    // 窄屏下父宽度 < contentMaxWidth，ConstrainedBox 不产生约束，行为不变。
+    // ⚠️ 用 Align(topCenter) + ConstrainedBox 给 tight 上限：避免 Center 的
+    // loose 约束让 Scaffold 宽度缩水（AppBar 与 body 宽度不一致）。
+    if (widget.contentMaxWidth > 0) {
+      content = Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: widget.contentMaxWidth),
+          child: content,
+        ),
+      );
     }
 
     return content;

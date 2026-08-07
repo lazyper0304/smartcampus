@@ -1,6 +1,7 @@
 import 'dart:io';
 import '../core/liquid_background.dart';
 
+import '../core/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -93,8 +94,8 @@ class _AppearancePageState extends State<AppearancePage> {
           child: Scaffold(
             appBar: AppBar(title: const Text('外观')),
             body: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
+          padding: const EdgeInsets.all(16),
+          children: [
                 _buildSection('主题模式'),
                 const SizedBox(height: 8),
                 Card(

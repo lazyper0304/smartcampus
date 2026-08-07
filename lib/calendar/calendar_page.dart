@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../core/liquid_background.dart';
+import '../core/responsive.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -61,19 +62,19 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     return LiquidBackground(
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('校历服务'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadCalendars,
-          ),
-        ],
+        appBar: AppBar(
+          title: const Text('校历服务'),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadCalendars,
+            ),
+          ],
+        ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
-    
-    ));
+    );
   }
 
   Widget _buildBody() {

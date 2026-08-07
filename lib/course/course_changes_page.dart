@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/liquid_background.dart';
+import '../core/responsive.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/smooth_styles.dart';
@@ -118,31 +119,31 @@ class _CourseChangesPageState extends State<CourseChangesPage>
 
     return LiquidBackground(
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('调课 & 未安排课程'),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(108),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 学期选择器
-              _buildSemesterSelector(currentSemester),
-              // Tab 栏
-              _buildTabBar(),
-            ],
+        appBar: AppBar(
+          title: const Text('调课 & 未安排课程'),
+          centerTitle: true,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(108),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 学期选择器
+                _buildSemesterSelector(currentSemester),
+                // Tab 栏
+                _buildTabBar(),
+              ],
+            ),
           ),
         ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildCourseChangesTab(),
+            _buildUnarrangedTab(),
+          ],
+        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildCourseChangesTab(),
-          _buildUnarrangedTab(),
-        ],
-      ),
-    
-    ));
+    );
   }
 
   // ==================== 学期选择器 ====================

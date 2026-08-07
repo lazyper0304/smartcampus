@@ -1,7 +1,7 @@
 # 宜宾学院智慧校园 · SmartCampus
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.6-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-1.1.9-blue" alt="version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
   <img src="https://img.shields.io/badge/Flutter-3.x-02569B" alt="flutter">
 </p>
@@ -66,12 +66,25 @@
 
 ---
 
+## 🖥️ 大屏与桌面适配
+
+应用以**屏幕宽度为唯一自适应依据**（无平台分支），平板横竖屏与 Windows 桌面共用同一套大屏布局：
+
+- **侧边导航栏**：宽屏（≥600）自动切换为左侧液态玻璃导航栏（替代手机底部栏），支持鼠标悬停反馈与键盘焦点导航；
+- **二级页面铺满全屏**：内容不再限宽居中，充分利用屏幕宽度；
+- **首页 / 设置两栏布局**：宽屏下首页左「常用功能」右「今日课程 + 校园新闻」，设置页左「个人信息 + 外观」右「账号 + 关于」；
+- **卡片自适应**：宫格图标、字号随卡片宽度等比缩放，列表卡片按栏宽放大内部元素；
+- **多输入适配**：鼠标手型光标、键盘 Enter/空格 激活、Tab 焦点高亮、Esc 返回上一页，组件密度随屏宽切换（触控宽松 / 桌面紧凑）。
+
+---
+
 ## 🚀 快速开始
 
 ### 环境要求
 - Flutter SDK 3.x（与 `pubspec.yaml` 中声明的版本一致）
 - Dart SDK
 - Android SDK（构建 Android 包）
+- Windows 桌面端需 Visual Studio 2022（含「使用 C++ 的桌面开发」工作负载，构建 exe）
 - 如需访问内网功能（办公网、第二课堂），需目标设备已接入校园网或配置 VPN
 
 ### 安装与运行
@@ -84,6 +97,9 @@ flutter run
 
 # 3. 构建发布包（Android）
 flutter build apk --release
+
+# 4. 构建发布包（Windows exe，产物在 build/windows/x64/runner/Release/）
+flutter build windows --release
 ```
 
 > 注：项目中部分资源（如 `lib/vpn/SangforSDK.aar`、原生 so 库）需在 Android 端手动放置到对应目录，详见 `SDK2.6.10.1_0530/` 目录下的集成说明。

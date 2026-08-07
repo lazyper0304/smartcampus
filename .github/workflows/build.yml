@@ -92,10 +92,49 @@ jobs:
           compression-level: 0
           if-no-files-found: error
 
+  windows:
+    name: 🪟 Build Windows EXE
+    if: github.event_name != 'workflow_dispatch' || always()
+    needs: [auto-tag]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows (release)
+        run: flutter build windows --release
+
+      - name: Package EXE (zip)
+        shell: powershell
+        run: |
+          $version = (Get-Content VERSION).Trim()
+          $releaseDir = "build\windows\x64\runner\Release"
+          if (-not (Test-Path "$releaseDir\*.exe")) {
+            Write-Error "No exe found in $releaseDir"
+            exit 1
+          }
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath "宜院宾果-windows-v$version.zip" -Force
+
+      - name: Upload Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: 宜院宾果-windows-v*.zip
+          compression-level: 0
+          if-no-files-found: error
+
   release:
     name: 🚀 Publish Release
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && always())
-    needs: [android]
+    needs: [android, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -108,6 +147,12 @@ jobs:
         with:
           name: android-apks
           path: release/android
+
+      - name: Download Windows EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: release/windows
 
       - name: Rename artifacts
         shell: bash
@@ -136,4 +181,4 @@ jobs:
           gh release create "$TAG" \
             --title "宜院宾果 v${VERSION}" \
             --notes-file release-notes.md \
-            release/android/*.apk
+            release/android/*.apk release/windows/*.zip
