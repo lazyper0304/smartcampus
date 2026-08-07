@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -12,6 +13,7 @@ import 'core/input_adaptation.dart';
 import 'core/liquid_background.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
+import 'core/simple_page.dart';
 import 'home/main_screen.dart';
 import 'splash/fetch_info_page.dart';
 import 'xuegong/student_info_manager.dart';
@@ -281,9 +283,18 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       onSurface: isDark ? Colors.white : const Color(0xFF1A1A2E),
     );
 
+    // ⚠️ Windows 字体统一：不设置时系统默认 Segoe UI 与中文雅黑 fallback
+    // 混排，中英文字重渲染不一致（"有粗有细"）；统一微软雅黑后一致。
+    final isWindows = !kIsWeb && Platform.isWindows;
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      // Windows 统一微软雅黑；移动端不指定（跟随系统字体）
+      fontFamily: isWindows ? 'Microsoft YaHei' : null,
+      fontFamilyFallback: isWindows
+          ? const ['Microsoft YaHei UI', 'SimHei']
+          : const ['PingFang SC', 'Noto Sans SC'],
 
       // Scaffold 背景全透明：所有页面（含二级页）直接透出
       // builder 层 LiquidBackground 的主界面同款背景
@@ -498,8 +509,9 @@ class _SplashPageState extends State<SplashPage>
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    // 主界面同款液态玻璃背景（模块化组件），登录后过渡界面统一
-    return LiquidBackground(
+    // 主界面同款液态玻璃背景 + 统一状态栏（SimplePage 基座），
+    // 登录后过渡界面与二级页观感一致
+    return SimplePage(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(

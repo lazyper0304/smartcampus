@@ -112,25 +112,26 @@ jobs:
       - name: Build Windows (release)
         run: flutter build windows --release
 
-      - name: Package EXE (zip)
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer (EXE)
         shell: powershell
         run: |
           $version = (Get-Content VERSION).Trim()
-          $releaseDir = "build\windows\x64\runner\Release"
-          if (-not (Test-Path "$releaseDir\*.exe")) {
-            Write-Error "No exe found in $releaseDir"
-            exit 1
-          }
-          # ⚠️ zip 名必须 ASCII：Windows runner 文件系统用 ANSI 编码落盘，
-          # upload-artifact(Node glob) 用 UTF-8 匹配，中文文件名会匹配失败
-          Compress-Archive -Path "$releaseDir\*" -DestinationPath "smartcampus-windows-v$version.zip" -Force
-          Get-ChildItem -Name *.zip
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { Write-Error "ISCC.exe not found"; exit 1 }
+          & $iscc "windows\installer\installer.iss" "/DAppVersion=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "build\installer\*.exe"
 
-      - name: Upload Windows EXE
+      - name: Upload Windows Installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: smartcampus-windows-v*.zip
+          path: build/installer/smartcampus-setup-*.exe
           compression-level: 0
           if-no-files-found: error
 
@@ -184,4 +185,4 @@ jobs:
           gh release create "$TAG" \
             --title "宜院宾果 v${VERSION}" \
             --notes-file release-notes.md \
-            release/android/*.apk release/windows/*.zip
+            release/android/*.apk release/windows/*.exe

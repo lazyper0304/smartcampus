@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../core/liquid_background.dart';
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
-import '../main.dart';
+import '../core/simple_page.dart';
 import '../home/main_screen.dart';
 import '../xuegong/student_info_manager.dart';
 
@@ -73,8 +72,9 @@ class _FetchInfoPageState extends State<FetchInfoPage>
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    // 主界面同款液态玻璃背景（模块化组件）
-    return LiquidBackground(
+    // 主界面同款液态玻璃背景 + 统一状态栏（SimplePage 基座），
+    // 过渡界面与二级页观感一致（避免透明背景透出）
+    return SimplePage(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(

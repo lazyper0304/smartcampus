@@ -692,39 +692,62 @@ class _QuickAppTile extends StatelessWidget {
     return Clickable(
       onTap: onTap,
       borderRadius: 14,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          // 玻璃方块随卡片宽度自适应（约 45%）：大屏卡片更大时图标同步
-          // 放大，窄屏小卡片同步缩小，避免固定 56 导致的"大卡片小图标"。
-          final tileSize = c.maxWidth * 0.45;
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // 静态玻璃方块（同应用网格；不用 GlassButton——shader 组件
-              // GLES 不渲染且格子多时掉帧/耗电）
-              appTileGlass(
-                context: context,
-                icon: entry.icon,
-                iconColor: color,
-                size: tileSize,
-              ),
-              // 图标与文字间距收紧（8 → 5），卡片更紧凑
-              const SizedBox(height: 5),
-              Text(
-                entry.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  // 字号随卡片宽度自适应（与图标方块同链路）
-                  fontSize: adaptiveTileFontSize(c.maxWidth),
-                  fontWeight: FontWeight.w600,
-                  color: textPrimary(context),
+      // 自定义 builder：光效以图标为中心（图标光晕），替代默认整卡
+      // 矩形高亮（矩形中心在卡片中心，与偏上的图标错位）
+      builder: (context, hovered, focused) {
+        final active = hovered || focused;
+        return LayoutBuilder(
+          builder: (context, c) {
+            // 玻璃方块随卡片宽度自适应（约 45%）：大屏卡片更大时图标同步
+            // 放大，窄屏小卡片同步缩小，避免固定 56 导致的"大卡片小图标"。
+            final tileSize = c.maxWidth * 0.45;
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 图标光晕：悬停/聚焦时图标方块外发光，光效中心=图标中心
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(tileSize * 0.28),
+                    boxShadow: active
+                        ? [
+                            BoxShadow(
+                              color: color.withValues(
+                                  alpha: focused ? 0.55 : 0.32),
+                              blurRadius: tileSize * 0.34,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : const [],
+                  ),
+                  // 静态玻璃方块（同应用网格；不用 GlassButton——shader 组件
+                  // GLES 不渲染且格子多时掉帧/耗电）
+                  child: appTileGlass(
+                    context: context,
+                    icon: entry.icon,
+                    iconColor: color,
+                    size: tileSize,
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
-      ),
+                // 图标与文字间距收紧（8 → 5），卡片更紧凑
+                const SizedBox(height: 5),
+                Text(
+                  entry.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    // 字号随卡片宽度自适应（与图标方块同链路）
+                    fontSize: adaptiveTileFontSize(c.maxWidth),
+                    fontWeight: FontWeight.w600,
+                    color: textPrimary(context),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

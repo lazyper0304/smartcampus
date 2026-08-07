@@ -25,7 +25,8 @@ const double kInputDensityBreakpoint = 760.0;
 /// [GestureDetector]（触控/鼠标点按）。触控设备上 hover/focus 均不触发，
 /// 表现与普通 GestureDetector 完全一致，零回归。
 class Clickable extends StatefulWidget {
-  final Widget child;
+  /// 内容（与 [builder] 二选一；提供 builder 时忽略）。
+  final Widget? child;
   final VoidCallback? onTap;
 
   /// 交互时的鼠标光标（默认手型）。
@@ -37,13 +38,20 @@ class Clickable extends StatefulWidget {
   /// 悬停/焦点高亮颜色（默认主题 primary）。
   final Color? focusColor;
 
+  /// 自定义内容构建器：接收当前 hover/focus 状态，返回内容 widget。
+  /// 提供后 [child] 被忽略，且**不再叠加默认整卡高亮层**——调用方可
+  /// 自行实现"以图标为中心"的光效（如宫格卡片的图标光晕）。
+  final Widget Function(BuildContext context, bool hovered, bool focused)?
+      builder;
+
   const Clickable({
     super.key,
-    required this.child,
+    this.child,
     this.onTap,
     this.cursor = SystemMouseCursors.click,
     this.borderRadius = 12,
     this.focusColor,
+    this.builder,
   });
 
   @override
@@ -59,6 +67,11 @@ class _ClickableState extends State<Clickable> {
     final interactive = widget.onTap != null;
     final focusColor =
         widget.focusColor ?? Theme.of(context).colorScheme.primary;
+    // 自定义 builder 时由调用方负责渲染高亮/光效，不再叠默认整卡高亮
+    final hasCustomBuilder = widget.builder != null;
+    final content = hasCustomBuilder
+        ? widget.builder!(context, _hovered, _focused)
+        : (widget.child ?? const SizedBox.shrink());
     return FocusableActionDetector(
       // 键盘 Enter / 空格 触发点击（ActivateIntent）
       actions: {
@@ -78,9 +91,10 @@ class _ClickableState extends State<Clickable> {
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
-            widget.child,
-            // 悬停/焦点高亮层（桌面键盘导航可见焦点位置）
-            if (_hovered || _focused)
+            content,
+            // 默认悬停/焦点高亮层（桌面键盘导航可见焦点位置；
+            // 覆盖整卡矩形，仅未提供自定义 builder 时使用）
+            if (!hasCustomBuilder && (_hovered || _focused))
               Positioned.fill(
                 child: IgnorePointer(
                   child: DecoratedBox(
