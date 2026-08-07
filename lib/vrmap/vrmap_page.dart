@@ -1,4 +1,4 @@
-import '../core/responsive.dart';
+import '../core/webview2_check.dart';
 import 'package:flutter/material.dart';
 import '../core/liquid_background.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -30,6 +30,21 @@ class _VrmapPageState extends State<VrmapPage> {
   InAppWebViewController? _webViewController;
   bool _isLoading = true;
   double _progress = 0;
+
+  /// Windows 上 WebView2 Runtime 可用性（缺失时显示引导，避免 native 闪退）
+  bool _webView2Ok = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkWebView2();
+  }
+
+  Future<void> _checkWebView2() async {
+    final ok = await WebView2Check.available();
+    if (!mounted) return;
+    setState(() => _webView2Ok = ok);
+  }
 
   _CampusVr get _currentCampus => _campuses[_selectedIndex];
 
@@ -88,7 +103,8 @@ class _VrmapPageState extends State<VrmapPage> {
               )
             : null,
       ),
-      body: InAppWebView(
+      body: _webView2Ok
+          ? InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(_currentCampus.url)),
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
@@ -116,9 +132,35 @@ class _VrmapPageState extends State<VrmapPage> {
                 if (!mounted) return;
                 setState(() => _isLoading = false);
               },
-            ),
+            )
+          : _buildWebView2Missing(),
     
     ));
+  }
+
+  /// WebView2 Runtime 缺失时的引导（替代 native 崩溃闪退）
+  Widget _buildWebView2Missing() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.memory_rounded, size: 56, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('缺少 WebView2 运行时',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Text(
+              'VR 地图需要 Microsoft Edge WebView2 Runtime。\n'
+              '请安装后重新打开（重新安装本应用也会自动安装）。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

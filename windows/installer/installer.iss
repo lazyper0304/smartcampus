@@ -38,3 +38,36 @@ Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ign
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
+
+; 应用内置 WebView（flutter_inappwebview）依赖 Microsoft Edge WebView2 Runtime，
+; 系统缺失时 App 打开 WebView 会 native 崩溃闪退。此处检测注册表，缺失时
+; 自动下载官方 bootstrapper 并静默安装（Evergreen 模式，自动跟随更新）。
+[Run]
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; Flags: runascurrentuser skipifdoesntexist; Check: not IsWebView2Installed
+
+[Code]
+function IsWebView2Installed: Boolean;
+var
+  v: string;
+begin
+  Result := RegQueryStringValue(
+      HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', v)
+    or RegQueryStringValue(
+      HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', v);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  DownloadedFile: String;
+begin
+  Result := '';
+  if not IsWebView2Installed then
+  begin
+    if not DownloadTemporaryFile(
+        'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+        'MicrosoftEdgeWebview2Setup.exe', '', DownloadedFile) then
+      Result := '下载 WebView2 运行时失败。请安装 Microsoft Edge WebView2 后重新启动应用：' +
+        'https://developer.microsoft.com/microsoft-edge/webview2/';
+  end;
+end;
+

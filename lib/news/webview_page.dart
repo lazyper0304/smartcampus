@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/simple_page.dart';
+import '../core/theme_utils.dart';
+import '../core/webview2_check.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -41,6 +43,21 @@ class _WebViewPageState extends State<WebViewPage> {
   bool _isLoading = true;
   double _progress = 0;
   InAppWebViewController? _controller;
+
+  /// Windows 上 WebView2 Runtime 可用性（缺失时显示引导页，避免 native 闪退）
+  bool _webView2Ok = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkWebView2();
+  }
+
+  Future<void> _checkWebView2() async {
+    final ok = await WebView2Check.available();
+    if (!mounted) return;
+    setState(() => _webView2Ok = ok);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +123,50 @@ class _WebViewPageState extends State<WebViewPage> {
                 )
               : null,
         ),
-        body: InAppWebView(
+        body: _webView2Ok ? _buildWebView() : _buildWebView2Missing(),
+      ),
+    ));
+  }
+
+  /// WebView2 Runtime 缺失时的引导页（替代 native 崩溃闪退）
+  Widget _buildWebView2Missing() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.memory_rounded, size: 56, color: textSecondary(context)),
+            const SizedBox(height: 16),
+            const Text(
+              '缺少 WebView2 运行时',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '内置网页功能需要 Microsoft Edge WebView2 Runtime。\n'
+              '请安装后重新打开（重新安装本应用也会自动安装）。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: textSecondary(context)),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              icon: const Icon(Icons.download_rounded, size: 18),
+              label: const Text('前往安装 WebView2'),
+              onPressed: () => launchUrl(
+                Uri.parse(
+                    'https://developer.microsoft.com/microsoft-edge/webview2/'),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebView() {
+    return InAppWebView(
           onWebViewCreated: (controller) async {
             _controller = controller;
             // 可选的预加载回调（如注入 SSO cookie），完成后手动加载初始 URL，
@@ -217,8 +277,6 @@ class _WebViewPageState extends State<WebViewPage> {
             }
             return false;
           },
-        ),
-      ),
-    ));
+        );
   }
 }
