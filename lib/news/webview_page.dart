@@ -130,8 +130,6 @@ class _WebViewPageState extends State<WebViewPage> {
       ),
     ));
   }
-
-  /// WebView2 Runtime 缺失时的引导页（替代 native 崩溃闪退）
   Widget _buildWebView2Missing() {
     return Center(
       child: Padding(
@@ -168,6 +166,7 @@ class _WebViewPageState extends State<WebViewPage> {
     );
   }
 
+  /// WebView2 Runtime 缺失时的引导页（替代 native 崩溃闪退）
   Widget _buildWebView() {
     return InAppWebView(
           onWebViewCreated: (controller) async {
@@ -177,14 +176,22 @@ class _WebViewPageState extends State<WebViewPage> {
             final ready = widget.onWebViewReady;
             if (ready != null) {
               try {
-                await ready(controller);
+                // ⚠️ 超时保护：Windows 网络差时 onWebViewReady 里的
+                // ensureFreshSession（真实 CAS 登录）可能长时间阻塞，导致
+                // WebView 创建回调挂起、页面空白甚至异常
+                await ready(controller)
+                    .timeout(const Duration(seconds: 30));
               } catch (e) {
-                debugPrint('WebViewPage onWebViewReady error: $e');
+                CrashLog.write('WebViewPage onWebViewReady error: $e');
               }
             }
-            await controller.loadUrl(
-              urlRequest: URLRequest(url: WebUri(widget.url)),
-            );
+            try {
+              await controller.loadUrl(
+                urlRequest: URLRequest(url: WebUri(widget.url)),
+              );
+            } catch (e) {
+              CrashLog.write('WebViewPage loadUrl error: $e');
+            }
           },
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
