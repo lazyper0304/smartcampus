@@ -206,10 +206,12 @@ class _WebViewPageState extends State<WebViewPage> {
             if (ready != null) {
               try {
                 // ⚠️ 超时保护：Windows 网络差时 onWebViewReady 里的
-                // ensureFreshSession（真实 CAS 登录）可能长时间阻塞，导致
-                // WebView 创建回调挂起、页面空白甚至异常
+                // ensureFreshSession（真实 CAS 登录，autoRelogin 上限 60s）
+                // 可能长时间阻塞，导致 WebView 创建回调挂起、页面空白。
+                // 60s 与 autoRelogin 超时对齐，避免预热被腰斩导致
+                // cookie 未注入、卡在 CAS 登录页
                 await ready(controller)
-                    .timeout(const Duration(seconds: 30));
+                    .timeout(const Duration(seconds: 60));
               } catch (e) {
                 CrashLog.write('WebViewPage onWebViewReady error: $e');
               }

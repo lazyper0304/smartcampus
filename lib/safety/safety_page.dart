@@ -122,7 +122,7 @@ class SafetyPage extends StatelessWidget {
             Text(number,
                 style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: _redAccent)),
             Text(label,
                 style: TextStyle(
@@ -218,7 +218,7 @@ class SafetyPage extends StatelessWidget {
               Text(phone,
                   style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: accentColorNotifier.value)),
             ],
           ),

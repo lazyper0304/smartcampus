@@ -299,7 +299,7 @@ class IosLargeTitle extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 32,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.5,
                     height: 1.1,
                   ),

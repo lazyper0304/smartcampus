@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart' show CupertinoThemeData, CupertinoTextThemeData;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -303,6 +304,18 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       fontFamilyFallback: isWindows
           ? const ['Microsoft YaHei UI', 'SimHei']
           : const ['PingFang SC', 'Noto Sans SC'],
+
+      // Cupertino 组件（GlassScaffold 内部基于 CupertinoPageScaffold 等）
+      // 默认用平台字体（Windows = Segoe UI），不吃 Material fontFamily——
+      // 显式覆盖为与 Material 一致的字体，杜绝混排粗细不一
+      cupertinoOverrideTheme: CupertinoThemeData(
+        primaryColor: accent,
+        textTheme: CupertinoTextThemeData(
+          textStyle: TextStyle(
+            fontFamily: isWindows ? 'Microsoft YaHei' : null,
+          ),
+        ),
+      ),
 
       // Scaffold 背景全透明：所有页面（含二级页）直接透出
       // builder 层 LiquidBackground 的主界面同款背景

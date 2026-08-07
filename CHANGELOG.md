@@ -32,6 +32,15 @@
 - **侧边导航栏液态玻璃化**：宽屏侧栏（任务栏）由简单毛玻璃升级为视觉液态玻璃——顶部高光渐变模拟折射、BackdropFilter 20px 模糊、与内容区悬浮投影分隔、右侧边缘亮线；选中项为玻璃胶囊（accent 渐变 + 白色高光描边 + 左侧指示条）并加桌面悬停/点按反馈；顶部新增品牌玻璃方块。⚠️ 不用 GlassCard/GlassButton 等 shader 组件（Android GLES 设备 shader 玻璃不渲染会白屏，与平板一致性冲突），视觉液态玻璃全平台稳定。
 - **侧栏选中态放大优化**：选中胶囊垂直/水平 padding 增大（9→14 / 6→12）更饱满，图标 AnimatedScale 平滑放大 22→约 26，文字 11→12 加粗；修复左侧指示条 `Positioned(left:-12)` 被 Stack 默认 Clip.hardEdge 裁剪不可见的问题（显式 `Clip.none` + Center 垂直居中），选中反馈更明确。
 
+### 🐛 修复（Windows WebView 注入类闪退 / 会话预热）
+- **CARSI（玻尔科研）补全会话预热**：`BohriumPage._injectCookies` 注入前先 `AuthService.ensureFreshSession()`（与邮件系统一致）——CASTGC 在 App 运行期间可能已过期，直接注入"死 cookie"会卡在 CAS 登录页；预热后才有新鲜的 cookie 可注入。
+- **CARSI 补全 WebView2 共享环境**：BohriumPage 的 InAppWebView 与 CookieManager 上一轮未接入共享环境（仅 WebViewPage 覆盖）——Windows 上页面环境 + CookieManager 默认环境双环境并发初始化同一 userDataFolder 仍会 native 崩溃；现 InAppWebView 传 `webViewEnvironment: sharedCasEnvironment`、注入改用 `CookieManager.instance(webViewEnvironment:)`，与邮件同方案。
+- **onWebViewReady 超时对齐**：30s → 60s（与 autoRelogin 超时一致），避免 Windows 网络差时 `ensureFreshSession` 预热被超时腰斩、cookie 未注入卡 CAS 登录页。
+
+### 🐛 修复（Windows 字体 · 字重合成与 Cupertino 混排）
+- **字重合成加粗**：微软雅黑仅 400/700 两个真实字重，`FontWeight.w800/w900`（32px 大标题等）在 Windows 被 DirectWrite 合成加粗，渲染发虚/过粗、粗细不均——全局规整 w800/w900 → w700（雅黑真实 Bold，iOS 端 w700≈w800 观感差异可忽略），涉及 ios_kit（设置大标题）、safety_page、erke_page。
+- **Cupertino 组件字体兜底**：GlassScaffold 内部基于 CupertinoPageScaffold，Cupertino 组件默认用平台字体（Windows = Segoe UI）不吃 Material `fontFamily`——新增 `cupertinoOverrideTheme`（CupertinoThemeData.textTheme.textStyle.fontFamily = 微软雅黑），杜绝与周围雅黑混排粗细不一。
+
 ### 🐛 修复（通知公告时间获取）
 - 修复「通知公告（tzgg.htm）列表/详情页时间获取不到」：列表日期 HTML 为 `<div class="date"><p>MM.dd</p><span>yyyy</span></div>`，月日与年分处不同标签，`_extractDate` 旧正则用 `\s*` 连接无法跨越 `</p><span>` 标签，三条正则全部落空返回空；详情页 `发布[日期]` 字符类漏匹配「期」字（`发布日期：`），同样返回空。
 - `ColumnService._extractDate` 新增针对 `class="date"` 结构的精确匹配（`<p>MM.dd</p>` + `<span>yyyy</span>`），并保留宽松兜底；详情页日期正则修正为 `发布日期?`。已用官网真实 HTML 验证：6 条列表全部正确解析为 `yyyy-MM-dd`。

@@ -1,12 +1,17 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
+import '../auth/auth_service.dart';
+import '../core/cas_webview.dart';
 import '../core/http_client.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 import 'bohrium_service.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 /// 玻尔科研平台（yibinu.bohrium.com）内置 WebView 页面
 ///
@@ -45,14 +50,37 @@ class _BohriumPageState extends State<BohriumPage> {
   }
 
   /// 注入 CAS cookie 到 WebView，完成后加载平台首页
+  ///
+  /// ① 会话预热：CASTGC 在 App 运行期间可能已在服务端过期，直接注入
+  ///    "死 cookie" 会卡在 CAS 登录页——先 [AuthService.ensureFreshSession]
+  ///    探测/静默重登刷新（与邮件系统 MailPage 一致）；
+  /// ② Windows 共享 WebView2 环境：页面 InAppWebView 与 CookieManager 必须
+  ///    用同一环境，否则各自创建默认环境并发初始化同一 userDataFolder
+  ///    会 native 崩溃（邮件/CARSI 注入类 WebView 闪退根因）。
   Future<void> _injectCookies() async {
-    final cookieManager = CookieManager.instance();
-    final count = await _service.injectCasCookiesToWebView(cookieManager);
-    if (!mounted) return;
-    setState(() {
-      _cookiesReady = true;
-      _cookieInjectionFailed = count == 0;
-    });
+    try {
+      // 1. 会话预热：确保本地有新鲜的 CASTGC 可注入
+      await AuthService(sharedClient: widget.client).ensureFreshSession();
+      // 2. Windows：先创建页面与注入共用的 WebView2 环境
+      await ensureSharedCasEnvironment();
+
+      final manager = (!kIsWeb && Platform.isWindows && sharedCasEnvironment != null)
+          ? CookieManager.instance(webViewEnvironment: sharedCasEnvironment)
+          : CookieManager.instance();
+      final count = await _service.injectCasCookiesToWebView(manager);
+      if (!mounted) return;
+      setState(() {
+        _cookiesReady = true;
+        _cookieInjectionFailed = count == 0;
+      });
+    } catch (e) {
+      debugPrint('Bohrium._injectCookies error: $e');
+      if (!mounted) return;
+      setState(() {
+        _cookiesReady = true;
+        _cookieInjectionFailed = true;
+      });
+    }
   }
 
   /// 判断当前 URL 是否落在 CAS 登录页（cookie 失效或未登录）
@@ -181,6 +209,11 @@ class _BohriumPageState extends State<BohriumPage> {
         // ── InAppWebView ──
         Expanded(
           child: InAppWebView(
+            // Windows：与 CookieManager 共用同一 WebView2 环境，
+            // 避免双环境并发初始化同一 userDataFolder 崩溃
+            webViewEnvironment: (!kIsWeb && Platform.isWindows)
+                ? sharedCasEnvironment
+                : null,
             initialUrlRequest: URLRequest(url: WebUri(BohriumService.baseUrl)),
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
@@ -340,7 +373,11 @@ class _BohriumPageState extends State<BohriumPage> {
   Future<void> _clearCache() async {
     await InAppWebViewController.clearAllCache(includeDiskFiles: true);
     // 清缓存后重注入 CAS cookie，避免把 SSO 会话也一起清掉
-    final count = await _service.injectCasCookiesToWebView(CookieManager.instance());
+    // （Windows 绑定共享环境，与页面一致）
+    final manager = (!kIsWeb && Platform.isWindows && sharedCasEnvironment != null)
+        ? CookieManager.instance(webViewEnvironment: sharedCasEnvironment)
+        : CookieManager.instance();
+    final count = await _service.injectCasCookiesToWebView(manager);
     _controller?.reload();
     if (mounted) {
       _showSnackBar(count > 0 ? '缓存已清除' : '缓存已清除（未找到统一认证会话）');

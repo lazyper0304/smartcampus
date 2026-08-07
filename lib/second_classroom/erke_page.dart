@@ -256,7 +256,7 @@ class _ErkePageState extends State<ErkePage> {
                             Text(d.totalScore.toStringAsFixed(1),
                                 style: TextStyle(
                                     fontSize: 26,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                     color: accent)),
                             const SizedBox(height: 2),
                             Text('第二课堂学分',
@@ -275,7 +275,7 @@ class _ErkePageState extends State<ErkePage> {
                             Text('${d.items.length}',
                                 style: TextStyle(
                                     fontSize: 26,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                     color: accent)),
                             const SizedBox(height: 2),
                             Text('活动记录',
