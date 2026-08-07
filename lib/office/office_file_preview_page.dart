@@ -6,8 +6,8 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart'
     show GlassStatusBarStyle;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 
+import '../core/open_file.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 
@@ -36,8 +36,6 @@ class OfficeFilePreviewPage extends StatefulWidget {
 }
 
 class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
-  static const _channel = MethodChannel('com.smartcampus.smartcampus/file');
-
   bool _isPdf = false;
   String _ext = '';
 
@@ -202,23 +200,10 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
     }
   }
 
-  /// 通过原生 FileProvider 把本地文件安全地交给其它应用打开。
-  /// 必须走 MethodChannel：Android 7+ 禁止用 file:// 直接暴露给外部应用
-  /// （FileUriExposedException），原生侧会用 content:// + 授权临时解决。
-  Future<void> _openFileWithSystem(String path) async {
-    try {
-      await _channel.invokeMethod<bool>('openFile', {'path': path});
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      final msg = switch (e.code) {
-        'NO_APP' => '未找到可打开该文件的应用（建议安装 WPS）',
-        'NO_FILE' => '文件不存在或已失效',
-        _ => '无法打开文件：${e.message ?? e.code}',
-      };
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-    }
-  }
+  /// 通过系统默认应用打开本地文件（平台分发见 core/open_file.dart：
+  /// Android 走 FileProvider content://，桌面端走 file:// + ShellExecute）
+  Future<void> _openFileWithSystem(String path) =>
+      openFileWithSystem(context, path);
 
   Future<void> _openExternal() async {
     if (_localPath != null) await _openFileWithSystem(_localPath!);

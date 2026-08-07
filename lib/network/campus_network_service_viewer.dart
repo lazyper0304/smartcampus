@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/open_file.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import 'campus_network_service_service.dart';
@@ -33,8 +33,6 @@ class CampusNetworkAttachmentPage extends StatefulWidget {
 
 class _CampusNetworkAttachmentPageState
     extends State<CampusNetworkAttachmentPage> {
-  static const _channel = MethodChannel('com.smartcampus.smartcampus/file');
-
   String? _localPath;
   String? _error;
   bool _isPdf = false;
@@ -120,18 +118,7 @@ class _CampusNetworkAttachmentPageState
 
   Future<void> _openWithSystem() async {
     if (_localPath == null) return;
-    try {
-      await _channel.invokeMethod<bool>('openFile', {'path': _localPath});
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      final msg = switch (e.code) {
-        'NO_APP' => '未找到可打开该文件的应用（建议安装 WPS）',
-        'NO_FILE' => '文件不存在或已失效',
-        _ => '无法打开文件：${e.message ?? e.code}',
-      };
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-    }
+    await openFileWithSystem(context, _localPath!);
   }
 
   @override

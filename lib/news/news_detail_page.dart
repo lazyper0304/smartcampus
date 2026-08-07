@@ -60,24 +60,24 @@ class NewsDetailPage extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: InteractiveViewer(
-                      child: CachedNetworkImage(
-                        imageUrl: block.data,
-                        fit: BoxFit.contain,
-                        placeholder: (_, __) => Container(
-                          height: 200,
-                          color: Colors.grey.shade100,
-                          child: const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
+                    // 图片纯展示：移除 InteractiveViewer 缩放层——
+                    // Windows 鼠标滚轮在图片上会缩放图片而非滚动页面（误触）
+                    child: CachedNetworkImage(
+                      imageUrl: block.data,
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => Container(
+                        height: 200,
+                        color: Colors.grey.shade100,
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                        errorWidget: (_, __, ___) => Container(
-                          height: 180,
-                          color: Colors.grey.shade100,
-                          child: const Center(
-                            child: Icon(Icons.broken_image,
-                                size: 48, color: Colors.grey),
-                          ),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        height: 180,
+                        color: Colors.grey.shade100,
+                        child: const Center(
+                          child: Icon(Icons.broken_image,
+                              size: 48, color: Colors.grey),
                         ),
                       ),
                     ),

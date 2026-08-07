@@ -37,6 +37,12 @@
 - **CARSI 补全 WebView2 共享环境**：BohriumPage 的 InAppWebView 与 CookieManager 上一轮未接入共享环境（仅 WebViewPage 覆盖）——Windows 上页面环境 + CookieManager 默认环境双环境并发初始化同一 userDataFolder 仍会 native 崩溃；现 InAppWebView 传 `webViewEnvironment: sharedCasEnvironment`、注入改用 `CookieManager.instance(webViewEnvironment:)`，与邮件同方案。
 - **onWebViewReady 超时对齐**：30s → 60s（与 autoRelogin 超时一致），避免 Windows 网络差时 `ensureFreshSession` 预热被超时腰斩、cookie 未注入卡 CAS 登录页。
 
+### 🐛 修复（Windows 附件打开 · MissingPluginException）
+- **Windows 下载附件后"打开文件"失败**：`openFile` MethodChannel 只在 Android 有原生实现（FileProvider），Windows 直接 MissingPluginException。新增 `lib/core/open_file.dart` 平台分发：Android 保留 MethodChannel（content:// + 授权），**Windows/桌面走 `url_launcher` 打开 `file://` URI（ShellExecute 唤起系统默认关联程序，支持 doc/xlsx/pdf/zip/图片）**；office 预览、校园网服务附件、通知公告 PDF 三个入口统一接入。
+
+### 🎯 优化（资讯详情页图片）
+- **移除资讯详情页图片缩放层**：`NewsDetailPage` 正文图片不再用 `InteractiveViewer` 包裹（Windows 鼠标滚轮在图片上会缩放图片而非滚动页面，误触体验差）——图片改为纯展示，滚轮直接滚动页面。
+
 ### 🐛 修复（Windows 字体 · 字重合成与 Cupertino 混排）
 - **字重合成加粗**：微软雅黑仅 400/700 两个真实字重，`FontWeight.w800/w900`（32px 大标题等）在 Windows 被 DirectWrite 合成加粗，渲染发虚/过粗、粗细不均——全局规整 w800/w900 → w700（雅黑真实 Bold，iOS 端 w700≈w800 观感差异可忽略），涉及 ios_kit（设置大标题）、safety_page、erke_page。
 - **Cupertino 组件字体兜底**：GlassScaffold 内部基于 CupertinoPageScaffold，Cupertino 组件默认用平台字体（Windows = Segoe UI）不吃 Material `fontFamily`——新增 `cupertinoOverrideTheme`（CupertinoThemeData.textTheme.textStyle.fontFamily = 微软雅黑），杜绝与周围雅黑混排粗细不一。
