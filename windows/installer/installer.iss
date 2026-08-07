@@ -57,15 +57,16 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  DownloadedFile: String;
 begin
   Result := '';
   if not IsWebView2Installed then
   begin
-    if not DownloadTemporaryFile(
+    // ⚠️ Inno Setup 6.7 的 DownloadTemporaryFile 签名为
+    // (Url, BaseName, RequiredSHA256OfFile, OnDownloadProgress): Int64
+    // （返回下载文件大小，失败为 0；SHA 传空跳过校验、进度回调传 nil）
+    if DownloadTemporaryFile(
         'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
-        'MicrosoftEdgeWebview2Setup.exe', '', DownloadedFile) then
+        'MicrosoftEdgeWebview2Setup.exe', '', nil) = 0 then
       Result := '下载 WebView2 运行时失败。请安装 Microsoft Edge WebView2 后重新启动应用：' +
         'https://developer.microsoft.com/microsoft-edge/webview2/';
   end;
