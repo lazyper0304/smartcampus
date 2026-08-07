@@ -144,7 +144,7 @@ Widget appTileGlass({
             : Colors.white.withValues(alpha: 0.45),
       ),
     ),
-    child: Icon(icon, size: size * 0.42, color: iconColor),
+    child: Icon(icon, size: (size * 0.52).clamp(20.0, 32.0), color: iconColor),
   );
 }
 
@@ -698,9 +698,10 @@ class _QuickAppTile extends StatelessWidget {
         final active = hovered || focused;
         return LayoutBuilder(
           builder: (context, c) {
-            // 玻璃方块随卡片宽度自适应（约 45%）：大屏卡片更大时图标同步
-            // 放大，窄屏小卡片同步缩小，避免固定 56 导致的"大卡片小图标"。
-            final tileSize = c.maxWidth * 0.45;
+            // 玻璃方块随卡片宽度自适应（约 55%）：大屏卡片更大时图标同步
+            // 放大，窄屏小卡片同步缩小；55% 保证手机 4 列下方块仍够大
+            //（83px 卡片 → 46px 方块），图标保底 20px 不再过小。
+            final tileSize = c.maxWidth * 0.55;
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

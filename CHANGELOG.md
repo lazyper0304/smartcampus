@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🐛 修复
+- **宫格图标「偏左」+「课表卡片消失」同源修复（Clickable Stack 约束）**：`Clickable`（lib/core/input_adaptation.dart）内部 `Stack` 默认 `topStart` 对齐 + `StackFit.loose` 会把父 tight 约束变 loose——宫格 Column 收缩到内容宽度后被顶到左上（图标偏左，适配后引入 Clickable 的回归）；上一轮改用 `StackFit.expand` 又引入新 bug：expand 用 `constraints.biggest` 生成 tight，在高度无界容器（ListView 内 Column(stretch) 的卡片）里把 ∞ 高度 tight 化 → 布局爆炸「课表卡片消失」。**终版修复：`alignment: Alignment.center` + 保持默认 `StackFit.loose`**（居中但不强制尺寸）——widget test 验证图标居中偏移 = 0、无界高度卡片高度正常 56px 不消失。
+- **手机宫格列数与图标过小**：`appGridColumns` 4 列断点 520 → **260**（覆盖含 320 老机所有手机，3 列仅留 < 260）；`appTileGlass` 图标 `size×0.42` → `(size×0.52).clamp(20, 32)`（手机 4 列 15.8px → 20-26px ≈ 适配前 24）；图标方块比例 0.45 → 0.55。
+
 ## [1.1.7] - 2026-08-04
 
 ### ✨ 新增

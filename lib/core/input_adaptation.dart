@@ -89,7 +89,16 @@ class _ClickableState extends State<Clickable> {
       child: GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
+        // ⚠️ 约束处理两个坑（勿改）：
+        // ① fit 保持默认 loose + alignment: center——Stack 默认 topStart 会把
+        // loose 约束下收缩的内容（宫格 Column）顶到左上 → "图标偏左"（适配后
+        // Clickable 引入的回归）；
+        // ② 禁 StackFit.expand：expand 用 constraints.biggest 生成 tight，
+        // 在高度无界容器（ListView 内 Column(stretch) 的卡片）里把 ∞ 高度
+        // tight 化 → 布局爆炸、"课表卡片消失"。
         child: Stack(
+          alignment: Alignment.center,
+          fit: StackFit.loose,
           children: [
             content,
             // 默认悬停/焦点高亮层（桌面键盘导航可见焦点位置；

@@ -46,7 +46,10 @@ double bottomBarSafePadding(BuildContext context) =>
 int appGridColumns(double availableWidth) {
   if (availableWidth >= 1080) return 8;
   if (availableWidth >= 760) return 6;
-  if (availableWidth >= 520) return 4;
+  // 手机一律一排四列（用户明确要求）：可用宽度 ≥ 260 即 4 列——
+  // 覆盖所有屏宽 ≥ 292 的手机（含 320 老机型，扣除 32 padding 后
+  // 可用 288 仍落入 4 列档）；3 列仅留给极端窄屏（< 260，分屏/小窗）。
+  if (availableWidth >= 260) return 4;
   return 3;
 }
 
