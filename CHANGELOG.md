@@ -37,6 +37,9 @@
 - **CARSI 补全 WebView2 共享环境**：BohriumPage 的 InAppWebView 与 CookieManager 上一轮未接入共享环境（仅 WebViewPage 覆盖）——Windows 上页面环境 + CookieManager 默认环境双环境并发初始化同一 userDataFolder 仍会 native 崩溃；现 InAppWebView 传 `webViewEnvironment: sharedCasEnvironment`、注入改用 `CookieManager.instance(webViewEnvironment:)`，与邮件同方案。
 - **onWebViewReady 超时对齐**：30s → 60s（与 autoRelogin 超时一致），避免 Windows 网络差时 `ensureFreshSession` 预热被超时腰斩、cookie 未注入卡 CAS 登录页。
 
+### 🐛 修复（PDF 预览跨平台 · flutter_pdfview 不支持 Windows）
+- **Windows 打开 PDF 附件报 `TargetPlatform.windows is not yet supported`**：flutter_pdfview 仅支持 Android/iOS。新增 `lib/core/platform_pdf_view.dart` 跨平台组件——Android/iOS 保留应用内 PDFView 渲染（翻页/缩放），**Windows 等桌面端显示引导占位 +「用系统应用打开」按钮（复用 openFileWithSystem，ShellExecute 唤起系统默认 PDF 查看器）**。接入：office 文件预览、通知公告附件、校园网服务附件、校历详情 4 处。
+
 ### 🐛 修复（Windows 附件打开 · MissingPluginException）
 - **Windows 下载附件后"打开文件"失败**：`openFile` MethodChannel 只在 Android 有原生实现（FileProvider），Windows 直接 MissingPluginException。新增 `lib/core/open_file.dart` 平台分发：Android 保留 MethodChannel（content:// + 授权），**Windows/桌面走 `url_launcher` 打开 `file://` URI（ShellExecute 唤起系统默认关联程序，支持 doc/xlsx/pdf/zip/图片）**；office 预览、校园网服务附件、通知公告 PDF 三个入口统一接入。
 

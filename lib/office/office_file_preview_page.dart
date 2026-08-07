@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart' show FitPolicy;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart'
     show GlassStatusBarStyle;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/open_file.dart';
+import '../core/platform_pdf_view.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 
@@ -236,12 +237,8 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
     if (_error != null) return _buildError();
     if (_isPdf) {
       if (_localPath != null) {
-        return PDFView(
+        return PlatformPdfView(
           filePath: _localPath!,
-          enableSwipe: true,
-          swipeHorizontal: false,
-          autoSpacing: true,
-          pageFling: true,
           pageSnap: true,
           fitPolicy: FitPolicy.BOTH,
           onError: (e) => setState(() => _error = e.toString()),

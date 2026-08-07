@@ -1,14 +1,13 @@
 import 'dart:io';
 import '../core/liquid_background.dart';
-import '../core/responsive.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 
 import 'calendar.dart';
 import 'calendar_service.dart';
 import '../core/navigation.dart';
+import '../core/platform_pdf_view.dart';
 import '../core/theme_utils.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -433,15 +432,9 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
             _detail!.pdfFilePath != null
                 ? SizedBox(
                     height: 500,
-                    child: PDFView(
+                    child: PlatformPdfView(
                       filePath: _detail!.pdfFilePath!,
-                      enableSwipe: true,
-                      swipeHorizontal: false,
-                      autoSpacing: true,
-                      pageFling: true,
-                      onError: (e) => Center(
-                        child: Text('PDF 加载失败: $e'),
-                      ),
+                      onError: (e) => debugPrint('PDF 加载失败: $e'),
                     ),
                   )
                 : Container(

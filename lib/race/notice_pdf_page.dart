@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart' show FitPolicy;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/http_client.dart';
 import '../core/open_file.dart';
+import '../core/platform_pdf_view.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import 'race_service.dart';
@@ -197,12 +198,8 @@ class _NoticePdfPageState extends State<NoticePdfPage> {
     }
 
     if (_localPath != null) {
-      return PDFView(
+      return PlatformPdfView(
         filePath: _localPath!,
-        enableSwipe: true,
-        swipeHorizontal: false,
-        autoSpacing: true,
-        pageFling: true,
         pageSnap: true,
         fitPolicy: FitPolicy.BOTH,
         onError: (e) => setState(() => _error = e.toString()),
