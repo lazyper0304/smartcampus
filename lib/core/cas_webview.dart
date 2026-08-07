@@ -5,6 +5,29 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide LocalStorag
 
 import 'http_client.dart';
 
+/// Windows 上页面与 CookieManager 共享的全局 WebView2 环境。
+///
+/// ⚠️ 竞态根因：InAppWebView 页面默认用 `CreateCoreWebView2EnvironmentWithOptions`
+/// 创建**独立环境**，而 `CookieManager.instance()`（无环境参数）会触发
+/// `createOrGetDefaultWebViewEnvironment` 创建**另一个默认环境**——两个环境
+/// 共用同一 userDataFolder 并发初始化 → native 崩溃（邮件/CARSI 注入类
+/// WebView 闪退，普通 WebView 单环境正常）。
+/// 解法：页面创建环境后存为全局共享，注入时用同一环境实例化 CookieManager。
+WebViewEnvironment? _sharedCasEnv;
+
+/// Windows 上创建/获取全局共享 WebView2 环境（幂等，非 Windows 返回 null）。
+Future<WebViewEnvironment?> ensureSharedCasEnvironment() async {
+  if (!kIsWeb && Platform.isWindows) {
+    _sharedCasEnv ??= await WebViewEnvironment.create();
+    return _sharedCasEnv;
+  }
+  return null;
+}
+
+/// 当前共享环境（Windows 注入时用 [CookieManager.instance(webViewEnvironment:)]
+/// 绑定同一环境，避免创建第二个默认环境）。
+WebViewEnvironment? get sharedCasEnvironment => _sharedCasEnv;
+
 /// 统一认证（CAS）cookie 与 WebView 的公共注入工具
 ///
 /// 邮件系统（phpCAS 2.0）、CARSI（Shibboleth IdP 复用校内 CAS 会话）等
@@ -27,16 +50,12 @@ Future<int> injectCasCookiesToWebView(
   SharedHttpClient client,
   CookieManager cookieManager,
 ) async {
-  // ⚠️ Windows 防御：跳过 CookieManager 注入。flutter_inappwebview_windows
-  // 在 WebView 刚创建（onWebViewCreated）时调用 CookieManager 会与默认
-  // WebView2 环境并发初始化产生竞态，邮件/CARSI 实测闪退。
-  // 降级：WebView 自然加载 → 首次落到 CAS 登录页手动登录一次，
-  // WebView2 持久化 cookie 后续免登。
-  if (!kIsWeb && Platform.isWindows) {
-    debugPrint('CasWebview: Windows 跳过 cookie 注入（防 WebView2 竞态崩溃）');
-    return 0;
-  }
   try {
+    // Windows：改用与页面共享的 WebView2 环境实例化 CookieManager
+    // （避免创建第二个默认环境导致 userDataFolder 冲突崩溃）
+    final manager = (!kIsWeb && Platform.isWindows && sharedCasEnvironment != null)
+        ? CookieManager.instance(webViewEnvironment: sharedCasEnvironment)
+        : cookieManager;
     final allCookies = client.getAllCookies();
     debugPrint('CasWebview: client cookie buckets = ${allCookies.keys.toList()}');
 
@@ -57,7 +76,7 @@ Future<int> injectCasCookiesToWebView(
       total++;
       if (name.isEmpty || value.contains(';')) return;
       try {
-        cookieManager.setCookie(
+        manager.setCookie(
           url: WebUri(url),
           name: name,
           value: value,

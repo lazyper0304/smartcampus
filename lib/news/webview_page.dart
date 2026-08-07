@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../core/cas_webview.dart';
 import '../core/crash_log.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
@@ -48,10 +52,29 @@ class _WebViewPageState extends State<WebViewPage> {
   /// Windows 上 WebView2 Runtime 可用性（缺失时显示引导页，避免 native 闪退）
   bool _webView2Ok = true;
 
+  /// Windows 上页面与 CookieManager 共享的 WebView2 环境
+  /// （避免页面环境 + CookieManager 默认环境同 userDataFolder 并发崩溃）
+  WebViewEnvironment? _env;
+
   @override
   void initState() {
     super.initState();
     _checkWebView2();
+    if (!kIsWeb && Platform.isWindows) _initSharedEnv();
+  }
+
+  /// Windows：创建/获取全局共享 WebView2 环境（注入类页面必需）
+  Future<void> _initSharedEnv() async {
+    try {
+      final env = await ensureSharedCasEnvironment();
+      if (!mounted) return;
+      setState(() => _env = env);
+    } catch (e) {
+      CrashLog.write('WebViewPage WebViewEnvironment.create error: $e');
+      if (!mounted) return;
+      // 环境创建失败 → 引导页兜底（不创建无环境 WebView）
+      setState(() => _webView2Ok = false);
+    }
   }
 
   Future<void> _checkWebView2() async {
@@ -168,7 +191,13 @@ class _WebViewPageState extends State<WebViewPage> {
 
   /// WebView2 Runtime 缺失时的引导页（替代 native 崩溃闪退）
   Widget _buildWebView() {
+    // Windows：环境创建完成前先不建 WebView（短暂空白），
+    // 创建完成后 setState 重建；失败已由 _initSharedEnv 转引导页
+    if (!kIsWeb && Platform.isWindows && _env == null) {
+      return const SizedBox.shrink();
+    }
     return InAppWebView(
+          webViewEnvironment: !kIsWeb && Platform.isWindows ? _env : null,
           onWebViewCreated: (controller) async {
             _controller = controller;
             // 可选的预加载回调（如注入 SSO cookie），完成后手动加载初始 URL，
