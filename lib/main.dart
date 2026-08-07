@@ -8,6 +8,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'auth/auth_service.dart';
 import 'auth/login_page.dart';
 import 'core/guest_mode.dart';
+import 'core/crash_log.dart';
 import 'core/http_client.dart';
 import 'core/input_adaptation.dart';
 import 'core/liquid_background.dart';
@@ -49,62 +50,69 @@ Color hexToColor(String hex, [Color fallback = _yibinBlue]) {
   }
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await LiquidGlassWidgets.initialize();
+void main() {
+  // 全局异常捕获（含未捕获异步错误）→ 写入本地 crash.log，
+  // 便于排查桌面端闪退（Windows: %APPDATA%\smartcampus\logs\crash.log）
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await CrashLog.init();
+    await LiquidGlassWidgets.initialize();
 
-  // 加载保存的主题模式
-  final saved = await LocalStorage.getString('theme_mode');
-  final initialMode = ThemeMode.values.firstWhere(
-    (e) => e.name == saved,
-    orElse: () => ThemeMode.system,
-  );
+    // 加载保存的主题模式
+    final saved = await LocalStorage.getString('theme_mode');
+    final initialMode = ThemeMode.values.firstWhere(
+      (e) => e.name == saved,
+      orElse: () => ThemeMode.system,
+    );
 
-  // 加载保存的背景图片路径
-  final savedBg = await LocalStorage.getString('background_image');
-  if (savedBg != null && savedBg.isNotEmpty) {
-    backgroundNotifier.value = savedBg;
-  }
+    // 加载保存的背景图片路径
+    final savedBg = await LocalStorage.getString('background_image');
+    if (savedBg != null && savedBg.isNotEmpty) {
+      backgroundNotifier.value = savedBg;
+    }
 
-  // 加载保存的主题颜色
-  final savedColor = await LocalStorage.getString('accent_color');
-  if (savedColor != null && savedColor.isNotEmpty) {
-    accentColorNotifier.value = hexToColor(savedColor);
-  }
+    // 加载保存的主题颜色
+    final savedColor = await LocalStorage.getString('accent_color');
+    if (savedColor != null && savedColor.isNotEmpty) {
+      accentColorNotifier.value = hexToColor(savedColor);
+    }
 
-  runApp(LiquidGlassWidgets.wrap(
-    child: SmartCampusApp(
-      initialThemeMode: initialMode,
-    ),
-    // 0.29.1 起 MaterialApp 用户必须提供：修复深色系统 + 浅色应用时玻璃阴影丢失
-    brightnessResolver: Theme.maybeBrightnessOf,
-    theme: GlassThemeData(
-      // ⚠️ 质量必须用 standard：premium 在 ListView/CustomScrollView 内
-      // 于 Impeller 上可能渲染错误（整页白屏）。standard 是官方推荐默认，
-      // 滚动内容安全；导航栏/底部栏由 GlassScaffold 的 GlassIsolationScope
-      // 自动提升为 premium，无需担心观感下降。
-      light: GlassThemeVariant(
-        settings: GlassThemeSettings(thickness: 32, blur: 14),
-        quality: GlassQuality.standard,
-        glowColors: GlassGlowColors(
-          primary: Colors.white,
-          glowBlurRadius: 32,
-          glowSpreadRadius: 0.8,
-          glowOpacity: 0.6,
+    runApp(LiquidGlassWidgets.wrap(
+      child: SmartCampusApp(
+        initialThemeMode: initialMode,
+      ),
+      // 0.29.1 起 MaterialApp 用户必须提供：修复深色系统 + 浅色应用时玻璃阴影丢失
+      brightnessResolver: Theme.maybeBrightnessOf,
+      theme: GlassThemeData(
+        // ⚠️ 质量必须用 standard：premium 在 ListView/CustomScrollView 内
+        // 于 Impeller 上可能渲染错误（整页白屏）。standard 是官方推荐默认，
+        // 滚动内容安全；导航栏/底部栏由 GlassScaffold 的 GlassIsolationScope
+        // 自动提升为 premium，无需担心观感下降。
+        light: GlassThemeVariant(
+          settings: GlassThemeSettings(thickness: 32, blur: 14),
+          quality: GlassQuality.standard,
+          glowColors: GlassGlowColors(
+            primary: Colors.white,
+            glowBlurRadius: 32,
+            glowSpreadRadius: 0.8,
+            glowOpacity: 0.6,
+          ),
+        ),
+        dark: GlassThemeVariant(
+          settings: GlassThemeSettings(thickness: 32, blur: 14),
+          quality: GlassQuality.standard,
+          glowColors: GlassGlowColors(
+            primary: Colors.white,
+            glowBlurRadius: 24,
+            glowSpreadRadius: 0.6,
+            glowOpacity: 0.4,
+          ),
         ),
       ),
-      dark: GlassThemeVariant(
-        settings: GlassThemeSettings(thickness: 32, blur: 14),
-        quality: GlassQuality.standard,
-        glowColors: GlassGlowColors(
-          primary: Colors.white,
-          glowBlurRadius: 24,
-          glowSpreadRadius: 0.6,
-          glowOpacity: 0.4,
-        ),
-      ),
-    ),
-  ));
+    ));
+  }, (error, stack) {
+    CrashLog.write('UNCAUGHT_ZONE_ERROR: $error\n$stack');
+  });
 }
 
 class SmartCampusApp extends StatefulWidget {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/crash_log.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import '../core/webview2_check.dart';
@@ -55,6 +56,8 @@ class _WebViewPageState extends State<WebViewPage> {
 
   Future<void> _checkWebView2() async {
     final ok = await WebView2Check.available();
+    CrashLog.write(
+        'WebViewPage 打开 ${widget.title} → WebView2 可用: $ok (url: ${widget.url})');
     if (!mounted) return;
     setState(() => _webView2Ok = ok);
   }
