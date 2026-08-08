@@ -112,12 +112,19 @@ LiquidRoundedSuperellipse iosSquircle([double radius = kIosCardRadius]) =>
 /// 宫格入口静态玻璃方块（应用网格 / 首页常用功能共用）：
 /// ⚠️ 替代 GlassButton——shader 组件在 GLES 设备不渲染，且网格 30+ 个
 /// 同时渲染会掉帧/耗电；圆角矩形 + 半透明渐变 + 白描边，与内容卡片同款。
+///
+/// [iconScale] / [iconMin] / [iconMax]：图标相对方块尺寸的比例与
+/// 上下限（默认 0.56 / 22 / 36，2026-08-08 应要求统一放大；
+/// 原 0.52 / 20 / 32 为 2026-08-07 大屏适配基准值，见 MEMORY.md）。
 Widget appTileGlass({
   required BuildContext context,
   required IconData icon,
   required Color iconColor,
   double size = 58,
   double radius = 16,
+  double iconScale = 0.56,
+  double iconMin = 22,
+  double iconMax = 36,
 }) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
@@ -144,7 +151,8 @@ Widget appTileGlass({
             : Colors.white.withValues(alpha: 0.45),
       ),
     ),
-    child: Icon(icon, size: (size * 0.52).clamp(20.0, 32.0), color: iconColor),
+    child: Icon(icon,
+        size: (size * iconScale).clamp(iconMin, iconMax), color: iconColor),
   );
 }
 
@@ -698,10 +706,10 @@ class _QuickAppTile extends StatelessWidget {
         final active = hovered || focused;
         return LayoutBuilder(
           builder: (context, c) {
-            // 玻璃方块随卡片宽度自适应（约 55%）：大屏卡片更大时图标同步
-            // 放大，窄屏小卡片同步缩小；55% 保证手机 4 列下方块仍够大
-            //（83px 卡片 → 46px 方块），图标保底 20px 不再过小。
-            final tileSize = c.maxWidth * 0.55;
+            // 玻璃方块随卡片宽度自适应（约 60%）：大屏卡片更大时图标同步
+            // 放大，窄屏小卡片同步缩小；60% 保证手机 4 列下方块仍够大
+            //（83px 卡片 → 50px 方块），图标保底 22px 不再过小。
+            final tileSize = c.maxWidth * 0.60;
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

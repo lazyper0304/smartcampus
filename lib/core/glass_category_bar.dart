@@ -120,11 +120,31 @@ class GlassCategoryBar extends StatelessWidget {
     );
     final icon = items[i].icon;
     if (icon == null) return label;
+
+    // 图标选中动画：选中时放大 1.18（Transform.scale 不占布局空间，
+    // 避免 IntrinsicHeight/分割线高度跳动）+ 颜色 200ms 平滑过渡。
+    // 未选中恢复 1.0，切换时隐式动画自动播放（应用页分类 tab 与
+    // 二级页分段共用，视觉统一）。
+    Widget animatedIcon(IconData data, double size) {
+      return AnimatedScale(
+        scale: selected ? 1.18 : 1.0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: color),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          builder: (context, c, _) =>
+              Icon(data, size: size, color: c ?? color),
+        ),
+      );
+    }
+
     if (vertical) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: color),
+          animatedIcon(icon, 20),
           const SizedBox(height: 4),
           label,
         ],
@@ -133,7 +153,7 @@ class GlassCategoryBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: color),
+        animatedIcon(icon, 16),
         const SizedBox(width: 4),
         label,
       ],

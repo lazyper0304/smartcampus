@@ -94,22 +94,29 @@ class AuthService {
   ///
   /// 冷启动（SplashPage）已每次真实登录，但 **App 运行期间** authserver 的
   /// TGC（CASTGC）仍可能在服务端过期——本地 cookie 罐里是"死 CASTGC"，
-  /// 直接注入 WebView（邮件 / CARSI 等 SSO 场景）会卡在 CAS 登录页。
+  /// 直接注入 WebView（邮件 / CARSI / 玻尔科研等 SSO 场景）会卡在 CAS 登录页。
   /// 此前只有学科竞赛（scjx2 bootstrap 失败 → autoRelogin）隐式做了刷新，
-  /// 导致"必须先访问学科竞赛，邮件 / CARSI 才能正常进入"的依赖。
+  /// 导致"必须先访问学科竞赛，邮件 / CARSI / 玻尔才能免密进入"的依赖。
+  ///
+  /// ⚠️ 必须探测 **authserver 的 TGC**（[SharedHttpClient.verifyCasTgc]），
+  /// 而不是 ehall 业务会话（[SharedHttpClient.verifySession]）：
+  /// ehall 会话（MOD_AUTH_CAS / JSESSIONID）的存活期通常远长于 TGC，
+  /// 用它代替探测会在 TGC 已死时误判"会话新鲜"→ 跳过重登 → 注入死 CASTGC
+  /// （本缺陷的根因，2026-08-08 修复）。
   ///
   /// 策略：
   /// 1. 本地连 CASTGC 都没有 → autoRelogin 静默重登（有账号密码时）；
-  /// 2. 本地有 CASTGC → [SharedHttpClient.verifySession] 探测（302 = 过期）；
+  /// 2. 本地有 CASTGC → [SharedHttpClient.verifyCasTgc] 直接探测 authserver
+  ///    （302 = SSO 放行即有效；200 登录表单 = TGC 已过期）；
   /// 3. 探测判定过期 / 失败 → autoRelogin 用已存账号密码刷新。
   ///
   /// 返回 true 表示本地已有（或已刷新出）可用会话。
   Future<bool> ensureFreshSession() async {
     if (!client.hasCastgc()) return autoRelogin();
-    // 有本地会话：先探测服务端是否仍有效；探测失败（网络抖动等）按
-    // "有会话"放行，交给 WebView 手动登录兜底，不贸然清 cookie 重登。
+    // 有本地会话：先探测 authserver TGC 是否仍有效；探测异常（网络抖动等）
+    // 按"有会话"放行，交给 WebView 手动登录兜底，不贸然清 cookie 重登。
     try {
-      if (await client.verifySession()) return true;
+      if (await client.verifyCasTgc()) return true;
     } catch (_) {
       return true;
     }

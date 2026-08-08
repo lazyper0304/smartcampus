@@ -9,6 +9,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/responsive.dart';
 import '../core/input_adaptation.dart';
 import '../core/theme_utils.dart';
+import '../core/liquid_background.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
 import '../core/guest_mode.dart';
@@ -84,9 +85,14 @@ class _MainScreenState extends State<MainScreen> {
         specularSharpness: GlassSpecularSharpness.sharp,
         standardOpacityMultiplier: 0.8,
       ),
-      // ⚠️ 自定义背景已提升到全局 builder（main.dart）统一应用（含二级页），
-      // 此处背景透明，让全局背景（图片或液态玻璃）透出。
-      background: const SizedBox.shrink(),
+      // 背景：页面级液态玻璃背景（与登录页 / 二级页一致）。
+      // ⚠️ 此前用 SizedBox.shrink() 完全透明透出全局背景，导致
+      // CupertinoPageRoute 转场期间新路由（本页）透明 → 滑入时直接透出
+      // 下层路由（登录页 / SplashPage 的表单与文字），视觉上"一段透明"。
+      // 页面级 LiquidBackground：无自定义背景图时渲染同主题渐变+气泡
+      // （不透明，转场不再透出下层）；有自定义背景图时内部自动透明、
+      // 透出 main.dart 全局背景图（与自定义背景行为保持一致）。
+      background: const LiquidBackground(),
       statusBarStyle: GlassStatusBarStyle.auto,
       contentAwareBrightness: true,
       // ⚠️ 0.26.0+ GlassScaffold 内部是 CupertinoPageScaffold，不提供
@@ -579,8 +585,17 @@ class _AppsPageState extends State<_AppsPage> {
   }
 
   Widget _buildContent(List<AppEntry> apps) {
+    // ⚠️ key 必须挂在 AnimatedSwitcher 直接 child（本方法返回值）上：
+    // 此前 key 藏在内部 GridView（外层 LayoutBuilder 无 key），
+    // AnimatedSwitcher 用 Widget.canUpdate(runtimeType+key) 对比，
+    // LayoutBuilder 同类型同 key → 判定"同一 widget"→ 切换分类时
+    // 不播放入场动画（"应用网格切换没有动画"根因）。key 随 tab 变化
+    // 后新旧 child 不同 → 触发 200ms 滑入+淡入；搜索时 tab 不变、
+    // key 不变 → 网格原地更新不动画（与注释意图一致）。
+    final contentKey = ValueKey('tab_$_tabIndex');
     if (apps.isEmpty) {
       return Padding(
+        key: contentKey,
         padding: const EdgeInsets.only(top: 40),
         child: Center(
           child: Column(
@@ -601,10 +616,10 @@ class _AppsPageState extends State<_AppsPage> {
     // 列数按**实际渲染宽度**自适应（LayoutBuilder 约束，受外层
     // MaxWidthContent(1200) 限宽），大屏（平板/桌面）自动 3→4→6→8 列。
     return LayoutBuilder(
+      key: contentKey,
       builder: (context, c) {
         final cols = appGridColumns(c.maxWidth);
         return GridView.builder(
-          key: ValueKey('tab_$_tabIndex'),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -717,9 +732,10 @@ class _AppsPageState extends State<_AppsPage> {
           children: [
             LayoutBuilder(
               builder: (context, c) {
-                // 玻璃方块随卡片宽度自适应（约 55%）：大屏 6/8 列大卡片
-                // 图标同步放大，手机 4 列小卡片同步缩小但保底不显得太小
-                final tileSize = c.maxWidth * 0.55;
+                // 玻璃方块随卡片宽度自适应（约 60%，与应用网格/首页常用
+                // 功能统一）：大屏 6/8 列大卡片图标同步放大，手机 4 列
+                // 小卡片同步缩小但保底不显得太小
+                final tileSize = c.maxWidth * 0.60;
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

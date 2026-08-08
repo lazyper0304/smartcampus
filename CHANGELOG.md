@@ -2,7 +2,18 @@
 
 ## [Unreleased]
 
+### 🎯 优化
+- **widget_test 修复过时断言**：启动页 smoke test 原断言旧登录页文案（'宜宾学院'/'智慧校园登录'），登录页 UI 已更新为'宜院宾果'后恒失败——改为断言当前 SplashPage 品牌与加载文案，并在测试内推进时间结算 SplashPage 的 800ms 延迟（测试环境无凭据 → autoRelogin 立即返回 → 进入登录页，无残留 Timer）。
+
+### 🎨 UI 优化
+- **应用网格与首页常用功能图标统一放大**：宫格图标链路整体上调——方块占卡片宽 **0.55 → 0.60**，`appTileGlass` 图标 `(方块×0.52).clamp(20,32)` → **`(方块×0.56).clamp(22,36)`**（应用网格 `_buildAppCard` 与首页 `_QuickAppTile` 同步，两处视觉统一）。手机 4 列图标约 +3~4px（约 15%）、平板/桌面 8 列 +4px（约 12%），方块 0.60 下卡片内垂直空间仍充足（不溢出）。
+- **应用页分类切换网格动画修复（图标卡片切换无动画根因）**：`_AppsPage._buildContent` 的 key 原先挂在内部 `GridView`（外层 `LayoutBuilder` 无 key），而 `AnimatedSwitcher` 用 `Widget.canUpdate(runtimeType+key)` 对比 child——同类型同 key 判定为"同一 widget"，切换分类时不播放入场动画（网格瞬间替换）。**修复：key 上移到 `_buildContent` 返回值（`LayoutBuilder`/空状态 `Padding` 均加 `ValueKey('tab_$_tabIndex')`）**——切换 tab 触发 200ms 新网格从右滑入 + 淡入（`reverseDuration: Duration.zero` 旧网格立即移除减半负载）；搜索时 tab 不变、key 不变 → 网格原地更新不动画（与注释意图一致）。
+- **应用页分类切换图标动画**：`GlassCategoryBar` 分类项图标由静态切换改为选中动画——选中项图标 `AnimatedScale` 放大 1.18（220ms easeOutCubic）+ 颜色 200ms 平滑过渡（`TweenAnimationBuilder`）。缩放用 `Transform.scale` 不占布局空间，`IntrinsicHeight`/分割线高度不跳动；应用页分类 tab（vertical）与二级页分段（横排）统一生效。
+
 ### 🐛 修复
+- **LiquidBackground 页面级计数在 build 期间通知监听者**：`initState` 同步 `pageBgCount.value++`（ValueNotifier），而全局垫底层（main.dart builder）的 `ValueListenableBuilder(pageBgCount)` 可能正处 build 阶段 → 触发 "setState() called during build"（widget_test 启动页挂载即暴露）。**修复：页面级背景计数延后到首帧（addPostFrameCallback）递增**，`_counted` 标志保证 dispose 配对递减（防"一帧内卸载"计数错乱）；视觉行为不变。
+- **登录页 → 首页过渡时"一段透明"**：`MainScreen` 的 `GlassScaffold(background: SizedBox.shrink())` + 首页/应用页透明 Scaffold 使整个主界面路由完全透明（依赖 Navigator 之外的全局背景）。CupertinoPageRoute 右滑转场期间新路由（主界面）滑入时透明区域直接透出下层路由——用户透过首页看到登录页表单/启动页文字（"一段透明"），转场完成才切到全局背景。**修复：`MainScreen` 背景改为页面级 `LiquidBackground()`**（与登录页/二级页一致）：无自定义背景图时渲染同主题渐变+气泡（不透明，转场不再透出下层）；有自定义背景图时组件内部自动透明、继续透出全局背景图（行为不回归）。
+- **CARSI / 邮件系统 / 玻尔科研"必须先访问学科竞赛才能免密登录"根因修复（SSO 会话探测错位）**：`AuthService.ensureFreshSession` 原先用 `verifySession()` 探测 **ehall 业务会话**（`dqxnxq.do`）判断会话新鲜度，但这三个 SSO WebView 免密登录依赖的是 **authserver 的 TGC（CASTGC）**——App 运行期间 TGC 空闲过期（约 30 分钟）远早于 ehall 会话存活期，导致 TGC 已死时误判"会话新鲜"、跳过自动重登、向 WebView 注入死 CASTGC（卡在 CAS 登录页）；学科竞赛因 scjx2 401 自愈会触发 `autoRelogin()` 完整重登刷新 TGC，故"先进学科竞赛再进其他 SSO 应用"才正常。**修复：新增 `SharedHttpClient.verifyCasTgc()`** 直接探测 authserver（带现有 cookie GET 登录页，302 = SSO 放行即 TGC 有效，200 登录表单 = 已过期），`ensureFreshSession` 改用它；CAS 登录 URL 收敛为公共常量 `kCasLoginUrl`（core/http_client.dart，`CasLoginService.yibinLoginUrl` 引用之，消除两处维护漂移）。
 - **宫格图标「偏左」+「课表卡片消失」同源修复（Clickable Stack 约束）**：`Clickable`（lib/core/input_adaptation.dart）内部 `Stack` 默认 `topStart` 对齐 + `StackFit.loose` 会把父 tight 约束变 loose——宫格 Column 收缩到内容宽度后被顶到左上（图标偏左，适配后引入 Clickable 的回归）；上一轮改用 `StackFit.expand` 又引入新 bug：expand 用 `constraints.biggest` 生成 tight，在高度无界容器（ListView 内 Column(stretch) 的卡片）里把 ∞ 高度 tight 化 → 布局爆炸「课表卡片消失」。**终版修复：`alignment: Alignment.center` + 保持默认 `StackFit.loose`**（居中但不强制尺寸）——widget test 验证图标居中偏移 = 0、无界高度卡片高度正常 56px 不消失。
 - **手机宫格列数与图标过小**：`appGridColumns` 4 列断点 520 → **260**（覆盖含 320 老机所有手机，3 列仅留 < 260）；`appTileGlass` 图标 `size×0.42` → `(size×0.52).clamp(20, 32)`（手机 4 列 15.8px → 20-26px ≈ 适配前 24）；图标方块比例 0.45 → 0.55。
 

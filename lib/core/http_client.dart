@@ -6,6 +6,18 @@ import 'package:flutter/foundation.dart';
 
 import 'local_storage.dart';
 
+/// CAS 统一认证登录 URL（https service）
+///
+/// ⚠️ 必须使用 https service（`service=https://ehall.yibinu.edu.cn:443/login?...`）：
+/// 2026-08-02 实测 http service（`http://ehall.../login`）POST 恒被拒。
+/// 单一来源：`CasLoginService.yibinLoginUrl` 引用本常量，
+/// [SharedHttpClient.verifyCasTgc] 探测 authserver TGC 也用同一 URL，
+/// 避免两处维护漂移。
+const String kCasLoginUrl =
+    'https://authserver.yibinu.edu.cn/authserver/login'
+    '?service=https%3A%2F%2Fehall.yibinu.edu.cn%3A443%2Flogin'
+    '%3Fservice%3Dhttps%3A%2F%2Fehall.yibinu.edu.cn%2Fnew%2Findex.html';
+
 /// 基于 dart:io HttpClient 的共享 HTTP 客户端
 /// Cookie 按域名存储，HTTP/HTTPS 共享同域 cookie（与浏览器行为一致）。
 class SharedHttpClient {
@@ -160,7 +172,47 @@ class SharedHttpClient {
 
   // ==================== 会话验证 ====================
 
-  /// 验证会话是否有效（调用学期 API 检查返回是否为有效 JSON）
+  /// 验证 **authserver 统一认证 TGC（CASTGC）** 是否仍有效
+  ///
+  /// 与 [verifySession]（探测 ehall 业务会话）职责不同：邮件 / CARSI /
+  /// 玻尔科研等 SSO WebView 免密登录依赖的是 authserver 的 TGC，而不是
+  /// ehall 会话。App 运行期间 TGC 空闲过期（Apereo CAS 默认约 30 分钟）
+  /// 通常远早于 ehall 会话（MOD_AUTH_CAS / JSESSIONID 存活更久）——
+  /// 若用 ehall 会话代替 TGC 探测，会在 TGC 已死时误判"会话新鲜"，
+  /// 跳过自动重登，向 WebView 注入"死 CASTGC"→ 卡在 CAS 登录页
+  /// （"必须先访问学科竞赛刷新后，邮件 / CARSI / 玻尔才能免密进入"的根因）。
+  ///
+  /// 探测方式：带本地 cookie（含 CASTGC）GET authserver 登录页
+  /// （[kCasLoginUrl]，noRedirect）：
+  /// - 302 → CAS SSO 放行（TGC 仍有效），跳转到 service；
+  /// - 200 → 返回登录表单（TGC 已过期 / 被服务端拒绝）。
+  ///
+  /// 返回 true = TGC 有效；false = 已过期。**网络/解析异常直接抛出**，
+  /// 由调用方（[AuthService.ensureFreshSession]）决定是否按"有会话"放行，
+  /// 避免网络抖动时贸然清 cookie 重登。
+  Future<bool> verifyCasTgc() async {
+    final uri = Uri.parse(kCasLoginUrl);
+    final req = await _client.getUrl(uri);
+    _setup(req, uri, {
+      'Accept':
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+      'Cache-Control': 'max-age=0',
+      'Upgrade-Insecure-Requests': '1',
+    });
+    req.followRedirects = false;
+    final resp = await req.close().timeout(const Duration(seconds: 15));
+    // 有效 TGC → CAS 直接 302 跳 service；无/死 TGC → 200 登录表单
+    final valid = resp.statusCode == 302;
+    debugPrint('SharedHttpClient.verifyCasTgc: HTTP ${resp.statusCode}'
+        ' → TGC ${valid ? '有效' : '已过期/被拒'}');
+    return valid;
+  }
+
+  /// 验证 ehall 业务会话是否有效（调用学期 API 检查返回是否为有效 JSON）
+  ///
+  /// ⚠️ 探测的是 **ehall 应用会话**（课表等 App 内 API 可用性），
+  /// **不代表 authserver TGC 有效**——SSO WebView 免密场景请用
+  /// [verifyCasTgc]，切勿用本方法代替。
   Future<bool> verifySession() async {
     try {
       final host = 'ehall.yibinu.edu.cn';

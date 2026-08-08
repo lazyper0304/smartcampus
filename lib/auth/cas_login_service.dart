@@ -34,10 +34,9 @@ class CasLoginService {
   /// ⚠️ 必须使用 https service（`service=https://ehall.yibinu.edu.cn:443/login?...`）：
   /// 2026-08-02 实测 http service（`http://ehall.../login`）POST 恒被拒
   /// （200 失败页无提示），https service 经 verify_yibinu.py 验证成功。
-  static const String yibinLoginUrl =
-      'https://authserver.yibinu.edu.cn/authserver/login'
-      '?service=https%3A%2F%2Fehall.yibinu.edu.cn%3A443%2Flogin'
-      '%3Fservice%3Dhttps%3A%2F%2Fehall.yibinu.edu.cn%2Fnew%2Findex.html';
+  /// 定义见 core/http_client.dart 的 [kCasLoginUrl]（与 SSO 会话探测共用，
+  /// 避免两处维护漂移）。
+  static const String yibinLoginUrl = kCasLoginUrl;
 
   final SharedHttpClient client;
 

@@ -53,17 +53,35 @@ class _LiquidBackgroundState extends State<LiquidBackground>
     with WidgetsBindingObserver {
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
+  /// 页面级背景计数是否已递增（postFrame 延后递增，dispose 用此标志
+  /// 配对递减，避免"挂载后一帧内卸载"导致计数错乱）
+  bool _counted = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (!widget.isGlobal) pageBgCount.value++;
+    if (!widget.isGlobal) {
+      // ⚠️ 不能同步递增：initState 执行时全局垫底层（main.dart builder）
+      // 的 ValueListenableBuilder<int>(pageBgCount) 可能正处于 build 阶段，
+      // 同步通知会触发 "setState() called during build"（widget_test
+      // SplashPage 挂载即暴露）。延迟到首帧后递增，语义不变（首帧气泡
+      // 暂停逻辑照常生效），避免 build 期间通知监听者。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_counted) {
+          _counted = true;
+          pageBgCount.value++;
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (!widget.isGlobal) pageBgCount.value--;
+    if (!widget.isGlobal && _counted) {
+      pageBgCount.value--;
+    }
     super.dispose();
   }
 
