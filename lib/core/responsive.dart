@@ -53,7 +53,7 @@ int appGridColumns(double availableWidth) {
   return 3;
 }
 
-/// 宫格卡片文字自适应字号：随卡片**实际宽度**缩放（与图标方块 45% 同链路，
+/// 宫格卡片文字自适应字号：随卡片**实际宽度**缩放（与图标方块 70% 同链路，
 /// 大屏卡片大字号大、窄屏小卡片小字号），clamp 到 [10, 14] 保证可读性。
 /// 窄屏 3 列卡片（~119px）≈ 10.5，大屏 8 列（~152px）≈ 13。
 double adaptiveTileFontSize(double cardWidth) =>

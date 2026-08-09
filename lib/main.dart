@@ -307,13 +307,34 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
       // Cupertino 组件（GlassScaffold 内部基于 CupertinoPageScaffold 等）
       // 默认用平台字体（Windows = Segoe UI），不吃 Material fontFamily——
-      // 显式覆盖为与 Material 一致的字体，杜绝混排粗细不一
+      // 显式覆盖为与 Material 一致的字体，杜绝混排粗细不一。
+      // ⚠️ 只设 textStyle 不够：Cupertino 各组件 style（按钮/导航栏/
+      // 分段/选择器）各自回退系统字体——逐个显式指定 fontFamily
+      // （其余字段保持 null，自动继承默认配色字号）。
       cupertinoOverrideTheme: CupertinoThemeData(
         primaryColor: accent,
         textTheme: CupertinoTextThemeData(
-          textStyle: TextStyle(
-            fontFamily: isWindows ? 'Microsoft YaHei' : null,
-          ),
+          // ⚠️ 参数名必须对齐 SDK CupertinoTextThemeData 实际定义：
+          // 无 primaryTextStyle / navigationActionTextStyle / segmentedControlTextStyle
+          // （编译错误，2026-08-09 修复）；navActionTextStyle 才是按钮/导航栏动作样式。
+          textStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          actionTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          actionSmallTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          tabLabelTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          navTitleTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          navLargeTitleTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          navActionTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          pickerTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+          dateTimePickerTextStyle:
+              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
         ),
       ),
 

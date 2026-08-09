@@ -552,65 +552,98 @@ void showCourseDetailSheet(BuildContext context, Course course) {
         );
       }
 
-      return Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: textHint(context),
-                  borderRadius: BorderRadius.circular(2),
+      // ⚠️ 磨砂玻璃容器（与 showQuickAppPicker 同款）：主背景
+      // scaffoldBackgroundColor 全局为透明（main.dart），不能用它做弹窗底色，
+      // 否则内容直接透出底下页面（2026-08-09 修复课程详情弹窗背景透明）。
+      // 顶部 40 留白放最外层 Padding——若放 Container margin，
+      // BackdropFilter 会覆盖整片（含留白区），弹窗上方出现多余模糊带。
+      final sheetIsDark = Theme.of(ctx).brightness == Brightness.dark;
+      final sheetBase =
+          sheetIsDark ? const Color(0xFF1C1C1E) : Colors.white;
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              decoration: BoxDecoration(
+                // 顶部略亮模拟玻璃反光，主体半透明透出模糊背景
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    sheetBase.withValues(alpha: sheetIsDark ? 0.55 : 0.45),
+                    sheetBase.withValues(alpha: sheetIsDark ? 0.48 : 0.38),
+                  ],
+                  stops: const [0.0, 0.45],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(22)),
+                border: Border(
+                  top: BorderSide(
+                    color: sheetIsDark
+                        ? Colors.white.withValues(alpha: 0.10)
+                        : Colors.white.withValues(alpha: 0.45),
+                  ),
                 ),
               ),
-            ),
-            Row(
-              children: [
-                if (course.tag.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: tagColor,
-                      borderRadius: BorderRadius.circular(4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: textHint(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    child: Text(course.tag,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600)),
                   ),
-                Expanded(
-                  child: Text(course.name,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-              ],
+                  Row(
+                    children: [
+                      if (course.tag.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: tagColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(course.tag,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      Expanded(
+                        child: Text(course.name,
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (course.teacher.isNotEmpty)
+                    detailRow(Icons.person_outline, course.teacher),
+                  if (course.position.isNotEmpty)
+                    detailRow(Icons.room_outlined, course.position),
+                  detailRow(
+                    Icons.schedule_outlined,
+                    '周${kDayLabels[course.day - 1 < kDayLabels.length ? course.day - 1 : 0]}  ${course.sectionRangesCompact}',
+                  ),
+                  detailRow(Icons.date_range_outlined, course.weeksDisplay),
+                  if (course.remark.isNotEmpty)
+                    detailRow(Icons.notes_rounded, course.remark),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            if (course.teacher.isNotEmpty)
-              detailRow(Icons.person_outline, course.teacher),
-            if (course.position.isNotEmpty)
-              detailRow(Icons.room_outlined, course.position),
-            detailRow(
-              Icons.schedule_outlined,
-              '周${kDayLabels[course.day - 1 < kDayLabels.length ? course.day - 1 : 0]}  ${course.sectionRangesCompact}',
-            ),
-            detailRow(Icons.date_range_outlined, course.weeksDisplay),
-            if (course.remark.isNotEmpty)
-              detailRow(Icons.notes_rounded, course.remark),
-          ],
+          ),
         ),
       );
     },

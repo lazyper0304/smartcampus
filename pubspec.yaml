@@ -71,6 +71,8 @@ dependencies:
   image_picker: ^1.1.2
   # SVG 图标渲染
   flutter_svg: ^2.0.17
+  pdf: ^3.13.0
+  printing: ^5.15.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -114,6 +116,10 @@ flutter:
 
   assets:
     - assets/LOGO.svg
+    # 内置中文字体（PDF 导出用）：simhei.ttf 标准 TTF。
+    # pdf 包 ttf_parser 不支持 Android 系统的 .ttc（DroidSansFallback 缺失
+    # 时回退 NotoSansCJK.ttc 会报 "Unable to find the head table"，2026-08-09）。
+    - assets/fonts/simhei.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

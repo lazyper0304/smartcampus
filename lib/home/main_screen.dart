@@ -732,10 +732,10 @@ class _AppsPageState extends State<_AppsPage> {
           children: [
             LayoutBuilder(
               builder: (context, c) {
-                // 玻璃方块随卡片宽度自适应（约 60%，与应用网格/首页常用
-                // 功能统一）：大屏 6/8 列大卡片图标同步放大，手机 4 列
-                // 小卡片同步缩小但保底不显得太小
-                final tileSize = c.maxWidth * 0.60;
+                // 玻璃方块随卡片宽度自适应（约 70%，2026-08-09 用户要求
+                // 0.60→0.70，与应用网格/首页常用功能统一）：大屏 6/8 列
+                // 大卡片图标同步放大，手机 4 列小卡片同步缩小但保底够大
+                final tileSize = c.maxWidth * 0.70;
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

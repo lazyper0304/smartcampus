@@ -2,15 +2,26 @@
 
 ## [Unreleased]
 
+### ✨ 新增
+- **全校方案查询导出 PDF（预览 → 保存/分享）**：详情页新增「导出 PDF」——内置 `pdf` 包按 A4 排版生成（标题 / 基本信息表 / 培养目标·修读要求·主干学科·主干课程·主要专业实验·方案特色 / 课程组树与组内课程表 / 审核信息，自动分页+页码）；生成后进入预览页（Android/iOS 应用内渲染，桌面端引导系统打开），可「保存 / 分享」（移动端系统分享面板；桌面端保存至文档目录 `smartcampus_exports/`）或「系统应用打开」。内置中文字体 `assets/fonts/simhei.ttf`（pdf 包 ttf_parser 不支持系统 .ttc，Android 真机导出必现 "Unable to find the head table"，内置标准 TTF 根治，跨平台一致）。
+- **考试安排「未安排考试」tab**：新增接口 `cxyxkwapkwdkc.do` 查询本学期已选但尚未排考的课程（课程名 / 课程号 / 任课老师），与已安排考试用玻璃分类栏（GlassCategoryBar）切换。
+- **考试安排「已完成」标识**：结束时间已过的考试卡片整体置灰 + 「已完成」徽章；该日期全部完成时日期头标「已结束」；统计区显示「已完成 N 门」。
+- **考试安排学年学期切换**：新增接口 `xnxqcx.do` 获取学期列表，AppBar 下方玻璃筛选 chips 横滑切换（与评教页同款），默认选中当前学期，切换仅重拉考试数据。
+
 ### 🎯 优化
 - **widget_test 修复过时断言**：启动页 smoke test 原断言旧登录页文案（'宜宾学院'/'智慧校园登录'），登录页 UI 已更新为'宜院宾果'后恒失败——改为断言当前 SplashPage 品牌与加载文案，并在测试内推进时间结算 SplashPage 的 800ms 延迟（测试环境无凭据 → autoRelogin 立即返回 → 进入登录页，无残留 Timer）。
 
 ### 🎨 UI 优化
+- **宫格图标方块再放大**：方块占卡片宽 **0.60 → 0.70**（应用网格与首页常用功能两处同步），手机 4 列 83px 卡片 → 58px 方块、图标约 32px；`appTileGlass.iconScale` 保持 0.56 不变。
+- **课程详情弹窗毛玻璃化（背景透明修复）**：主背景全局透明后，弹窗容器底色误用 `scaffoldBackgroundColor` 导致内容直接透出课表——改为 BackdropFilter 磨砂玻璃容器（与「添加常用功能」弹窗同款）。
 - **应用网格与首页常用功能图标统一放大**：宫格图标链路整体上调——方块占卡片宽 **0.55 → 0.60**，`appTileGlass` 图标 `(方块×0.52).clamp(20,32)` → **`(方块×0.56).clamp(22,36)`**（应用网格 `_buildAppCard` 与首页 `_QuickAppTile` 同步，两处视觉统一）。手机 4 列图标约 +3~4px（约 15%）、平板/桌面 8 列 +4px（约 12%），方块 0.60 下卡片内垂直空间仍充足（不溢出）。
 - **应用页分类切换网格动画修复（图标卡片切换无动画根因）**：`_AppsPage._buildContent` 的 key 原先挂在内部 `GridView`（外层 `LayoutBuilder` 无 key），而 `AnimatedSwitcher` 用 `Widget.canUpdate(runtimeType+key)` 对比 child——同类型同 key 判定为"同一 widget"，切换分类时不播放入场动画（网格瞬间替换）。**修复：key 上移到 `_buildContent` 返回值（`LayoutBuilder`/空状态 `Padding` 均加 `ValueKey('tab_$_tabIndex')`）**——切换 tab 触发 200ms 新网格从右滑入 + 淡入（`reverseDuration: Duration.zero` 旧网格立即移除减半负载）；搜索时 tab 不变、key 不变 → 网格原地更新不动画（与注释意图一致）。
 - **应用页分类切换图标动画**：`GlassCategoryBar` 分类项图标由静态切换改为选中动画——选中项图标 `AnimatedScale` 放大 1.18（220ms easeOutCubic）+ 颜色 200ms 平滑过渡（`TweenAnimationBuilder`）。缩放用 `Transform.scale` 不占布局空间，`IntrinsicHeight`/分割线高度不跳动；应用页分类 tab（vertical）与二级页分段（横排）统一生效。
 
 ### 🐛 修复
+- **flutter run 编译失败（CupertinoTextThemeData 非法参数）**：Windows 字体统一改动误用了 SDK 不存在的 `primaryTextStyle` / `navigationActionTextStyle` / `segmentedControlTextStyle` 参数导致编译失败——已对齐 SDK 实际定义（`navActionTextStyle` 等），并补全 `actionSmallTextStyle`/`navTitleTextStyle`/`navLargeTitleTextStyle`。
+- **考试安排老师字段语义**：接口 `ZJJSXM` 实为**任课老师**而非监考老师——模型字段 `invigilator` 改名 `teacher`，UI 文案「监考：」→「任课老师：」。
+- **PDF 导出 PdfTooBigPage（布局死循环）**：课程组树包成单个大 Column 时，顶级平台下几十课组+几百门课程的总高度超一页，MultiPage 无法拆分单个 child 导致同页反复尝试触顶——改为扁平化为行级元素（每个课组标题 / 每条元信息 / 每门课程独立单行 Table），MultiPage 逐项分页（1800 行课程测试通过）。
 - **LiquidBackground 页面级计数在 build 期间通知监听者**：`initState` 同步 `pageBgCount.value++`（ValueNotifier），而全局垫底层（main.dart builder）的 `ValueListenableBuilder(pageBgCount)` 可能正处 build 阶段 → 触发 "setState() called during build"（widget_test 启动页挂载即暴露）。**修复：页面级背景计数延后到首帧（addPostFrameCallback）递增**，`_counted` 标志保证 dispose 配对递减（防"一帧内卸载"计数错乱）；视觉行为不变。
 - **登录页 → 首页过渡时"一段透明"**：`MainScreen` 的 `GlassScaffold(background: SizedBox.shrink())` + 首页/应用页透明 Scaffold 使整个主界面路由完全透明（依赖 Navigator 之外的全局背景）。CupertinoPageRoute 右滑转场期间新路由（主界面）滑入时透明区域直接透出下层路由——用户透过首页看到登录页表单/启动页文字（"一段透明"），转场完成才切到全局背景。**修复：`MainScreen` 背景改为页面级 `LiquidBackground()`**（与登录页/二级页一致）：无自定义背景图时渲染同主题渐变+气泡（不透明，转场不再透出下层）；有自定义背景图时组件内部自动透明、继续透出全局背景图（行为不回归）。
 - **CARSI / 邮件系统 / 玻尔科研"必须先访问学科竞赛才能免密登录"根因修复（SSO 会话探测错位）**：`AuthService.ensureFreshSession` 原先用 `verifySession()` 探测 **ehall 业务会话**（`dqxnxq.do`）判断会话新鲜度，但这三个 SSO WebView 免密登录依赖的是 **authserver 的 TGC（CASTGC）**——App 运行期间 TGC 空闲过期（约 30 分钟）远早于 ehall 会话存活期，导致 TGC 已死时误判"会话新鲜"、跳过自动重登、向 WebView 注入死 CASTGC（卡在 CAS 登录页）；学科竞赛因 scjx2 401 自愈会触发 `autoRelogin()` 完整重登刷新 TGC，故"先进学科竞赛再进其他 SSO 应用"才正常。**修复：新增 `SharedHttpClient.verifyCasTgc()`** 直接探测 authserver（带现有 cookie GET 登录页，302 = SSO 放行即 TGC 有效，200 登录表单 = 已过期），`ensureFreshSession` 改用它；CAS 登录 URL 收敛为公共常量 `kCasLoginUrl`（core/http_client.dart，`CasLoginService.yibinLoginUrl` 引用之，消除两处维护漂移）。

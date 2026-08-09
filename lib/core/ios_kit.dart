@@ -706,10 +706,11 @@ class _QuickAppTile extends StatelessWidget {
         final active = hovered || focused;
         return LayoutBuilder(
           builder: (context, c) {
-            // 玻璃方块随卡片宽度自适应（约 60%）：大屏卡片更大时图标同步
-            // 放大，窄屏小卡片同步缩小；60% 保证手机 4 列下方块仍够大
-            //（83px 卡片 → 50px 方块），图标保底 22px 不再过小。
-            final tileSize = c.maxWidth * 0.60;
+            // 玻璃方块随卡片宽度自适应（约 70%，2026-08-09 用户要求
+            // 0.60→0.70 方块更大）：大屏卡片更大时图标同步放大，窄屏
+            // 小卡片同步缩小；70% 下 83px 卡片 → 58px 方块，图标
+            // clamp(22,36) 保底不再过小。
+            final tileSize = c.maxWidth * 0.70;
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

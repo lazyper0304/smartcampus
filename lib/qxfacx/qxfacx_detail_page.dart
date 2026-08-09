@@ -1,4 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
@@ -6,6 +12,8 @@ import '../core/glass_action_button.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
 import 'qxfacx.dart';
+import 'qxfacx_pdf.dart';
+import 'qxfacx_pdf_preview_page.dart';
 import 'qxfacx_service.dart';
 
 /// 培养方案详情页
@@ -38,6 +46,9 @@ class _QxFacxDetailPageState extends State<QxFacxDetailPage> {
   /// 已展开的课组号（点击组标题切换）
   final Set<String> _expanded = {};
 
+  /// 导出 PDF 进行中标记
+  bool _exporting = false;
+
   QxFacxPlan get plan => widget.plan;
 
   @override
@@ -45,6 +56,75 @@ class _QxFacxDetailPageState extends State<QxFacxDetailPage> {
     super.initState();
     _service = QxFacxService(client: widget.client);
     _loadGroups();
+  }
+
+  /// 生成 PDF 并跳转预览页（课程组数据未加载完时先并行等待）
+  Future<void> _exportPdf() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      // 若课程设置尚未加载（首屏快速点导出），等待加载完成
+      if (_loadingGroups) {
+        await _loadGroupsFuture();
+      }
+      if (!mounted) return;
+      final bytes = await QxFacxPdfGenerator.generate(
+        plan: plan,
+        kzList: _kzList,
+        coursesByKzh: _coursesByKzh,
+      );
+      if (!mounted) return;
+      // 写入临时文件（预览/系统打开用）
+      final dir = await getTemporaryDirectory();
+      final safeName = plan.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      final fileName = '$safeName.pdf';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => QxFacxPdfPreviewPage(
+            filePath: file.path,
+            bytes: Uint8List.fromList(bytes),
+            fileName: fileName,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('导出失败：${e.toString().replaceFirst('Exception: ', '')}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// 供导出用的课程组加载（可等待完成；返回后 _kzList/_coursesByKzh 就绪）
+  Future<void> _loadGroupsFuture() {
+    if (!_loadingGroups) return Future.value();
+    // 等待当前加载结束（轮询 _loadingGroups，上限 20s）
+    final completer = Completer<void>();
+    void check() {
+      if (!mounted) {
+        completer.complete();
+        return;
+      }
+      if (!_loadingGroups) {
+        completer.complete();
+        return;
+      }
+      Timer(const Duration(milliseconds: 300), check);
+    }
+
+    Timer(const Duration(seconds: 20), () {
+      if (!completer.isCompleted) completer.complete();
+    });
+    check();
+    return completer.future;
   }
 
   /// 并行加载课程组 + 课组课程
@@ -96,6 +176,20 @@ class _QxFacxDetailPageState extends State<QxFacxDetailPage> {
             overflow: TextOverflow.ellipsis,
           ),
           centerTitle: true,
+          actions: [
+            // 导出 PDF（生成 → 预览 → 保存/分享）
+            IconButton(
+              icon: _exporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: '导出 PDF',
+              onPressed: _exporting ? null : _exportPdf,
+            ),
+          ],
         ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
