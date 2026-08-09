@@ -45,6 +45,25 @@ class QxFacxPdfGenerator {
         bold: font,
         fontFallback: [font],
       ),
+      // 每页背景水印：旋转 45° 的「Powered By lazy波斯猫·宜院宾果 具体以实际情况为准」
+      buildBackground: (ctx) => pw.Stack(
+        fit: pw.StackFit.expand,
+        children: [
+          pw.Center(
+            child: pw.Transform.rotate(
+              angle: -0.785, // -45°（弧度）
+              child: pw.Text(
+                'Powered By lazy波斯猫·宜院宾果  具体以实际情况为准',
+                style: pw.TextStyle(
+                  fontSize: 22,
+                  // PdfColor(r,g,b,a) —— a 为透明度（0~1），浅灰低透明度
+                  color: PdfColor(0.55, 0.55, 0.55, 0.03),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
 
     // 全内容放一个 MultiPage：自动分页

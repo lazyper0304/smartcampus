@@ -38,6 +38,9 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
   String _keyword = '';
   String? _collegeFilter;
   List<String> _colleges = [];
+
+  /// 排课状态筛选：null=全部 / true=已排课 / false=未排课
+  bool? _sfypkFilter;
   List<SemesterInfo> _semesters = [];
   String _listXnxqdm = '';
 
@@ -97,6 +100,8 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
     final kw = _keyword.trim().toLowerCase();
     _filtered = _allClasses.where((c) {
       if (_collegeFilter != null && c.yxmc != _collegeFilter) return false;
+      // 排课状态筛选（null=全部）
+      if (_sfypkFilter != null && c.sfypk != _sfypkFilter) return false;
       if (kw.isNotEmpty) {
         final hay =
             '${c.bjmc} ${c.zymc} ${c.yxmc} ${c.njDisplay} ${c.nj}'
@@ -246,6 +251,7 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
       children: [
         _buildListSemesterBar(),
         _buildSearchBar(),
+        _buildSfypkChips(),
         _buildCollegeChips(),
         Expanded(
           child: _filtered.isEmpty
@@ -259,6 +265,40 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
                 ),
         ),
       ],
+    );
+  }
+
+  /// 排课状态筛选（全部 / 已排课 / 未排课）
+  Widget _buildSfypkChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(spacing: 8, children: [
+        GlassFilterChip(
+          label: '全部班级',
+          selected: _sfypkFilter == null,
+          onTap: () {
+            setState(() => _sfypkFilter = null);
+            _applyFilter();
+          },
+        ),
+        GlassFilterChip(
+          label: '已排课',
+          selected: _sfypkFilter == true,
+          onTap: () {
+            setState(() => _sfypkFilter = true);
+            _applyFilter();
+          },
+        ),
+        GlassFilterChip(
+          label: '未排课',
+          selected: _sfypkFilter == false,
+          onTap: () {
+            setState(() => _sfypkFilter = false);
+            _applyFilter();
+          },
+        ),
+      ]),
     );
   }
 

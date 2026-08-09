@@ -521,6 +521,8 @@ class CourseService {
   /// 获取全校班级列表（bjcx.do）
   ///
   /// 默认 pageSize=200 循环拉取全量并缓存，便于客户端搜索/学院筛选。
+  /// ⚠️ `querySetting=[]` 必须显式传（网页端固定），否则服务端按默认
+  /// 过滤条件返回，未排课班级（SFYPK=0）会被吞掉（2026-08-09 修复）。
   Future<List<SchoolClass>> fetchAllClasses({
     String? xnxqdm,
     int pageSize = 200,
@@ -546,6 +548,7 @@ class CourseService {
           'SFSY': '1',
           'SFYPK': '1',
           '*order': '-NJ,+YXPX,+ZYPX,+PX',
+          'querySetting': '[]',
           'pageSize': pageSize.toString(),
           'pageNumber': page.toString(),
         },
