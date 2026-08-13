@@ -36,9 +36,73 @@ Color tagBadgeColor(String tag) {
   }
 }
 
+List<String> _splitNames(String raw) => raw
+    .split(RegExp(r'[、，,]'))
+    .map((s) => s.trim())
+    .where((s) => s.isNotEmpty)
+    .toList();
+
+/// 合并同一节课多位老师的记录为一张卡片，防止同一时间格多张卡片堆叠。
+///
+/// 分组条件：同一天 + 同名 + 同标签；组内**节次有重叠**才合并
+/// （教师/教室去重后以「、」拼接，节次/周次取并集，颜色/备注取首条）。
+/// 节次完全不重叠（如 1-2 节与 5-6 节）保持为独立卡片。
+List<Course> mergeSameSlotTeachers(List<Course> courses) {
+  final groups = <String, List<Course>>{};
+  for (final c in courses) {
+    final key = '${c.day}|${c.name}|${c.tag}';
+    groups.putIfAbsent(key, () => []).add(c);
+  }
+
+  Course mergeTwo(Course a, Course b) {
+    final teachers = <String>{..._splitNames(a.teacher), ..._splitNames(b.teacher)};
+    final positions = <String>{..._splitNames(a.position), ..._splitNames(b.position)};
+    return Course(
+      name: a.name,
+      teacher: teachers.join('、'),
+      position: positions.join('、'),
+      day: a.day,
+      weeks: {...a.weeks, ...b.weeks}.toList()..sort(),
+      sections: {...a.sections, ...b.sections}.toList()..sort(),
+      colorIndex: a.colorIndex,
+      tag: a.tag,
+      remark: a.remark.isNotEmpty ? a.remark : b.remark,
+    );
+  }
+
+  final result = <Course>[];
+  for (final group in groups.values) {
+    if (group.length == 1) {
+      result.add(group.first);
+      continue;
+    }
+    final merged = <Course>[];
+    for (final c in group) {
+      int? hit;
+      for (int i = 0; i < merged.length; i++) {
+        if (merged[i].sections.any(c.sections.contains)) {
+          hit = i;
+          break;
+        }
+      }
+      if (hit == null) {
+        merged.add(c);
+      } else {
+        merged[hit] = mergeTwo(merged[hit], c);
+      }
+    }
+    result.addAll(merged);
+  }
+  return result;
+}
+
 /// 可复用的周课表网格（个人课表与全校班级课表共用）
 ///
 /// [courses] 必须是**已按当前周过滤**后的课程列表。
+///
+/// [mergeSections] 为 true 时每两小节课合并为一个显示单元
+/// （1、2 / 3、4 / 5、6 …），网格行数与左侧节次标签同步合并，
+/// 课程卡片按所属大节单元撑满显示（全校课表详情使用）。
 class CourseScheduleGrid extends StatelessWidget {
   final List<Course> courses;
   final CourseTableConfig config;
@@ -50,6 +114,7 @@ class CourseScheduleGrid extends StatelessWidget {
   final void Function(int direction)? onSwipe; // +1=下一周, -1=上一周
   final void Function(Course)? onCourseTap;
   final List<String> dayLabels;
+  final bool mergeSections;
 
   const CourseScheduleGrid({
     super.key,
@@ -63,12 +128,17 @@ class CourseScheduleGrid extends StatelessWidget {
     this.onSwipe,
     this.onCourseTap,
     this.dayLabels = kDayLabels,
+    this.mergeSections = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 同一节课多位老师（同天+同名+同标签+节次重叠）先合并为一张卡片，
+    // 教师/教室拼接显示，避免同一时间格多张卡片堆叠
+    final mergedCourses = mergeSameSlotTeachers(courses);
+
     int maxSection = 12;
-    for (final c in courses) {
+    for (final c in mergedCourses) {
       for (final s in c.sections) {
         if (s > maxSection) maxSection = s;
       }
@@ -79,10 +149,14 @@ class CourseScheduleGrid extends StatelessWidget {
     final cellH = cfg.cellHeight;
     final headH = cfg.headerHeight;
     final showTimeCol = !cfg.hideTimeLabels;
-    final timeColWidth = showTimeCol ? 44.0 : 8.0;
+    // 合并显示时标签「1-2节」比单节「第N节」长，时间列相应加宽
+    final timeColWidth = showTimeCol ? (mergeSections ? 35.0 : 44.0) : 8.0;
     final showDates = !cfg.hideDate;
     final showGrid = cfg.showGridLines;
     final textScale = cfg.textScale;
+
+    // 行数：合并模式每两小节一行（12 节 → 6 行）
+    final rowCount = mergeSections ? (maxSection + 1) ~/ 2 : maxSection;
 
     double? swipeStartX;
 
@@ -108,7 +182,7 @@ class CourseScheduleGrid extends StatelessWidget {
           builder: (context, constraints) {
             final dayWidth = (constraints.maxWidth - timeColWidth) / 7;
             final totalWidth = timeColWidth + dayWidth * 7;
-            final gridHeight = maxSection * cellH;
+            final gridHeight = rowCount * cellH;
 
             return SingleChildScrollView(
               scrollDirection: Axis.vertical,
@@ -135,10 +209,11 @@ class CourseScheduleGrid extends StatelessWidget {
                       child: Stack(
                         children: [
                           Column(
-                            children: List.generate(maxSection, (rowIdx) {
+                            children: List.generate(rowCount, (rowIdx) {
                               final period = rowIdx + 1;
                               return _GridRow(
                                 period: period,
+                                mergeSections: mergeSections,
                                 dayWidth: dayWidth,
                                 cellH: cellH,
                                 showTimeCol: showTimeCol,
@@ -152,23 +227,29 @@ class CourseScheduleGrid extends StatelessWidget {
                               );
                             }),
                           ),
-                          ...courses.map((course) {
+                          ...mergedCourses.map((course) {
                             final firstSec = course.sections.isNotEmpty
                                 ? course.sections.first
                                 : 1;
                             final lastSec = course.sections.isNotEmpty
                                 ? course.sections.last
                                 : firstSec;
-                            final sectionCount = lastSec - firstSec + 1;
+                            // 合并模式：按双节单元定位（第 1、2 节同属单元 1）
+                            final topUnit = mergeSections
+                                ? (firstSec + 1) ~/ 2
+                                : firstSec;
+                            final unitCount = mergeSections
+                                ? ((lastSec + 1) ~/ 2) - topUnit + 1
+                                : lastSec - firstSec + 1;
                             final dayIdx = course.day - 1;
                             if (dayIdx < 0 || dayIdx > 6) {
                               return const SizedBox.shrink();
                             }
                             return Positioned(
                               left: timeColWidth + dayIdx * dayWidth,
-                              top: (firstSec - 1) * cellH,
+                              top: (topUnit - 1) * cellH,
                               width: dayWidth,
-                              height: sectionCount * cellH,
+                              height: unitCount * cellH,
                               child: _CourseCard(
                                 course: course,
                                 colors: cColors,
@@ -315,6 +396,7 @@ class _WeekHeader extends StatelessWidget {
 
 class _GridRow extends StatelessWidget {
   final int period;
+  final bool mergeSections;
   final double dayWidth;
   final double cellH;
   final bool showTimeCol;
@@ -328,6 +410,7 @@ class _GridRow extends StatelessWidget {
 
   const _GridRow({
     required this.period,
+    this.mergeSections = false,
     required this.dayWidth,
     required this.cellH,
     required this.showTimeCol,
@@ -363,7 +446,9 @@ class _GridRow extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  '第$period节',
+                  mergeSections
+                      ? '${period * 2 - 1}-${period * 2}节'
+                      : '第$period节',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 10 * textScale, height: 1.2),
                 ),
@@ -457,34 +542,39 @@ class _CourseCard extends StatelessWidget {
                     child: Text(
                       course.tag,
                       style: TextStyle(
-                          fontSize: 7 * ts,
+                          fontSize: 6.5 * ts,
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           height: 1.3),
                     ),
                   ),
                 const SizedBox(height: 1),
-                Text(
-                  course.name,
-                  style: TextStyle(
-                    fontSize: 11 * ts,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.2,
+                // 课程名：Flexible 约束高度（卡片尺寸不变，内部自适应剩余空间），
+                // 字号调小保证默认配置下完整显示课程名/教师/教室（2026-08-13）
+                Flexible(
+                  child: Text(
+                    course.name,
+                    style: TextStyle(
+                      fontSize: 10 * ts,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
                 ),
                 if (!hideTeacher && course.teacher.isNotEmpty)
                   Text(
                     course.teacher,
                     style: TextStyle(
-                      fontSize: 8 * ts,
+                      fontSize: 7.5 * ts,
                       color: Colors.white.withValues(alpha: 0.8),
                       height: 1.3,
                     ),
-                    maxLines: 1,
+                    // 多位教师「、」拼接后可换行完整显示
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
@@ -492,9 +582,11 @@ class _CourseCard extends StatelessWidget {
                   Text(
                     course.position,
                     style: TextStyle(
-                        fontSize: 8 * ts,
-                        color: Colors.white.withValues(alpha: 0.85)),
-                    maxLines: 1,
+                        fontSize: 7.5 * ts,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        height: 1.3),
+                    // 教室允许换行（窄列不再省略），3 行兜底防极端溢出
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),

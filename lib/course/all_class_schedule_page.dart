@@ -8,11 +8,13 @@ import '../core/theme_utils.dart';
 import '../core/smooth_styles.dart';
 import '../core/simple_page.dart';
 import '../core/glass_filter_chip.dart';
+import '../core/glass_category_bar.dart';
 import '../main.dart';
 import 'course.dart';
 import 'course_service.dart';
 import 'course_config.dart';
 import 'course_grid.dart';
+import 'course_semester_view.dart';
 
 /// 全校课表查询：先浏览/搜索全校班级，再查看任意班级的周课表
 class AllClassSchedulePage extends StatefulWidget {
@@ -57,6 +59,9 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
   int _todayDay = 0;
   DateTime _firstMonday = DateTime.now();
   String? _detailXnxqdm;
+
+  /// 详情视图模式：true=周课表 / false=学期课表（参考个人课表样式）
+  bool _isWeeklyView = true;
 
   @override
   void initState() {
@@ -422,7 +427,7 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
                             fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     Text(
-                      '${c.yxmc} · ${c.zymc} · ${c.njDisplay}',
+                      c.zymc,
                       style: TextStyle(
                           fontSize: 12, color: textHint(context)),
                       maxLines: 1,
@@ -496,37 +501,30 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
 
     return Column(
       children: [
+        // 周课表 / 学期课表切换（参考个人课表样式）
+        _buildDetailViewToggle(),
         _buildDetailSemesterBar(),
-        CourseWeekBar(
-          currentWeek: _currentWeek,
-          maxWeek: _maxWeek,
-          todayWeek: _todayWeek,
-          onJumpToday: () => setState(() => _currentWeek = _todayWeek),
-          onPrev: () {
-            if (_currentWeek > 1) setState(() => _currentWeek--);
-          },
-          onNext: () {
-            if (_currentWeek < _maxWeek) setState(() => _currentWeek++);
-          },
-        ),
+        // 周课表导航（仅周课表模式）
+        if (_isWeeklyView)
+          CourseWeekBar(
+            currentWeek: _currentWeek,
+            maxWeek: _maxWeek,
+            todayWeek: _todayWeek,
+            onJumpToday: () => setState(() => _currentWeek = _todayWeek),
+            onPrev: () {
+              if (_currentWeek > 1) setState(() => _currentWeek--);
+            },
+            onNext: () {
+              if (_currentWeek < _maxWeek) setState(() => _currentWeek++);
+            },
+          ),
         Expanded(
           child: ListView(
             children: [
-              if (weekCourses.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Center(child: Text('本周无课程')),
-                )
+              if (_isWeeklyView)
+                ..._buildWeeklyItems(weekCourses)
               else
-                CourseScheduleGrid(
-                  courses: weekCourses,
-                  config: _config,
-                  currentWeek: _currentWeek,
-                  todayWeek: _todayWeek,
-                  todayDay: _todayDay,
-                  firstMonday: _firstMonday,
-                  maxWeek: _maxWeek,
-                ),
+                ...buildSemesterCourseItems(context, _courses, _config),
               if (_unarranged.isNotEmpty) ...[
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -550,6 +548,45 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 周课表模式的网格/空态条目
+  List<Widget> _buildWeeklyItems(List<Course> weekCourses) {
+    if (weekCourses.isEmpty) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(child: Text('本周无课程')),
+        ),
+      ];
+    }
+    return [
+      CourseScheduleGrid(
+        courses: weekCourses,
+        config: _config,
+        currentWeek: _currentWeek,
+        todayWeek: _todayWeek,
+        todayDay: _todayDay,
+        firstMonday: _firstMonday,
+        maxWeek: _maxWeek,
+      ),
+    ];
+  }
+
+  /// 周课表 / 学期课表切换栏（统一玻璃分类栏）
+  Widget _buildDetailViewToggle() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: GlassCategoryBar(
+        items: const [
+          GlassCategoryItem(label: '周课表', icon: Icons.view_week_outlined),
+          GlassCategoryItem(
+              label: '学期课表', icon: Icons.calendar_view_month_outlined),
+        ],
+        selectedIndex: _isWeeklyView ? 0 : 1,
+        onSelected: (i) => setState(() => _isWeeklyView = i == 0),
+      ),
     );
   }
 
