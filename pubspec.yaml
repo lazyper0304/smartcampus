@@ -22,7 +22,7 @@ license: MIT
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.0+12
+version: 1.2.1+13
 
 environment:
   sdk: ^3.12.0
@@ -115,7 +115,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/LOGO.svg
+    # LOGO.svg 已移除（代码无引用，2026-08-14 用户清理 assets 时删除）
     # 内置中文字体（PDF 导出用）：simhei.ttf 标准 TTF。
     # pdf 包 ttf_parser 不支持 Android 系统的 .ttc（DroidSansFallback 缺失
     # 时回退 NotoSansCJK.ttc 会报 "Unable to find the head table"，2026-08-09）。

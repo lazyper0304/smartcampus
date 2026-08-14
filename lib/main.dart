@@ -20,7 +20,9 @@ import 'home/main_screen.dart';
 import 'splash/fetch_info_page.dart';
 import 'xuegong/student_info_manager.dart';
 
-const Color _yibinBlue = Color.fromRGBO(25, 25, 153, 1);
+/// 默认主题强调色（外观预设色板第 2 个「亮蓝」；
+/// 2026-08-14 用户要求由宜院蓝 25,25,153 改为默认）
+const Color _defaultAccent = Color.fromRGBO(33, 150, 243, 1);
 
 /// 主题模式通知器，供设置页监听
 final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
@@ -28,8 +30,8 @@ final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.syste
 /// 自定义背景图片路径通知器（null 表示使用默认纯色背景）
 final ValueNotifier<String?> backgroundNotifier = ValueNotifier(null);
 
-/// 主题强调色通知器（默认宜院蓝）
-final ValueNotifier<Color> accentColorNotifier = ValueNotifier(_yibinBlue);
+/// 主题强调色通知器（默认亮蓝）
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(_defaultAccent);
 
 /// 将 Color 序列化为十六进制字符串
 String colorToHex(Color c) =>
@@ -38,7 +40,7 @@ String colorToHex(Color c) =>
     '${c.blue.toRadixString(16).padLeft(2, '0')}';
 
 /// 从十六进制字符串解析 Color，失败返回默认值
-Color hexToColor(String hex, [Color fallback = _yibinBlue]) {
+Color hexToColor(String hex, [Color fallback = _defaultAccent]) {
   try {
     hex = hex.replaceFirst('#', '');
     if (hex.length != 6) return fallback;

@@ -1,12 +1,14 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.2.1] - 2026-08-14
 
 ### ✨ 新增
 - **全校课表详情支持「周课表 / 学期课表」切换**：查看任意班级课表时，详情顶部新增玻璃分类栏（GlassCategoryBar，样式与个人课表一致）切换两种视图；学期课表按星期分组展示该班整个学期的全部课程（同天同名同师同类型时间片自动合并），下方继续展示未排课程与调停补记录；周导航栏（CourseWeekBar）仅周课表模式显示。
 
 ### 🔧 重构
 - **学期课表视图抽取为公共组件 `lib/course/course_semester_view.dart`**：原内联于个人课表页的学期视图逻辑（`mergeSameCourses` 合并函数、`buildSemesterCourseItems` 条目生成器、`SemesterCourseListView` 独立列表组件、`SemesterCourseCard` 课程卡片）整体抽出，个人课表与全校课表共用同一套样式，消除重复代码。
+- **应用图标资源更新**：替换 `assets/icon.png` 源图标后重新生成各平台图标——Android（默认 + adaptive，背景色 #0b1a94 写入 colors.xml）、iOS AppIcon 全套、Windows `app_icon.ico`、Web `favicon.png`（32×32）；同时移除已删除且无代码引用的 `assets/LOGO.svg` 的 pubspec 声明（否则构建报缺失资源）。
+- **默认主题色改为亮蓝**：应用默认主题强调色由宜院蓝 `#191999`（预设色板第 1 个）改为第 2 个「亮蓝」`#2196F3`——`main.dart` 常量 `_yibinBlue` 重命名 `_defaultAccent` 并更新值，影响未手动设置过主题色的新用户（已保存的主题色优先，不受影响）。
 
 ### 🎨 UI 优化
 - **周课表同一节课多位老师合并为一张卡片（不再堆叠）**：`CourseScheduleGrid` 渲染前新增 `mergeSameSlotTeachers`——同天 + 同名 + 同标签且节次重叠的记录合并，教师/教室去重后以「、」拼接、节次/周次取并集；教师姓名 `maxLines` 放宽至 2 行完整显示。个人课表与全校课表详情（共用网格组件）统一生效。
