@@ -117,7 +117,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                   IosListTile(
                                     icon: Icons.palette_outlined,
                                     title: '外观',
-                                    subtitle: '切换浅色/深色模式',
+                                    // 外观页现已支持明暗模式 + 主题色 + 自定义背景
+                                    subtitle: '明暗模式 · 主题色 · 自定义背景',
                                     scale: scale,
                                     onTap: () =>
                                         pushPage(context, const AppearancePage()),

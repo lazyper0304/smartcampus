@@ -149,8 +149,8 @@ class CourseScheduleGrid extends StatelessWidget {
     final cellH = cfg.cellHeight;
     final headH = cfg.headerHeight;
     final showTimeCol = !cfg.hideTimeLabels;
-    // 合并显示时标签「1-2节」比单节「第N节」长，时间列相应加宽
-    final timeColWidth = showTimeCol ? (mergeSections ? 35.0 : 44.0) : 8.0;
+    // 节次列统一 30px（2026-08-14 用户要求；原合并 35 / 非合并 44）
+    final timeColWidth = showTimeCol ? 30.0 : 8.0;
     final showDates = !cfg.hideDate;
     final showGrid = cfg.showGridLines;
     final textScale = cfg.textScale;
@@ -305,7 +305,8 @@ class _WeekHeader extends StatelessWidget {
     try {
       final targetDate =
           firstMonday!.add(Duration(days: (currentWeek - 1) * 7 + (weekday - 1)));
-      return '${targetDate.month}/${targetDate.day}';
+      // 点分隔 + 月/日补零（原 M/d 斜杠分隔：8/14 → 8.14），与日历观感一致
+      return '${targetDate.month}.${targetDate.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return null;
     }
@@ -377,10 +378,14 @@ class _WeekHeader extends StatelessWidget {
                       Text(
                         date,
                         style: TextStyle(
-                          fontSize: 9 * textScale,
+                          // 10 * textScale：与「周X」视觉协调（原 9 偏小）
+                          fontSize: 10 * textScale,
+                          fontWeight: FontWeight.w500,
                           color: isToday
                               ? Theme.of(context).colorScheme.primary
-                              : Colors.black87,
+                              // ⚠️ 原 Colors.black87 深色模式下黑字不可见
+                              // → 跟随主题（textSecondary 深色浅灰）
+                              : textSecondary(context),
                         ),
                       ),
                   ],
@@ -450,6 +455,9 @@ class _GridRow extends StatelessWidget {
                       ? '${period * 2 - 1}-${period * 2}节'
                       : '第$period节',
                   textAlign: TextAlign.center,
+                  // 30px 窄列 + 大 textScale 下防折行破版（超宽截断）
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
                   style: TextStyle(fontSize: 10 * textScale, height: 1.2),
                 ),
               ),
@@ -627,13 +635,23 @@ void showCourseDetailSheet(BuildContext context, Course course) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) {
-      Widget detailRow(IconData icon, String text) {
+      // 图标行：彩色圆角底容器 + 语义配色（与设置页 IosListTile 风格统一，
+      // 2026-08-14 优化；原灰色 textHint 小图标过素）
+      Widget detailRow(IconData icon, Color iconColor, String text) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: textHint(context)),
-              const SizedBox(width: 10),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 12),
               Flexible(
                 child: Text(text,
                     style:
@@ -722,16 +740,23 @@ void showCourseDetailSheet(BuildContext context, Course course) {
                   ),
                   const SizedBox(height: 16),
                   if (course.teacher.isNotEmpty)
-                    detailRow(Icons.person_outline, course.teacher),
+                    detailRow(Icons.person_outline, Colors.blue, course.teacher),
                   if (course.position.isNotEmpty)
-                    detailRow(Icons.room_outlined, course.position),
+                    detailRow(
+                        Icons.room_outlined, Colors.green.shade600, course.position),
                   detailRow(
                     Icons.schedule_outlined,
+                    Colors.orange.shade700,
                     '周${kDayLabels[course.day - 1 < kDayLabels.length ? course.day - 1 : 0]}  ${course.sectionRangesCompact}',
                   ),
-                  detailRow(Icons.date_range_outlined, course.weeksDisplay),
+                  detailRow(
+                    Icons.date_range_outlined,
+                    Colors.teal,
+                    course.weeksDisplay,
+                  ),
                   if (course.remark.isNotEmpty)
-                    detailRow(Icons.notes_rounded, course.remark),
+                    detailRow(
+                        Icons.notes_rounded, Colors.indigo, course.remark),
                 ],
               ),
             ),

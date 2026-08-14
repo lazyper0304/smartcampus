@@ -181,7 +181,12 @@ class _QuickAppsPageState extends State<QuickAppsPage> {
         child: Icon(entry.icon, color: color, size: 18),
       ),
       title: Text(entry.name,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          // 显式主题色：深色模式防黑字（GlassListTile 默认取 Cupertino
+          // fallback 黑色，见 2026-08-14 修复）
+          style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: textPrimary(context))),
       trailing: const Icon(Icons.drag_handle, size: 22, color: Color(0xFF8E8E93)),
     );
   }

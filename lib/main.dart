@@ -312,6 +312,11 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       // 分段/选择器）各自回退系统字体——逐个显式指定 fontFamily
       // （其余字段保持 null，自动继承默认配色字号）。
       cupertinoOverrideTheme: CupertinoThemeData(
+        // ⚠️ 必须显式传 brightness：不传时 CupertinoTheme.brightnessOf 回退
+        // MediaQuery.platformBrightnessOf（系统亮度），App 强制深色但系统浅色时
+        // Cupertino 动态色（label 等）解析为黑色 → GlassListTile 等库组件
+        // title 黑字看不清（2026-08-14 修复）。
+        brightness: brightness,
         primaryColor: accent,
         textTheme: CupertinoTextThemeData(
           // ⚠️ 参数名必须对齐 SDK CupertinoTextThemeData 实际定义：

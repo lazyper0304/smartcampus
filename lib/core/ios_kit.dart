@@ -483,7 +483,11 @@ class IosListTile extends StatelessWidget {
           : null,
       title: Text(title,
           style: TextStyle(
-              fontSize: 15 * scale, fontWeight: FontWeight.w500)),
+              fontSize: 15 * scale,
+              fontWeight: FontWeight.w500,
+              // ⚠️ 显式主题色：GlassListTile 内部默认取 CupertinoTheme
+              // textStyle.color（fallback 为黑色），深色模式下黑字不可见
+              color: textPrimary(context))),
       subtitle: subtitle != null
           ? Text(subtitle!,
               style: TextStyle(fontSize: 12 * scale, color: textSecondary(context)))
@@ -944,8 +948,12 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
                               color: accentOf(context), size: 18),
                         ),
                         title: Text(entry.name,
-                            style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w500)),
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                // 深色模式防黑字（GlassListTile 默认取
+                                // Cupertino fallback 黑色）
+                                color: textPrimary(context))),
                         trailing: Icon(Icons.add_circle_outline_rounded,
                             color: accentOf(context), size: 22),
                         onTap: () => Navigator.of(context).pop(entry),
