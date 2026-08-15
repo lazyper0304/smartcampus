@@ -23,6 +23,7 @@
 - **组件架构扩展**：新增 `FixedSizeWidgetProviders.kt`——抽象基类 `FixedCourseWidgetProvider` / `FixedDianfeiWidgetProvider`（布局写死，不依赖 OPTION_APPWIDGET_MIN_WIDTH）+ 4 个子类（CourseWidgetProvider4x2 / CourseWidgetProvider4x4 / DianfeiWidgetProvider4x2 / DianfeiWidgetProvider4x4）；新增 4 个 `appwidget-provider` info XML（4×2: 250×110dp、4×4: 250×250dp，resizeMode=none 固定，4×2 复用 medium 布局、4×4 复用 large 布局）；`WidgetUpdater.updateAll` 主题切换全量刷新覆盖全部 6 种组件；设置页「桌面组件」说明文案同步更新。
 
 ### 🎨 UI 优化
+- **启动过渡页图标改为主题色**：SplashPage 的呼吸灯图标（school 图标 + 背景容器）由前景色（onSurface）改为主题色 `accentColorNotifier`，随用户设置的主题色变化，与登录后界面观感一致。
 - **课程表小组件无课文案统一**：2×2 / 4×2 布局的「今日无课」改为与 4×4 一致的「今日无课，好好休息」，三档尺寸无课日显示统一。
 - **桌面组件背景改为纯色不透明**：深色主题纯黑 `#FF000000`、浅色主题纯白 `#FFFFFFFF`，去除半透明玻璃效果与描边；`widget_bg_dark.xml` / `widget_bg_light.xml` 同步更新，设置页「桌面组件」预览 6 处底色与主题文案（深色玻璃→深色主题、浅色玻璃→浅色主题）保持一致。
 - **组件主题默认跟随系统深色模式**（修复"浅色模式下卡片仍为黑色"）：`WidgetPrefs.getTheme` 未手动设置或为 `system` 时按系统 `uiMode` 自动切换——白天浅色→白底、深色模式→黑底；`MainActivity.onConfigurationChanged`（Manifest configChanges 已含 uiMode）在系统深浅切换时自动刷新全部组件；设置页主题由两项改为三项——「跟随系统（默认）/ 深色主题 / 浅色主题」，预览同步按系统亮度显示。

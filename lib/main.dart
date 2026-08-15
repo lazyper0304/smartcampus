@@ -557,6 +557,7 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   Widget build(BuildContext context) {
+    final accent = accentColorNotifier.value;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     // 主界面同款液态玻璃背景 + 统一状态栏（SimplePage 基座），
     // 登录后过渡界面与二级页观感一致
@@ -567,7 +568,7 @@ class _SplashPageState extends State<SplashPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 呼吸灯图标
+              // 呼吸灯图标（主题色）
               ListenableBuilder(
                 listenable: _animCtrl,
                 builder: (context, _) {
@@ -576,13 +577,13 @@ class _SplashPageState extends State<SplashPage>
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: onSurface.withValues(alpha: 0.08 + pulse * 0.06),
+                      color: accent.withValues(alpha: 0.10 + pulse * 0.08),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
                       Icons.school_rounded,
                       size: 44,
-                      color: onSurface.withValues(alpha: 0.6 + pulse * 0.3),
+                      color: accent.withValues(alpha: 0.75 + pulse * 0.25),
                     ),
                   );
                 },
