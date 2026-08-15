@@ -348,4 +348,49 @@ class DianfeiService {
     await store.LocalStorage.setString('dianfei_monthMoney', s.monthMoney.toString());
     await store.LocalStorage.setString('dianfei_monthStr', s.monthStr);
   }
+
+  // ── 电费数据长期缓存（获取一次长期存储，仅手动刷新重新获取） ──
+
+  /// 缓存每日用电明细（JSON 数组）
+  static Future<void> saveDays(List<DayData> days) async {
+    await store.LocalStorage.setString(
+      'dianfei_days',
+      jsonEncode(days.map((d) => {'date': d.date, 'kwh': d.kwh}).toList()),
+    );
+  }
+
+  /// 恢复每日用电明细
+  static Future<List<DayData>> loadDays() async {
+    final raw = await store.LocalStorage.getString('dianfei_days');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) => DayData(
+                (e as Map)['date']?.toString() ?? '',
+                ((e as Map)['kwh'] as num?)?.toDouble() ?? 0,
+              ))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 记录最后获取时间（页面显示"数据获取于"）
+  static Future<void> saveUpdatedAt(String formatted) async {
+    await store.LocalStorage.setString('dianfei_updatedAt', formatted);
+  }
+
+  static Future<String> loadUpdatedAt() async {
+    return await store.LocalStorage.getString('dianfei_updatedAt') ?? '';
+  }
+
+  /// 是否已有本地缓存（首次查询后置 1）
+  static Future<bool> hasCache() async {
+    return await store.LocalStorage.getString('dianfei_cached') == '1';
+  }
+
+  static Future<void> markCached() async {
+    await store.LocalStorage.setString('dianfei_cached', '1');
+  }
 }

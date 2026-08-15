@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## [1.2.2] - 2026-08-15
+
+### ✨ 新增
+- **安卓桌面组件（AppWidget）· 课程表**：长按桌面 → 添加小组件 →「宜院宾果 → 课程表」即可添加；组件按实际尺寸自动切换三种样式——2×2（今日课程概要：首节课 + 周次 + 共几节）、4×2（今日课程列表，最多 3 节）、4×4（今日课程列表，最多 5 节 + 更新时间）；拖拽调整大小即切换布局，无需重新添加；点击组件打开课表页；课表数据在每次课表加载成功后自动同步（原生经 SharedPreferences 桥接，独立进程可读）。
+- **安卓桌面组件（AppWidget）· 电费**：添加方式同上；同样三档尺寸自适应——2×2（剩余电量大字 + 合闸/分闸状态）、4×2（剩余电量 + 本月用电 + 本月金额）、4×4（剩余电量 + 本月用电/金额/累计 + 近 7 日用电条形图 + 更新时间）；点击组件打开电费页；电费数据在每次查询成功后自动同步。
+- **设置页新增「桌面组件」入口**（设置 → 外观 → 桌面组件）：内含添加步骤说明、课程表/电费三档样式实时预览、深色玻璃/浅色玻璃两套主题切换（存 SharedPreferences 全局生效）、手动刷新按钮。
+
+### 🔧 重构
+- **原生侧组件架构**：`android/.../widget/` 下新建 `WidgetPrefs`（SharedPreferences 桥接）、`WidgetRenderer`（JSON → RemoteViews，按尺寸选布局 + 深浅主题配色）、`CourseWidgetProvider` / `DianfeiWidgetProvider`（AppWidgetProvider，onAppWidgetOptionsChanged 跟随拖拽切换布局）、`WidgetUpdater`（批量刷新）；`MainActivity` 新增 `com.smartcampus.smartcampus/widget` MethodChannel——`saveCourseData` / `saveDianfeiData` / `setWidgetTheme` / `getPendingWidgetTarget` / `refreshAllWidgets`，并处理组件点击的冷启动（extra 暂存）与热启动（invokeMethod）跳转。
+- **Flutter 侧组件桥**：新建 `lib/widget/` 模块——`widget_models.dart`（组件数据模型）、`widget_service.dart`（数据整理 + MethodChannel 桥接 + 点击回调注册）、`widget_config_page.dart`（设置页）；课程页 `_loadAll` 成功与电费页 `_query` 成功后各挂一处同步点，`MainScreen` 注册组件点击跳转。
+
+### 🐛 Bug 修复
+- **设置 → 桌面组件页面空白（RenderFlex 布局异常）**：样式预览的课程/电费小卡片（`_courseSmall` / `_dianfeiSmall`）内部 Column 使用了 `Spacer()`，而卡片位于 `Row` 的 `Expanded` 内——垂直方向收到无界高度约束，Spacer（flex）必抛 `RenderFlex children have non-zero flex but incoming height constraints are unbounded`，导致页面整体渲染失败（空白，日志为每帧持续的布局断言）。修复：两处 Column 内 `Spacer()` 改为 `SizedBox(height: 8)`（Row 内的 3 处 Spacer 宽度有界、用法正确，保留）。
+- **电费/课程固定尺寸组件（4×2/4×4）数据同步不刷新**：`saveCourseData` / `saveDianfeiData` 的 MethodChannel handler 此前只调用 `updateCourseWidgets` / `updateDianfeiWidgets`（仅刷新 2×2 可拖拽组件），4×2/4×4 固定组件被遗漏——查询成功写入新数据后桌面组件仍显示旧值，需重新进应用/手动刷新才更新。修复：`WidgetUpdater` 新增 `updateAllCourseWidgets` / `updateAllDianfeiWidgets` 聚合函数（2×2 + 4×2 + 4×4），两个 handler 改调聚合，查询后全部组件立即刷新。
+- **Android 构建失败（组件相关 Kotlin 编译错误，共 5 类）**：① `MainActivity` 误 import `android.app.ActivityNotFoundException`（该类在 `android.content` 包）→ 改 `android.content.ActivityNotFoundException`；② `widget/` 子包三个文件引用 `R` 未解析——R 类生成在父包 `com.smartcampus.smartcampus`，子包需显式 `import com.smartcampus.smartcampus.R`；③ `WidgetTheme` 为 `private data class` 却被 public 函数默认参数暴露 → 改公开；④ `RemoteViews` 不存在 `setProgressTintList`/`setProgressBackgroundTintList` 方法 → 改用 API 31 的 `setColorStateList(viewId, methodName, ColorStateList)` 反射调用（官方推荐用法），并加 `Build.VERSION.SDK_INT >= 31` 判断；⑤ `widget_dianfei_large.xml` 7 个 ProgressBar 补静态 `progressTint`/`progressBackgroundTint` 兜底色（API 24–30 设备进度条不再全蓝无分层）。
+- **桌面组件添加后显示「载入窗口小部件时出现问题」（RemoteViews inflate 崩溃）**：根因是 `android.widget.Space` 不在 RemoteViews 允许 inflate 的白名单内（白名单仅 FrameLayout/LinearLayout/TextView/ProgressBar 等十余类），ColorOS 桌面（com.android.launcher）严格校验，`InflateException: Class not allowed to be inflated android.widget.Space`——课程/电费 5 个布局（small/medium/large）中用于撑开剩余空间的 `<Space>` 全部替换为带 `layout_weight="1"` 的空 `LinearLayout`（白名单内，效果等价）。
+
+### ✨ 新增
+- **桌面组件新增 4×2、4×4 固定尺寸条目**（课程表 + 电费各 2 个，共 4 个）：部分系统（如 ColorOS / 部分三方桌面）不支持拖拽放大，2×2 组件无法调大——现组件选择器可直接添加固定尺寸：**4×2**（横向长条，250×110dp，复用 medium 列表布局：课程标题 + 最多 3 节课；电费余额 + 状态 + 本月用电/金额）与 **4×4**（复用大号详情布局：课程 5 节 + 更新时间；电费 + 累计 + 近 7 日条形图）。原 2×2 组件保留拖拽自适应能力，组件名统一加尺寸后缀便于区分（课程表 2×2 / 4×2 / 4×4、电费 2×2 / 4×2 / 4×4）。
+- **组件架构扩展**：新增 `FixedSizeWidgetProviders.kt`——抽象基类 `FixedCourseWidgetProvider` / `FixedDianfeiWidgetProvider`（布局写死，不依赖 OPTION_APPWIDGET_MIN_WIDTH）+ 4 个子类（CourseWidgetProvider4x2 / CourseWidgetProvider4x4 / DianfeiWidgetProvider4x2 / DianfeiWidgetProvider4x4）；新增 4 个 `appwidget-provider` info XML（4×2: 250×110dp、4×4: 250×250dp，resizeMode=none 固定，4×2 复用 medium 布局、4×4 复用 large 布局）；`WidgetUpdater.updateAll` 主题切换全量刷新覆盖全部 6 种组件；设置页「桌面组件」说明文案同步更新。
+
+### 🎨 UI 优化
+- **桌面组件背景改为纯色不透明**：深色主题纯黑 `#FF000000`、浅色主题纯白 `#FFFFFFFF`，去除半透明玻璃效果与描边；`widget_bg_dark.xml` / `widget_bg_light.xml` 同步更新，设置页「桌面组件」预览 6 处底色与主题文案（深色玻璃→深色主题、浅色玻璃→浅色主题）保持一致。
+- **组件主题默认跟随系统深色模式**（修复"浅色模式下卡片仍为黑色"）：`WidgetPrefs.getTheme` 未手动设置或为 `system` 时按系统 `uiMode` 自动切换——白天浅色→白底、深色模式→黑底；`MainActivity.onConfigurationChanged`（Manifest configChanges 已含 uiMode）在系统深浅切换时自动刷新全部组件；设置页主题由两项改为三项——「跟随系统（默认）/ 深色主题 / 浅色主题」，预览同步按系统亮度显示。
+
+### 🎯 优化
+- **个人课程表改为「获取一次、长期缓存」**：首次获取（或手动刷新）后把课表快照（课程列表 + 学期列表 + 当前周 + 学期起始日 + 最大周次）持久化到本地文件（`LocalStorage`），之后进入课表页直接读缓存渲染，**不再每次重新请求网络**；仅点右上角刷新按钮（或错误重试）才重新获取并更新缓存；页面顶部新增「数据获取于 M月d日 HH:mm · 点右上角刷新可重新获取」提示。切换学期仍按需拉取该学期数据并同步缓存。`Course` / `SemesterInfo` 新增 `toSnapshot` / `fromSnapshot` 序列化方法。
+- **临港电费同样改为「获取一次、长期缓存」**：查询成功后除已有的余额/月度汇总外，新增持久化每日用电明细（`dianfei_days`）、获取时间（`dianfei_updatedAt`）与缓存标记（`dianfei_cached`）；进入页面**不再自动查询**，直接恢复缓存渲染（仅首次无缓存时自动查询一次），点右上角刷新才重新获取；页面顶部显示「数据获取于 …」；解绑电表时同步清理全部电费缓存。
+- **移除设置页「桌面组件」入口**：设置 → 外观 中不再显示「桌面组件」配置入口（含主题切换、样式预览），相关页面 `lib/widget/widget_config_page.dart` 一并删除；桌面组件功能不受影响，继续在桌面添加与使用。
+- **组件颜色固定跟随系统深色模式**：原生 `WidgetPrefs.getTheme` 不再读取手动主题设置（存储值忽略），始终按系统 `uiMode` 返回——白天浅色→纯白背景、深色模式→纯黑背景；系统切换深浅时经 `MainActivity.onConfigurationChanged` 自动刷新全部组件。
+
 ## [1.2.1] - 2026-08-14
 
 ### ✨ 新增

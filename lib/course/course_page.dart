@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
+import 'dart:convert';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
+import '../core/local_storage.dart';
 import 'course.dart';
 import 'course_service.dart';
 import 'course_grid.dart';
@@ -16,6 +18,7 @@ import '../main.dart';
 import '../core/navigation.dart';
 import '../core/simple_page.dart';
 import '../core/glass_category_bar.dart';
+import '../widget/widget_service.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 /// 从当前主题色生成 12 级课程卡片色阶的逻辑已抽到 course_grid.dart 的
@@ -53,6 +56,12 @@ class _CourseTablePageState extends State<CourseTablePage> {
   String? _selectedSemester;
   bool _isLoadingSemester = false;
 
+  /// 本地快照最后获取时间（页面顶部显示"数据更新于"）
+  String? _updatedAt;
+
+  /// 课表本地长期缓存 key（获取一次长期存储，仅手动刷新才重新获取）
+  static const _snapshotKey = 'course_table_snapshot';
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +71,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
     );
     _todayDay = DateTime.now().weekday;
     _loadConfig();
-    _loadAll();
+    _loadInitial();
   }
 
   Future<void> _loadConfig() async {
@@ -360,6 +369,79 @@ class _CourseTablePageState extends State<CourseTablePage> {
     }
   }
 
+  /// 进入页面：优先使用本地长期缓存（获取一次长期存储），无缓存才网络获取。
+  Future<void> _loadInitial() async {
+    final raw = await LocalStorage.getString(_snapshotKey);
+    Map<String, dynamic>? snap;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        snap = jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        snap = null;
+      }
+    }
+
+    if (snap != null) {
+      final s = snap;
+      try {
+        final courses = (s['courses'] as List)
+            .map((e) => Course.fromSnapshot(e as Map<String, dynamic>))
+            .toList();
+        final semesters = (s['semesters'] as List)
+            .map((e) => SemesterInfo.fromSnapshot(e as Map<String, dynamic>))
+            .toList();
+        final week = (s['currentWeek'] as num).toInt();
+        if (!mounted) return;
+        setState(() {
+          _courses = courses;
+          _semesters = semesters;
+          _currentWeek = week;
+          _todayWeek = week;
+          _maxWeek = (s['maxWeek'] as num?)?.toInt() ?? 1;
+          _firstMonday =
+              DateTime.tryParse(s['firstMonday']?.toString() ?? '') ??
+                  DateTime.now();
+          _selectedSemester = s['selectedSemester']?.toString();
+          _updatedAt = s['updatedAt']?.toString();
+          _isLoading = false;
+        });
+        return;
+      } catch (_) {
+        // 快照损坏则走网络重新获取
+      }
+    }
+    await _loadAll();
+  }
+
+  /// 把当前课表数据写入本地长期缓存。
+  Future<void> _saveSnapshot() async {
+    try {
+      final snap = {
+        'updatedAt': _updatedAt,
+        'courses': _courses?.map((c) => c.toSnapshot()).toList() ?? [],
+        'semesters': _semesters.map((s) => s.toSnapshot()).toList(),
+        'selectedSemester': _selectedSemester,
+        'currentWeek': _currentWeek,
+        'maxWeek': _maxWeek,
+        'firstMonday': _firstMonday.toIso8601String(),
+      };
+      await LocalStorage.setString(_snapshotKey, jsonEncode(snap));
+    } catch (_) {}
+  }
+
+  /// 手动刷新：清除内存缓存并强制重新获取（同时更新长期缓存与获取日期）。
+  void _manualRefresh() {
+    DataCache().invalidateAll();
+    _loadAll();
+  }
+
+  String _formatNow() {
+    final n = DateTime.now();
+    final hh = n.hour.toString().padLeft(2, '0');
+    final mm = n.minute.toString().padLeft(2, '0');
+    return '${n.month}月${n.day}日 $hh:$mm';
+  }
+
   Future<void> _loadAll() async {
     setState(() {
       _isLoading = true;
@@ -424,7 +506,18 @@ class _CourseTablePageState extends State<CourseTablePage> {
         _semesters = semesters;
         _selectedSemester = activeSemester;
         _isLoading = false;
+        _updatedAt = _formatNow();
       });
+
+      await _saveSnapshot();
+
+      // 桌面组件：课表加载成功后同步「今日课程」快照（非阻塞）
+      WidgetService.saveCourseData(
+        WidgetService.buildCourseData(
+          courses: allCourses,
+          currentWeek: currentWeek,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -480,7 +573,9 @@ class _CourseTablePageState extends State<CourseTablePage> {
         _currentWeek = 1;
         _firstMonday = weekInfo.firstMonday;
         _isLoadingSemester = false;
+        _updatedAt = _formatNow();
       });
+      await _saveSnapshot();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingSemester = false);
@@ -522,8 +617,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () { DataCache().invalidateAll(); _loadAll(); },
-            tooltip: '刷新',
+            onPressed: _manualRefresh,
+            tooltip: '重新获取课表',
           ),
         ],
       ],
@@ -572,7 +667,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () { DataCache().invalidateAll(); _loadAll(); },
+                onPressed: _manualRefresh,
                 icon: const Icon(Icons.refresh),
                 label: const Text('重试'),
               ),
@@ -590,6 +685,24 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
     return Column(
       children: [
+        // 数据获取日期提示（长期缓存模式：仅手动刷新才会重新获取）
+        if (_updatedAt != null && _updatedAt!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.schedule, size: 11, color: textHint(context)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    '数据获取于 $_updatedAt · 点右上角刷新可重新获取',
+                    style: TextStyle(fontSize: 10.5, color: textHint(context)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // 学期选择器（周课表/学期课表共享）
         _buildSemesterSelector(),
         // 周课表导航（仅周课表模式）

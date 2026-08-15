@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 电费组件 · 中号 (4x2)：剩余电量 + 本月用电/金额 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:gravity="center_vertical">
+
+    <!-- 左：剩余电量 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电费余额"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:gravity="bottom">
+
+            <TextView
+                android:id="@+id/tv_balance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/tv_balance_unit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="3dp"
+                android:layout_marginBottom="4dp"
+                android:text="度"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="合闸"
+            android:textSize="10sp"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <!-- 右：本月统计 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <TextView
+            android:id="@+id/tv_label_month_kwh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="本月用电"
+            android:textSize="10sp"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_month_kwh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="--"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_label_month_money"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="本月金额"
+            android:textSize="10sp"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_month_money"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="--"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_update"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="更新于 --:--"
+            android:textSize="9sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+</LinearLayout>

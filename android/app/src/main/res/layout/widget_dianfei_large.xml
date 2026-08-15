@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 电费组件 · 大号 (4x4)：剩余电量 + 本月统计 + 近 7 日用电条形图 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 标题行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="电费余额"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="合闸"
+            android:textSize="11sp"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <!-- 剩余电量 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:baselineAligned="false"
+        android:gravity="bottom">
+
+        <TextView
+            android:id="@+id/tv_balance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--"
+            android:textSize="38sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tv_balance_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="6dp"
+            android:text="度"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 本月统计三列 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_label_month_kwh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="本月用电"
+                android:textSize="9sp"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/tv_month_kwh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_label_month_money"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="本月金额"
+                android:textSize="9sp"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/tv_month_money"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_label_total"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="累计用电"
+                android:textSize="9sp"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/tv_total"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- RemoteViews 白名单无 android.widget.Space，用空 LinearLayout 撑开剩余空间 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical" />
+
+    <!-- 近 7 日用电条形图 -->
+    <TextView
+        android:id="@+id/tv_label_chart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="近 7 日用电"
+        android:textSize="9sp"
+        android:maxLines="1" />
+
+    <LinearLayout
+        android:id="@+id/chart_row_1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_1"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:text="周一"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_1"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_1"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="0.0"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_2"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_2"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_2"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_3"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_3"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_3"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_4"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_4"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_4"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_5"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_5"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_5"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_5"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_6"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_6"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_6"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_6"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/chart_row_7"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_day_7"
+            android:layout_width="34dp"
+            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:maxLines="1" />
+
+        <ProgressBar
+            android:id="@+id/bar_7"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="7dp"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#FF4D9FFF"
+            android:progressBackgroundTint="#33FFFFFF" />
+
+        <TextView
+            android:id="@+id/tv_kwh_7"
+            android:layout_width="42dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:gravity="end" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_update"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="更新于 --:--"
+        android:textSize="9sp"
+        android:visibility="gone" />
+
+</LinearLayout>

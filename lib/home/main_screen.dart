@@ -18,6 +18,9 @@ import '../core/ios_kit.dart';
 import '../core/glass_category_bar.dart';
 import '../settings/settings_page.dart';
 import '../xuegong/student_info_manager.dart';
+import '../widget/widget_service.dart';
+import '../course/course_page.dart';
+import '../dianfei/dianfei_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
 import '../core/navigation.dart';
@@ -66,6 +69,29 @@ class _MainScreenState extends State<MainScreen> {
     // 游客模式无登录凭据，跳过。
     if (widget.userId.isNotEmpty) {
       StudentInfoManager.ensureBackgroundFetch(widget.client);
+    }
+
+    // 桌面组件：注册点击跳转回调 + 消费冷启动待跳转目标
+    WidgetService.init(onTarget: _onWidgetClick);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = WidgetService.consumePendingTarget();
+      if (target != null && target.isNotEmpty) _onWidgetClick(target);
+    });
+  }
+
+  /// 桌面组件点击 → 跳转对应功能页。
+  void _onWidgetClick(String target) {
+    if (!mounted) return;
+    switch (target) {
+      case 'course':
+        pushPage(
+          context,
+          CourseTablePage(client: widget.client, userId: widget.userId),
+        );
+      case 'dianfei':
+        pushPage(context, const DianfeiPage());
+      default:
+        break;
     }
   }
 

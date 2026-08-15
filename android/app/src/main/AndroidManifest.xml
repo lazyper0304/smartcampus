@@ -46,6 +46,84 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/office_file_paths" />
         </provider>
+
+        <!-- 桌面组件：课程表（小/中/大三档尺寸，拖拽自动切换） -->
+        <receiver
+            android:name=".widget.CourseWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_course_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/course_widget_info" />
+        </receiver>
+
+        <!-- 桌面组件：课程表 4x2 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.CourseWidgetProvider4x2"
+            android:exported="true"
+            android:label="@string/widget_course_4x2_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/course_widget_info_4x2" />
+        </receiver>
+
+        <!-- 桌面组件：课程表 4x4 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.CourseWidgetProvider4x4"
+            android:exported="true"
+            android:label="@string/widget_course_4x4_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/course_widget_info_4x4" />
+        </receiver>
+
+        <!-- 桌面组件：电费（小/中/大三档尺寸，拖拽自动切换） -->
+        <receiver
+            android:name=".widget.DianfeiWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_dianfei_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dianfei_widget_info" />
+        </receiver>
+
+        <!-- 桌面组件：电费 4x2 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.DianfeiWidgetProvider4x2"
+            android:exported="true"
+            android:label="@string/widget_dianfei_4x2_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dianfei_widget_info_4x2" />
+        </receiver>
+
+        <!-- 桌面组件：电费 4x4 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.DianfeiWidgetProvider4x4"
+            android:exported="true"
+            android:label="@string/widget_dianfei_4x4_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dianfei_widget_info_4x4" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

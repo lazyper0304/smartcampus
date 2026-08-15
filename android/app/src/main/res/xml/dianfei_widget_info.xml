@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 电费桌面组件元数据：2x2 起始，可拖拽放大到 4x4，渲染时按实际尺寸切换布局 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="320dp"
+    android:maxResizeHeight="320dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetFeatures="reconfigurable"
+    android:initialLayout="@layout/widget_dianfei_small"
+    android:previewLayout="@layout/widget_dianfei_medium"
+    android:updatePeriodMillis="0" />

@@ -210,6 +210,40 @@ class Course {
     }
     return '${ranges.join(',')}周';
   }
+
+  /// 序列化为课表快照（供本地长期缓存，与 [Course.fromSnapshot] 对应）
+  Map<String, dynamic> toSnapshot() => {
+        'name': name,
+        'teacher': teacher,
+        'position': position,
+        'day': day,
+        'weeks': weeks,
+        'sections': sections,
+        'colorIndex': colorIndex,
+        'tag': tag,
+        'remark': remark,
+      };
+
+  /// 从课表快照恢复
+  factory Course.fromSnapshot(Map<String, dynamic> json) => Course(
+        name: json['name']?.toString() ?? '',
+        teacher: json['teacher']?.toString() ?? '',
+        position: json['position']?.toString() ?? '',
+        day: (json['day'] as num?)?.toInt() ?? 0,
+        weeks: (json['weeks'] as List?)
+                ?.whereType<num>()
+                .map((e) => e.toInt())
+                .toList() ??
+            [],
+        sections: (json['sections'] as List?)
+                ?.whereType<num>()
+                .map((e) => e.toInt())
+                .toList() ??
+            [],
+        colorIndex: (json['colorIndex'] as num?)?.toInt() ?? 0,
+        tag: json['tag']?.toString() ?? '',
+        remark: json['remark']?.toString() ?? '',
+      );
 }
 
 /// 调课/停课信息
@@ -389,6 +423,26 @@ class SemesterInfo {
       isActive: json['SFSY']?.toString() == '1',
     );
   }
+
+  /// 序列化为快照（供本地长期缓存，与 [SemesterInfo.fromSnapshot] 对应）
+  Map<String, dynamic> toSnapshot() => {
+        'wid': wid,
+        'dm': dm,
+        'mc': mc,
+        'xndm': xndm,
+        'xqdm': xqdm,
+        'isActive': isActive,
+      };
+
+  /// 从快照恢复
+  factory SemesterInfo.fromSnapshot(Map<String, dynamic> json) => SemesterInfo(
+        wid: json['wid']?.toString() ?? '',
+        dm: json['dm']?.toString() ?? '',
+        mc: json['mc']?.toString() ?? '',
+        xndm: json['xndm']?.toString() ?? '',
+        xqdm: json['xqdm']?.toString() ?? '',
+        isActive: json['isActive'] == true,
+      );
 }
 
 /// 当前周及学期起始日期信息

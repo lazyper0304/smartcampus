@@ -13,6 +13,7 @@ import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'dianfei_models.dart';
 import 'dianfei_service.dart';
+import '../widget/widget_service.dart';
 
 class DianfeiPage extends StatefulWidget {
   const DianfeiPage({super.key});
@@ -39,6 +40,9 @@ class _DianfeiPageState extends State<DianfeiPage> {
   String _wechatUserId = '';  // 微信用户ID（充值用）
   bool _recharging = false;
 
+  /// 最后获取时间（页面显示"数据获取于"）
+  String _updatedAt = '';
+
   @override
   void initState() {
     super.initState();
@@ -58,8 +62,10 @@ class _DianfeiPageState extends State<DianfeiPage> {
       _meterId = await store.LocalStorage.getString('dianfei_meterId') ?? '';
       _wechatUserOpenid =
           await store.LocalStorage.getString('dianfei_wechatUserOpenid') ?? '';
-      // 恢复缓存的剩余电量等数据
+      // 恢复缓存的剩余电量等数据 + 每日明细 + 获取日期（长期缓存模式）
       final summary = await DianfeiService.loadSummary();
+      final days = await DianfeiService.loadDays();
+      final updatedAt = await DianfeiService.loadUpdatedAt();
       if (mounted) {
         setState(() {
           _shengyu = summary.shengyu;
@@ -69,9 +75,15 @@ class _DianfeiPageState extends State<DianfeiPage> {
           _monthKwh = summary.monthKwh;
           _monthMoney = summary.monthMoney;
           _monthStr = summary.monthStr;
+          _allDays = days;
+          _updatedAt = updatedAt;
         });
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) => _query());
+      // 仅首次（尚无缓存）自动查询一次；之后进入页面直接用缓存，手动刷新才重新获取
+      final cached = await DianfeiService.hasCache();
+      if (!cached) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _query());
+      }
     } else {
       setState(() => _firstTime = true);
     }
@@ -111,6 +123,19 @@ class _DianfeiPageState extends State<DianfeiPage> {
       final s = result.status;
       _wechatUserId = s.wechatUserId;
       await DianfeiService.saveSummary(s);
+      await DianfeiService.saveDays(result.days);
+      await DianfeiService.markCached();
+      final updatedAt = _formatNow();
+      await DianfeiService.saveUpdatedAt(updatedAt);
+
+      // 桌面组件：电费查询成功后同步快照（非阻塞）
+      WidgetService.saveDianfeiData(
+        WidgetService.buildDianfeiData(
+          status: s,
+          days: result.days,
+        ),
+      );
+
       if (!mounted) return;
       setState(() {
         _allDays = result.days;
@@ -123,10 +148,18 @@ class _DianfeiPageState extends State<DianfeiPage> {
         _monthStr = s.monthStr;
         _firstTime = false;
         _loading = false;
+        _updatedAt = updatedAt;
       });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  String _formatNow() {
+    final n = DateTime.now();
+    final hh = n.hour.toString().padLeft(2, '0');
+    final mm = n.minute.toString().padLeft(2, '0');
+    return '${n.month}月${n.day}日 $hh:$mm';
   }
 
   void _showSnack(String msg) {
@@ -185,6 +218,17 @@ class _DianfeiPageState extends State<DianfeiPage> {
     await store.LocalStorage.remove('dianfei_meterId');
     await store.LocalStorage.remove('dianfei_url');
     await store.LocalStorage.remove('dianfei_wechatUserOpenid');
+    // 清理电费长期缓存（summary / 每日明细 / 获取日期 / 缓存标记）
+    await store.LocalStorage.remove('dianfei_shengyu');
+    await store.LocalStorage.remove('dianfei_leiji');
+    await store.LocalStorage.remove('dianfei_zhuangtai');
+    await store.LocalStorage.remove('dianfei_price');
+    await store.LocalStorage.remove('dianfei_monthKwh');
+    await store.LocalStorage.remove('dianfei_monthMoney');
+    await store.LocalStorage.remove('dianfei_monthStr');
+    await store.LocalStorage.remove('dianfei_days');
+    await store.LocalStorage.remove('dianfei_updatedAt');
+    await store.LocalStorage.remove('dianfei_cached');
     if (!mounted) return;
     setState(() {
       _firstTime = true;
@@ -222,6 +266,7 @@ class _DianfeiPageState extends State<DianfeiPage> {
                 onPressed: _unbind,
               ),
               IconButton(icon: const Icon(Icons.refresh_rounded, size: 20),
+                  tooltip: '重新获取电费数据',
                   onPressed: _loading ? null : () { DataCache().invalidate('dianfei_$_meterId'); _query(); }),
               IconButton(
                 icon: _recharging
@@ -343,6 +388,24 @@ class _DianfeiPageState extends State<DianfeiPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
+        // 数据获取日期提示（长期缓存模式：仅手动刷新才会重新获取）
+        if (_updatedAt.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.schedule, size: 11, color: textHint(context)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    '数据获取于 $_updatedAt · 点右上角刷新可重新获取',
+                    style: TextStyle(fontSize: 10.5, color: textHint(context)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Row(
           children: [
             Container(

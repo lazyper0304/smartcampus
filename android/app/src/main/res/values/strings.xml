@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面组件名称（长按桌面 → 添加小组件 → 宜院宾果） -->
+    <string name="widget_course_name">课程表 2×2</string>
+    <string name="widget_course_4x2_name">课程表 4×2</string>
+    <string name="widget_course_4x4_name">课程表 4×4</string>
+    <string name="widget_dianfei_name">电费 2×2</string>
+    <string name="widget_dianfei_4x2_name">电费 4×2</string>
+    <string name="widget_dianfei_4x4_name">电费 4×4</string>
+</resources>
