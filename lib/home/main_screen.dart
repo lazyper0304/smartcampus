@@ -697,6 +697,9 @@ class _AppsPageState extends State<_AppsPage> {
           type: MaterialType.transparency,
           child: TextField(
             controller: _searchCtrl,
+            // 点击搜索框外部：取消聚焦收起键盘（避免"点击后无法取消"）
+            onTapOutside: (_) =>
+                FocusManager.instance.primaryFocus?.unfocus(),
             style: const TextStyle(fontSize: 14),
             decoration: InputDecoration(
               hintText: '搜索应用名称…',
@@ -707,7 +710,11 @@ class _AppsPageState extends State<_AppsPage> {
                   ? IconButton(
                       icon: Icon(Icons.clear_rounded,
                           size: 18, color: textHint(context)),
-                      onPressed: _searchCtrl.clear,
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        // 清空并退出搜索：同时收起键盘
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      },
                     )
                   : null,
               border: InputBorder.none,

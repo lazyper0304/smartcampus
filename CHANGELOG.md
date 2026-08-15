@@ -12,6 +12,7 @@
 - **Flutter 侧组件桥**：新建 `lib/widget/` 模块——`widget_models.dart`（组件数据模型）、`widget_service.dart`（数据整理 + MethodChannel 桥接 + 点击回调注册）、`widget_config_page.dart`（设置页）；课程页 `_loadAll` 成功与电费页 `_query` 成功后各挂一处同步点，`MainScreen` 注册组件点击跳转。
 
 ### 🐛 Bug 修复
+- **首页搜索栏点击后无法取消（键盘收不起/退出搜索）**：搜索框未处理点击外部事件（无 `onTapOutside`），且清空按钮只清文本不取消焦点——点击搜索框聚焦后只能按系统返回键退出。修复：`onTapOutside` 点击搜索框外部即收起键盘；点「×」清空时同时取消焦点退出搜索态；「添加常用功能」弹窗搜索框同样处理。
 - **设置 → 桌面组件页面空白（RenderFlex 布局异常）**：样式预览的课程/电费小卡片（`_courseSmall` / `_dianfeiSmall`）内部 Column 使用了 `Spacer()`，而卡片位于 `Row` 的 `Expanded` 内——垂直方向收到无界高度约束，Spacer（flex）必抛 `RenderFlex children have non-zero flex but incoming height constraints are unbounded`，导致页面整体渲染失败（空白，日志为每帧持续的布局断言）。修复：两处 Column 内 `Spacer()` 改为 `SizedBox(height: 8)`（Row 内的 3 处 Spacer 宽度有界、用法正确，保留）。
 - **电费/课程固定尺寸组件（4×2/4×4）数据同步不刷新**：`saveCourseData` / `saveDianfeiData` 的 MethodChannel handler 此前只调用 `updateCourseWidgets` / `updateDianfeiWidgets`（仅刷新 2×2 可拖拽组件），4×2/4×4 固定组件被遗漏——查询成功写入新数据后桌面组件仍显示旧值，需重新进应用/手动刷新才更新。修复：`WidgetUpdater` 新增 `updateAllCourseWidgets` / `updateAllDianfeiWidgets` 聚合函数（2×2 + 4×2 + 4×4），两个 handler 改调聚合，查询后全部组件立即刷新。
 - **Android 构建失败（组件相关 Kotlin 编译错误，共 5 类）**：① `MainActivity` 误 import `android.app.ActivityNotFoundException`（该类在 `android.content` 包）→ 改 `android.content.ActivityNotFoundException`；② `widget/` 子包三个文件引用 `R` 未解析——R 类生成在父包 `com.smartcampus.smartcampus`，子包需显式 `import com.smartcampus.smartcampus.R`；③ `WidgetTheme` 为 `private data class` 却被 public 函数默认参数暴露 → 改公开；④ `RemoteViews` 不存在 `setProgressTintList`/`setProgressBackgroundTintList` 方法 → 改用 API 31 的 `setColorStateList(viewId, methodName, ColorStateList)` 反射调用（官方推荐用法），并加 `Build.VERSION.SDK_INT >= 31` 判断；⑤ `widget_dianfei_large.xml` 7 个 ProgressBar 补静态 `progressTint`/`progressBackgroundTint` 兜底色（API 24–30 设备进度条不再全蓝无分层）。
@@ -22,6 +23,7 @@
 - **组件架构扩展**：新增 `FixedSizeWidgetProviders.kt`——抽象基类 `FixedCourseWidgetProvider` / `FixedDianfeiWidgetProvider`（布局写死，不依赖 OPTION_APPWIDGET_MIN_WIDTH）+ 4 个子类（CourseWidgetProvider4x2 / CourseWidgetProvider4x4 / DianfeiWidgetProvider4x2 / DianfeiWidgetProvider4x4）；新增 4 个 `appwidget-provider` info XML（4×2: 250×110dp、4×4: 250×250dp，resizeMode=none 固定，4×2 复用 medium 布局、4×4 复用 large 布局）；`WidgetUpdater.updateAll` 主题切换全量刷新覆盖全部 6 种组件；设置页「桌面组件」说明文案同步更新。
 
 ### 🎨 UI 优化
+- **课程表小组件无课文案统一**：2×2 / 4×2 布局的「今日无课」改为与 4×4 一致的「今日无课，好好休息」，三档尺寸无课日显示统一。
 - **桌面组件背景改为纯色不透明**：深色主题纯黑 `#FF000000`、浅色主题纯白 `#FFFFFFFF`，去除半透明玻璃效果与描边；`widget_bg_dark.xml` / `widget_bg_light.xml` 同步更新，设置页「桌面组件」预览 6 处底色与主题文案（深色玻璃→深色主题、浅色玻璃→浅色主题）保持一致。
 - **组件主题默认跟随系统深色模式**（修复"浅色模式下卡片仍为黑色"）：`WidgetPrefs.getTheme` 未手动设置或为 `system` 时按系统 `uiMode` 自动切换——白天浅色→白底、深色模式→黑底；`MainActivity.onConfigurationChanged`（Manifest configChanges 已含 uiMode）在系统深浅切换时自动刷新全部组件；设置页主题由两项改为三项——「跟随系统（默认）/ 深色主题 / 浅色主题」，预览同步按系统亮度显示。
 

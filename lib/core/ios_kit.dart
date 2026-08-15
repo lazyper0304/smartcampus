@@ -899,6 +899,9 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
               ),
               child: TextField(
                 controller: _searchCtrl,
+                // 点击搜索框外部：取消聚焦收起键盘
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
                 decoration: InputDecoration(
                   hintText: '搜索应用…',
                   hintStyle: TextStyle(fontSize: 14, color: textHint(context)),
@@ -908,7 +911,10 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
                       ? IconButton(
                           icon: Icon(Icons.clear_rounded,
                               size: 18, color: textHint(context)),
-                          onPressed: _searchCtrl.clear,
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            FocusManager.instance.primaryFocus?.unfocus();
+                          },
                         )
                       : null,
                   border: InputBorder.none,
