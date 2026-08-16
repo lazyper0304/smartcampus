@@ -258,8 +258,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="更新于 --:--"
         android:textSize="10sp"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:visibility="gone" />
 
 </LinearLayout>

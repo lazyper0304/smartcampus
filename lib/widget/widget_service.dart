@@ -178,6 +178,8 @@ class WidgetService {
     );
   }
 
+  /// 更新时间格式：包含月日时分（如 "8月16日 08:28"）
   static String _formatTime(DateTime t) =>
+      '${t.month}月${t.day}日 '
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 }

@@ -170,7 +170,13 @@ object DianfeiFetcher {
         for (d in recent) days.put(d)
 
         val now = Calendar.getInstance()
-        val hhmm = String.format(Locale.US, "%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
+        val updatedAt = String.format(
+            Locale.US, "%d月%d日 %02d:%02d",
+            now.get(Calendar.MONTH) + 1,
+            now.get(Calendar.DAY_OF_MONTH),
+            now.get(Calendar.HOUR_OF_DAY),
+            now.get(Calendar.MINUTE),
+        )
         return JSONObject()
             .put("balance", balance)
             .put("status", status)
@@ -178,7 +184,7 @@ object DianfeiFetcher {
             .put("monthMoney", monthMoney)
             .put("total", total)
             .put("days", days)
-            .put("updatedAt", hhmm)
+            .put("updatedAt", updatedAt)
             .toString()
     }
 

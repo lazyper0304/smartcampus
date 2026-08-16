@@ -8,10 +8,10 @@
     android:padding="16dp"
     android:gravity="center_vertical">
 
-    <!-- 左：剩余电量 -->
+    <!-- 左：剩余电量（撑满高度，更新时间钉在左下角） -->
     <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -57,6 +57,23 @@
             android:text="合闸"
             android:textSize="10sp"
             android:maxLines="1" />
+
+        <!-- 撑开剩余空间，把更新时间推到组件最左下方 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/tv_update"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 右：本月统计（首行含右上角刷新按钮） -->
@@ -150,15 +167,6 @@
             android:textSize="17sp"
             android:textStyle="bold"
             android:maxLines="1" />
-
-        <TextView
-            android:id="@+id/tv_update"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="更新于 --:--"
-            android:textSize="9sp"
-            android:visibility="gone" />
     </LinearLayout>
 
 </LinearLayout>

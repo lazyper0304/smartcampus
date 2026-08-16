@@ -98,6 +98,16 @@ object WidgetRenderer {
         views.setTextViewText(R.id.tv_title, json.optString("title", "今日课程"))
         views.setTextViewText(R.id.tv_week, json.optString("week", ""))
 
+        // 更新时间（三档布局均有，左下角显示"更新于 M月d日 HH:mm"）
+        val updated = json.optString("updatedAt", "")
+        if (updated.isNotEmpty()) {
+            views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_update, "更新于 $updated")
+            views.setTextColor(R.id.tv_update, theme.textTertiary)
+        } else {
+            views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
+        }
+
         val courses = json.optJSONArray("courses") ?: JSONArray()
         val isEmpty = json.optBoolean("empty", courses.length() == 0)
 
@@ -155,22 +165,13 @@ object WidgetRenderer {
             views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
         }
 
-        if (layoutId == R.layout.widget_course_large) {
-            val updated = json.optString("updatedAt", "")
-            if (updated.isNotEmpty()) {
-                views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
-                views.setTextViewText(R.id.tv_update, "更新于 $updated")
-                views.setTextColor(R.id.tv_update, theme.textTertiary)
-            } else {
-                views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
-            }
-        }
         return views
     }
 
     private fun renderCourseEmpty(views: RemoteViews, layoutId: Int, theme: WidgetTheme) {
         views.setTextColor(R.id.tv_title, theme.textPrimary)
         views.setTextColor(R.id.tv_week, theme.textSecondary)
+        views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
         if (layoutId == R.layout.widget_course_small) {
             views.setViewVisibility(R.id.tv_course1_name, android.view.View.GONE)
             views.setViewVisibility(R.id.tv_course1_time, android.view.View.GONE)
@@ -188,9 +189,6 @@ object WidgetRenderer {
         views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
         views.setTextViewText(R.id.tv_empty, "暂无课程数据")
         views.setTextColor(R.id.tv_empty, theme.textSecondary)
-        if (layoutId == R.layout.widget_course_large) {
-            views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
-        }
     }
 
     private fun rowId(i: Int): Int = when (i) {
@@ -347,17 +345,15 @@ object WidgetRenderer {
             }
         }
 
-        // 大号：更新时间（或提示文案）
-        if (layoutId == R.layout.widget_dianfei_large) {
-            val message = hint
-                ?: json?.optString("updatedAt", "")?.let { "更新于 $it" }
-            if (!message.isNullOrEmpty()) {
-                views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
-                views.setTextViewText(R.id.tv_update, message)
-                views.setTextColor(R.id.tv_update, theme.textTertiary)
-            } else {
-                views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
-            }
+        // 更新时间（或提示文案，三档布局均有，左下角显示"更新于 M月d日 HH:mm"）
+        val message = hint
+            ?: json?.optString("updatedAt", "")?.let { "更新于 $it" }
+        if (!message.isNullOrEmpty()) {
+            views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_update, message)
+            views.setTextColor(R.id.tv_update, theme.textTertiary)
+        } else {
+            views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
         }
 
         return views

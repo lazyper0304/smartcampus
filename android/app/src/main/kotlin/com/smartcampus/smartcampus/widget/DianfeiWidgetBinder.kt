@@ -56,12 +56,8 @@ object DianfeiWidgetBinder {
         val stored = WidgetPrefs.loadDianfeiData(context)
 
         if (params == null) {
-            // 未绑定电表：渲染已存数据（无数据时大号布局提示去 App 绑定）
-            val hint = if (stored == null && layoutId == R.layout.widget_dianfei_large) {
-                "请先在App中绑定电表"
-            } else {
-                null
-            }
+            // 未绑定电表：渲染已存数据（无数据时提示去 App 绑定）
+            val hint = if (stored == null) "请先在App中绑定电表" else null
             manager.updateAppWidget(widgetId, build(context, layoutId, provider, widgetId, hint = hint))
             return
         }
@@ -72,9 +68,11 @@ object DianfeiWidgetBinder {
                 WidgetPrefs.saveDianfeiData(context, json)
                 manager.updateAppWidget(widgetId, build(context, layoutId, provider, widgetId))
             } else {
-                // 网络失败：回退显示旧数据 + 大号布局提示
-                val hint = if (layoutId == R.layout.widget_dianfei_large) "刷新失败" else null
-                manager.updateAppWidget(widgetId, build(context, layoutId, provider, widgetId, hint = hint))
+                // 网络失败：回退显示旧数据 + 提示
+                manager.updateAppWidget(
+                    widgetId,
+                    build(context, layoutId, provider, widgetId, hint = "刷新失败"),
+                )
             }
         }
         manager.updateAppWidget(
