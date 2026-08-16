@@ -16,6 +16,7 @@ import 'core/liquid_background.dart';
 import 'core/local_storage.dart';
 import 'core/navigation.dart';
 import 'core/simple_page.dart';
+import 'core/theme_utils.dart';
 import 'home/main_screen.dart';
 import 'splash/fetch_info_page.dart';
 import 'xuegong/student_info_manager.dart';
@@ -301,10 +302,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      // Windows 统一微软雅黑；移动端不指定（跟随系统字体）
-      fontFamily: isWindows ? 'Microsoft YaHei' : null,
+      // Windows 统一微软雅黑（常量见 theme_utils.dart）；移动端不指定（跟随系统字体）
+      fontFamily: isWindows ? kWindowsFontFamily : null,
       fontFamilyFallback: isWindows
-          ? const ['Microsoft YaHei UI', 'SimHei']
+          ? kWindowsFontFallback
           : const ['PingFang SC', 'Noto Sans SC'],
 
       // Cupertino 组件（GlassScaffold 内部基于 CupertinoPageScaffold 等）
@@ -325,23 +326,23 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           // 无 primaryTextStyle / navigationActionTextStyle / segmentedControlTextStyle
           // （编译错误，2026-08-09 修复）；navActionTextStyle 才是按钮/导航栏动作样式。
           textStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           actionTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           actionSmallTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           tabLabelTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           navTitleTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           navLargeTitleTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           navActionTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           pickerTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
           dateTimePickerTextStyle:
-              TextStyle(fontFamily: isWindows ? 'Microsoft YaHei' : null),
+              TextStyle(fontFamily: isWindows ? kWindowsFontFamily : null),
         ),
       ),
 
@@ -361,6 +362,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           fontWeight: FontWeight.w600,
           color: colorScheme.onSurface,
           letterSpacing: 0.3,
+          fontFamily: isWindows ? kWindowsFontFamily : null,
         ),
       ),
 
@@ -431,8 +433,15 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           ),
         ),
         // 表单校验错误文字统一用深橙（应用界面文字不用红色）
-        errorStyle: const TextStyle(color: Color(0xFFC2410C), fontSize: 12),
-        labelStyle: TextStyle(color: isDark ? Colors.white70 : accent.withValues(alpha: 0.6)),
+        errorStyle: TextStyle(
+          color: const Color(0xFFC2410C),
+          fontSize: 12,
+          fontFamily: isWindows ? kWindowsFontFamily : null,
+        ),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white70 : accent.withValues(alpha: 0.6),
+          fontFamily: isWindows ? kWindowsFontFamily : null,
+        ),
       ),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
@@ -454,10 +463,12 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           fontSize: 15,
           fontWeight: FontWeight.w500,
           color: colorScheme.onSurface,
+          fontFamily: isWindows ? kWindowsFontFamily : null,
         ),
         subtitleTextStyle: TextStyle(
           fontSize: 12,
           color: isDark ? const Color(0xFF9E9EB0) : Colors.grey.shade500,
+          fontFamily: isWindows ? kWindowsFontFamily : null,
         ),
         iconColor: isDark ? const Color(0xFF9E9EB0) : Colors.grey.shade500,
       ),

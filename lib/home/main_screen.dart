@@ -191,7 +191,9 @@ class _MainScreenState extends State<MainScreen> {
         // DefaultTextStyle）→ 无 Material 祖先时回退纯黑（深色模式看不见）。
         // 包透明 Material 恢复主题字体 + 显式 textStyle 双保险。
         child: Theme(
-          data: ThemeData(
+          // ⚠️ 必须 copyWith 继承父主题：直接 ThemeData(...) 会完全替换主题，
+          // 丢失 Windows 统一雅黑 fontFamily（GlassTabBar label 回退默认字体）。
+          data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.fromSeed(
               seedColor: _accentBlue,
               primary: _accentBlue,

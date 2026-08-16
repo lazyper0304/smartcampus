@@ -32,6 +32,13 @@ const Color lightTextSecondary = Color(0xFF6E6E80);
 /// 浅色模式下的弱化文字色
 const Color lightTextHint = Color(0xFF9E9EB0);
 
+/// Windows 统一微软雅黑：不设置时系统默认 Segoe UI 与中文雅黑 fallback
+/// 混排，中英文字重渲染不一致（"有粗有细"）；统一雅黑后全局一致。
+/// 全项目 Windows 端字体唯一来源，禁止散落字面量。
+const String kWindowsFontFamily = 'Microsoft YaHei';
+/// Windows 字体回退链
+const List<String> kWindowsFontFallback = ['Microsoft YaHei UI', 'SimHei'];
+
 /// 获取主题对应的主文字色
 Color textPrimary(BuildContext context) =>
     adaptColor(context, lightTextPrimary, darkTextPrimary);

@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.2.3] - 2026-08-16
 
 ### ✨ 新增
 - **桌面电费组件支持组件端实时查询 + 右上角刷新按钮**：电费接口（dfcz.yibinu.edu.cn）无需 cookie（普通 POST），绑定电表后组件可在自身进程直接请求——新增原生 `DianfeiFetcher`（四接口抓取：`index`→wechatUserId、`electricMeterQuery` 余量/状态、`GetMonthEleAndMoneyList` 月度汇总、`GetMonthDayEleList` 日度明细；UTF-8/GBK 自适应解码；输出与 Flutter 快照同构 JSON，含近 7 日条形图）与 `DianfeiWidgetBinder`（统一渲染/整卡点击/刷新按钮绑定）；2×2 / 4×2 / 4×4 三档布局**右上角新增刷新按钮**，刷新中切换为进度圈（按主题着色）；点刷新 → 广播 `APPWIDGET_UPDATE` → `onUpdate` → 组件内实时查询 → 成功后回写 SharedPreferences 并重绘（10 秒节流 + 并发互斥防连点）；未绑定电表时 4×4 布局提示「请先在App中绑定电表」；App 绑定/解绑电表时经新 MethodChannel `saveDianfeiParams` 同步查询参数（meterId/openId/isAfterMoney）到原生。
@@ -17,6 +17,7 @@
 - **设置页 / 学生信息页学籍头像获取失败**：对比浏览器抓包，照片接口 `showImageBydsForZPGL.do` 需携带 jwapp 网关会话 `_WEU`（path=/jwapp/，由 ehall 应用入口链 `appMultiGroupEntranceList` 下发）且 ehall 会话有效；App 侧此前缺 `_WEU`、拉取前未刷新 CAS 会话（TGC 空闲约 30 分钟过期）、且 `getBytes` 自动跟随重定向会**丢弃中间响应的 Set-Cookie**（SSO 回跳时 ehall 新下发的 JSESSIONID/MOD_AUTH_CAS 全部丢失）→ 最终拿到登录页 HTML 并被当照片缓存（`hasPhoto=true` 粘性坏缓存，永不重试）。修复（`lib/xuegong/student_avatar.dart`）：① 拉取前 `AuthService.ensureFreshSession()` 探测/静默重登；② 先走 ehall 应用入口链建立 `_WEU` 网关会话（`appMultiGroupEntranceList` + 带 gid_ 的 targetUrl + 门户/模块首页兜底）；③ 照片请求改**手动逐跳跟随重定向**（noRedirect + 每跳独立捕获 Set-Cookie，沿用 wspj 会话预热同款范式），SSO 回跳的会话 cookie 不再丢失；④ 仅接受真实图片字节（JPEG/PNG/GIF/WebP/BMP 魔数校验）；⑤ 检测到已缓存"照片"非图片时自动清脏缓存并重新拉取（自愈）；⑥ 补 Referer / Accept 图片头；⑦ **学生信息详情页头像组件此前未传登录会话 client（恒显示姓氏占位）**——`StudentInfoDetailPage` 新增 `client` 参数并经设置页跳转时透传。
 
 ### 🎨 UI 优化
+- **Windows 端字体全面统一为微软雅黑**：`'Microsoft YaHei'` 字面量收敛为公共常量 `kWindowsFontFamily` / `kWindowsFontFallback`（`lib/core/theme_utils.dart`），Material 主题、Cupertino 组件（9 种 textStyle）、组件主题（AppBar / ListTile / 输入框 label / error）全部显式指定雅黑，杜绝与 Segoe UI 混排导致的「有粗有细」；修复主页底部玻璃导航栏局部 `ThemeData` 完全替换父主题导致丢失雅黑字体的问题（改 `Theme.of(context).copyWith` 继承父主题）。
 - **桌面组件全部显示更新时间（左下角，含月日时分）**：课程 / 电费 2×2、4×2、4×4 六种组件统一在**左下角**显示「更新于 M月d日 HH:mm」（此前仅 4×4 大号布局显示且格式只有 HH:mm）——课程 2×2 / 4×2 布局新增更新时间行；电费 4×2 更新时间由右下角移至左下角（余额列底部）；Flutter 快照与原生 `DianfeiFetcher` 的 updatedAt 格式统一为「M月d日 HH:mm」；**布局不写死任何默认文案**（tv_update 无默认 text，仅真实数据到达时显示，无数据保持隐藏）；电费「刷新失败 / 请先在App中绑定电表」提示随更新时间行全尺寸生效（长文案单行省略）。
 - **获取个人信息过渡页图标改为主题色**：`FetchInfoPage` 呼吸灯图标（person 图标 + 背景容器）由前景色（onSurface）改为主题色 `accentColorNotifier`，与启动页（SplashPage）观感一致，随用户设置的主题色变化。
 - **桌面电费组件刷新图标加大**：三档布局刷新按钮槽位 20/18dp → **24dp**，矢量图标 20dp → 24dp；中号 4×2 的按钮仍融入「本月用电」行，金额行等宽占位同步加宽保持数字右对齐；**4×4 大号布局按钮槽位再加大至 30dp**（图标约 28dp），刷新进度圈同步放大。
