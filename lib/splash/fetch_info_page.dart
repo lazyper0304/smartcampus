@@ -5,6 +5,7 @@ import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../core/simple_page.dart';
 import '../home/main_screen.dart';
+import '../main.dart';
 import '../xuegong/student_info_manager.dart';
 
 /// 获取个人信息过渡页面 — 首次进入时展示
@@ -72,6 +73,7 @@ class _FetchInfoPageState extends State<FetchInfoPage>
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final accent = accentColorNotifier.value;
     // 主界面同款液态玻璃背景 + 统一状态栏（SimplePage 基座），
     // 过渡界面与二级页观感一致（避免透明背景透出）
     return SimplePage(
@@ -81,7 +83,7 @@ class _FetchInfoPageState extends State<FetchInfoPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 呼吸灯图标
+              // 呼吸灯图标（主题色，与启动页观感一致）
               ListenableBuilder(
                 listenable: _animCtrl,
                 builder: (context, _) {
@@ -90,13 +92,13 @@ class _FetchInfoPageState extends State<FetchInfoPage>
                     width: 88,
                     height: 88,
                     decoration: BoxDecoration(
-                      color: onSurface.withValues(alpha: 0.08 + pulse * 0.06),
+                      color: accent.withValues(alpha: 0.10 + pulse * 0.08),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(
                       Icons.person_outline_rounded,
                       size: 44,
-                      color: onSurface.withValues(alpha: 0.6 + pulse * 0.3),
+                      color: accent.withValues(alpha: 0.75 + pulse * 0.25),
                     ),
                   );
                 },

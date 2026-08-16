@@ -227,16 +227,46 @@ object WidgetRenderer {
 
     // ==================== 电费 ====================
 
+    /**
+     * 渲染电费组件视图。
+     *
+     * @param refreshing true = 正在实时查询：右上角显示刷新进度圈（隐藏刷新按钮）
+     * @param hint 大号布局 tv_update 的替换文案（如"刷新失败"/"请先在App绑定电表"），
+     *             为 null 时显示 json 中的更新时间
+     */
     fun renderDianfei(
         context: Context,
         layoutId: Int,
         dataJson: String?,
         theme: WidgetTheme = themeFor(context),
+        refreshing: Boolean = false,
+        hint: String? = null,
     ): RemoteViews {
         val views = RemoteViews(context.packageName, layoutId)
         views.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
         views.setTextColor(R.id.tv_title, theme.textPrimary)
         views.setTextColor(R.id.tv_balance_unit, theme.textTertiary)
+
+        // 右上角刷新按钮 / 刷新进度圈（三种布局均有）
+        views.setViewVisibility(
+            R.id.btn_dianfei_refresh,
+            if (refreshing) android.view.View.GONE else android.view.View.VISIBLE,
+        )
+        views.setViewVisibility(
+            R.id.pb_dianfei_refresh,
+            if (refreshing) android.view.View.VISIBLE else android.view.View.GONE,
+        )
+        // 图标按主题着色（矢量图白色基底，此处覆盖）
+        views.setInt(R.id.btn_dianfei_refresh, "setColorFilter", theme.textSecondary)
+        if (Build.VERSION.SDK_INT >= 31) {
+            views.setColorStateList(
+                R.id.pb_dianfei_refresh,
+                "setIndeterminateTintList",
+                ColorStateList.valueOf(theme.textSecondary),
+            )
+        } else {
+            views.setInt(R.id.pb_dianfei_refresh, "setIndeterminateTint", theme.textSecondary)
+        }
 
         val json = runCatching { dataJson?.let { JSONObject(it) } }.getOrNull()
         val balance = json?.optString("balance", "--") ?: "--"
@@ -317,12 +347,13 @@ object WidgetRenderer {
             }
         }
 
-        // 大号：更新时间
+        // 大号：更新时间（或提示文案）
         if (layoutId == R.layout.widget_dianfei_large) {
-            val updated = json?.optString("updatedAt", "") ?: ""
-            if (updated.isNotEmpty()) {
+            val message = hint
+                ?: json?.optString("updatedAt", "")?.let { "更新于 $it" }
+            if (!message.isNullOrEmpty()) {
                 views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
-                views.setTextViewText(R.id.tv_update, "更新于 $updated")
+                views.setTextViewText(R.id.tv_update, message)
                 views.setTextColor(R.id.tv_update, theme.textTertiary)
             } else {
                 views.setViewVisibility(R.id.tv_update, android.view.View.GONE)

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 电费组件 · 中号 (4x2)：剩余电量 + 本月用电/金额 -->
+<!-- 电费组件 · 中号 (4x2)：剩余电量 + 本月用电/金额；右上角刷新按钮（融入本月用电行） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -59,7 +59,7 @@
             android:maxLines="1" />
     </LinearLayout>
 
-    <!-- 右：本月统计 -->
+    <!-- 右：本月统计（首行含右上角刷新按钮） -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -67,13 +67,45 @@
         android:orientation="vertical"
         android:gravity="end">
 
-        <TextView
-            android:id="@+id/tv_label_month_kwh"
-            android:layout_width="wrap_content"
+        <!-- 本月用电行：标签 + 刷新按钮（按钮占位 24dp，标签右对齐） -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="本月用电"
-            android:textSize="10sp"
-            android:maxLines="1" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_label_month_kwh"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:text="本月用电"
+                android:textSize="10sp"
+                android:maxLines="1" />
+
+            <FrameLayout
+                android:layout_width="24dp"
+                android:layout_height="24dp">
+
+                <ImageButton
+                    android:id="@+id/btn_dianfei_refresh"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/widget_ic_refresh"
+                    android:background="@android:color/transparent"
+                    android:scaleType="fitCenter"
+                    android:padding="1dp"
+                    android:contentDescription="刷新电费" />
+
+                <ProgressBar
+                    android:id="@+id/pb_dianfei_refresh"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_month_kwh"
@@ -85,14 +117,29 @@
             android:textStyle="bold"
             android:maxLines="1" />
 
-        <TextView
-            android:id="@+id/tv_label_month_money"
-            android:layout_width="wrap_content"
+        <!-- 本月金额行：标签 + 占位（与首行按钮等宽，保持数字右对齐） -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="本月金额"
-            android:textSize="10sp"
-            android:maxLines="1" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_label_month_money"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:text="本月金额"
+                android:textSize="10sp"
+                android:maxLines="1" />
+
+            <FrameLayout
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:visibility="invisible" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_month_money"

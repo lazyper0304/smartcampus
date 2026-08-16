@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### ✨ 新增
+- **桌面电费组件支持组件端实时查询 + 右上角刷新按钮**：电费接口（dfcz.yibinu.edu.cn）无需 cookie（普通 POST），绑定电表后组件可在自身进程直接请求——新增原生 `DianfeiFetcher`（四接口抓取：`index`→wechatUserId、`electricMeterQuery` 余量/状态、`GetMonthEleAndMoneyList` 月度汇总、`GetMonthDayEleList` 日度明细；UTF-8/GBK 自适应解码；输出与 Flutter 快照同构 JSON，含近 7 日条形图）与 `DianfeiWidgetBinder`（统一渲染/整卡点击/刷新按钮绑定）；2×2 / 4×2 / 4×4 三档布局**右上角新增刷新按钮**，刷新中切换为进度圈（按主题着色）；点刷新 → 广播 `APPWIDGET_UPDATE` → `onUpdate` → 组件内实时查询 → 成功后回写 SharedPreferences 并重绘（10 秒节流 + 并发互斥防连点）；未绑定电表时 4×4 布局提示「请先在App中绑定电表」；App 绑定/解绑电表时经新 MethodChannel `saveDianfeiParams` 同步查询参数（meterId/openId/isAfterMoney）到原生。
+- **设置页个人信息栏头像改为学籍照片**：新增公共组件 `StudentAvatar`（`lib/xuegong/student_avatar.dart`）——有缓存照片直接显示；无照片时显示姓氏首字占位，并在有登录会话时异步拉取 ehall 学籍照片（`jwapp/sys/jwpubapp/showImageBydsForZPGL.do?XH=<学号>&&ZPLX=XJZP`，携带 ehall cookie），成功后**写回本地缓存**下次秒开；拉取失败静默回退姓氏。设置页个人信息卡与学生信息详情页共用该组件；`StudentInfo` 新增 `copyWith`，`StudentInfoManager` 新增 `saveInfo`。
+
+### 🔧 重构
+- **原生组件架构扩展（电费实时查询支撑）**：`WidgetPrefs` 新增电费查询参数持久化（meterId/openId/isAfterMoney，解绑即清空）；`WidgetRenderer.renderDianfei` 新增 `refreshing` / `hint` 参数（刷新态控制 + 大号布局提示文案）；`DianfeiWidgetProvider` / `FixedDianfeiWidgetProvider` / `WidgetUpdater` 统一改经 `DianfeiWidgetBinder` 构建视图，保证刷新按钮在每次重绘（数据推送/尺寸变化）后仍生效。
+- **删除学工系统照片获取逻辑**：`XuegongDataService.extractStructuredData` 不再从学工系统（ybxyxsglxt）下载照片（原逻辑依赖 WebView JSESSIONID 且常失败），同时移除 `_photoUrl` 解析与 `RawHttpClient` 工具类（无其他使用者）；照片统一由 ehall 学籍照片接口（`StudentAvatar`）获取。
+
+### 🎯 优化
+- **电费查询改为实时、移除全部缓存**：`DianfeiService.query()` 删除 DataCache 拦截（此前 25s 内重复查询直接返回旧缓存）；进入电费页不再恢复本地缓存渲染，每次进入/点刷新均实时请求最新数据；删除 `loadSummary/saveSummary/loadDays/saveDays/hasCache/markCached/loadUpdatedAt/saveUpdatedAt` 及相关 LocalStorage 键（解绑清理保留，幂等）；桌面组件不再依赖 Flutter 推送的缓存快照（Flutter 查询成功仍同步最新快照，供组件首屏与未联网时展示）。
+
+### 🐛 Bug 修复
+- **设置页 / 学生信息页学籍头像获取失败**：对比浏览器抓包，照片接口 `showImageBydsForZPGL.do` 需携带 jwapp 网关会话 `_WEU`（path=/jwapp/，由 ehall 应用入口链 `appMultiGroupEntranceList` 下发）且 ehall 会话有效；App 侧此前缺 `_WEU`、拉取前未刷新 CAS 会话（TGC 空闲约 30 分钟过期）、且 `getBytes` 自动跟随重定向会**丢弃中间响应的 Set-Cookie**（SSO 回跳时 ehall 新下发的 JSESSIONID/MOD_AUTH_CAS 全部丢失）→ 最终拿到登录页 HTML 并被当照片缓存（`hasPhoto=true` 粘性坏缓存，永不重试）。修复（`lib/xuegong/student_avatar.dart`）：① 拉取前 `AuthService.ensureFreshSession()` 探测/静默重登；② 先走 ehall 应用入口链建立 `_WEU` 网关会话（`appMultiGroupEntranceList` + 带 gid_ 的 targetUrl + 门户/模块首页兜底）；③ 照片请求改**手动逐跳跟随重定向**（noRedirect + 每跳独立捕获 Set-Cookie，沿用 wspj 会话预热同款范式），SSO 回跳的会话 cookie 不再丢失；④ 仅接受真实图片字节（JPEG/PNG/GIF/WebP/BMP 魔数校验）；⑤ 检测到已缓存"照片"非图片时自动清脏缓存并重新拉取（自愈）；⑥ 补 Referer / Accept 图片头；⑦ **学生信息详情页头像组件此前未传登录会话 client（恒显示姓氏占位）**——`StudentInfoDetailPage` 新增 `client` 参数并经设置页跳转时透传。
+
+### 🎨 UI 优化
+- **获取个人信息过渡页图标改为主题色**：`FetchInfoPage` 呼吸灯图标（person 图标 + 背景容器）由前景色（onSurface）改为主题色 `accentColorNotifier`，与启动页（SplashPage）观感一致，随用户设置的主题色变化。
+- **桌面电费组件刷新图标加大**：三档布局刷新按钮槽位 20/18dp → **24dp**，矢量图标 20dp → 24dp；中号 4×2 的按钮仍融入「本月用电」行，金额行等宽占位同步加宽保持数字右对齐；**4×4 大号布局按钮槽位再加大至 30dp**（图标约 28dp），刷新进度圈同步放大。
+
 ## [1.2.2] - 2026-08-15
 
 ### ✨ 新增

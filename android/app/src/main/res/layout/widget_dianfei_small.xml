@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 电费组件 · 小号 (2x2)：剩余电量 + 状态 + 本月用电 -->
+<!-- 电费组件 · 小号 (2x2)：剩余电量 + 状态 + 本月用电；右上角刷新按钮 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -7,14 +7,45 @@
     android:orientation="vertical"
     android:padding="14dp">
 
-    <TextView
-        android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
+    <!-- 标题行 + 右上角刷新 -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="电费余额"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:maxLines="1" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="电费余额"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="24dp"
+            android:layout_height="24dp">
+
+            <ImageButton
+                android:id="@+id/btn_dianfei_refresh"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/widget_ic_refresh"
+                android:background="@android:color/transparent"
+                android:scaleType="fitCenter"
+                android:padding="1dp"
+                android:contentDescription="刷新电费" />
+
+            <ProgressBar
+                android:id="@+id/pb_dianfei_refresh"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
 
     <!-- RemoteViews 白名单无 android.widget.Space，用空 LinearLayout 撑开剩余空间 -->
     <LinearLayout

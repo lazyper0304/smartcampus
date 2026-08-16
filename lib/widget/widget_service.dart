@@ -78,6 +78,24 @@ class WidgetService {
     } catch (_) {}
   }
 
+  /// 保存电费查询参数（meterId / openId / 是否后付费）。
+  /// 电费接口无需 cookie，原生桌面组件端可凭此参数直接实时查询；
+  /// 传入空 meterId 表示解绑（清空参数）。
+  static Future<void> saveDianfeiParams(
+    String meterId,
+    String wechatUserOpenid, {
+    int isAfter = 0,
+  }) async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('saveDianfeiParams', {
+        'meterId': meterId,
+        'openId': wechatUserOpenid,
+        'isAfter': isAfter,
+      });
+    } catch (_) {}
+  }
+
   /// 切换组件主题（system 跟随系统 / dark / light）并全量刷新。
   static Future<void> setTheme(String theme) async {
     if (!_isAndroid) return;

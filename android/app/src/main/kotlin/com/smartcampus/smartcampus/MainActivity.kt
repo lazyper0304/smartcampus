@@ -94,6 +94,15 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(true)
                     }
+                    // Flutter 侧绑定/解绑电表时写入查询参数（电费接口无需 cookie，
+                    // 组件进程可凭此参数直接实时查询）
+                    "saveDianfeiParams" -> {
+                        val meterId = call.argument<String>("meterId") ?: ""
+                        val openId = call.argument<String>("openId") ?: ""
+                        val isAfter = call.argument<Int>("isAfter") ?: 0
+                        WidgetPrefs.saveDianfeiParams(this, meterId, openId, isAfter)
+                        result.success(true)
+                    }
                     // 主题切换（dark / light）
                     "setWidgetTheme" -> {
                         val theme = call.argument<String>("theme") ?: "dark"

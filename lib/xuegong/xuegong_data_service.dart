@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:html/parser.dart' as html_parser;
 
-import 'raw_http_client.dart';
-
 import '../core/http_client.dart';
 
 /// 学工系统数据提取服务
@@ -146,42 +144,10 @@ class XuegongDataService {
   }
 
   /// 获取学工系统页面并解析为结构化数据
+  /// （学籍照片不再从学工系统下载，改由 ehall 学籍照片接口获取，见 StudentAvatar）
   Future<Map<String, dynamic>> extractStructuredData(String url) async {
     final html = await extractPageHtml(url);
-    final data = _parseStudentInfoHtml(html);
-
-    // 从 WebView 系统 Cookie 存储获取学工系统 session cookie
-    String? jsessionid;
-    try {
-      final cookieManager = CookieManager.instance();
-      final cookies = await cookieManager.getCookies(
-        url: WebUri('https://ybxyxsglxt.yibinu.edu.cn/'),
-      );
-      for (final c in cookies) {
-        if (c.name == 'JSESSIONID') {
-          jsessionid = c.value;
-          break;
-        }
-      }
-    } catch (_) {}
-
-    // 如果有照片 URL，下载照片
-    final photoUrl = data['_photoUrl'] as String?;
-    if (photoUrl != null && photoUrl.isNotEmpty) {
-      try {
-        final cookieMap = <String, String>{};
-        if (jsessionid != null && jsessionid.isNotEmpty) {
-          cookieMap['JSESSIONID'] = jsessionid;
-        }
-        final resp = await RawHttpClient().getBytes(photoUrl, cookies: cookieMap);
-        data['_photoBytes'] = resp.bodyBytes ?? [];
-        debugPrint('Photo downloaded: ${(data['_photoBytes'] as List<int>).length} bytes');
-      } catch (e) {
-        debugPrint('Photo download error: $e');
-      }
-    }
-
-    return data;
+    return _parseStudentInfoHtml(html);
   }
 
   /// 从 SharedHttpClient 获取指定主机的 cookie
@@ -245,13 +211,6 @@ class XuegongDataService {
   Map<String, dynamic> _parseStudentInfoHtml(String html) {
     final result = <String, dynamic>{};
     final doc = html_parser.parse(html);
-    final rawClient = RawHttpClient();
-
-    // 提取照片 URL
-    final img = doc.querySelector('img[src*="showphoto"]');
-    if (img != null) {
-      result['_photoUrl'] = img.attributes['src'] ?? '';
-    }
 
     final sections = doc.getElementsByClassName('minemine');
     for (final section in sections) {

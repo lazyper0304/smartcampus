@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +13,7 @@ import '../core/adaptive_split_view.dart';
 import '../core/version.dart';
 import '../core/http_client.dart';
 import '../core/ios_kit.dart';
+import '../xuegong/student_avatar.dart';
 import '../xuegong/student_info_detail_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'appearance_page.dart';
@@ -390,10 +390,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildStudentCard(StudentInfo info, {double scale = 1.0}) {
     return IosCard(
       padding: const EdgeInsets.all(14),
-      onTap: () => pushPage(context, StudentInfoDetailPage(info: info)),
+      onTap: () => pushPage(context, StudentInfoDetailPage(info: info, client: widget.client)),
       child: Row(
         children: [
-          // 头像
+          // 头像：优先缓存照片，无照片显示姓氏并异步拉取 ehall 学籍照片
           Container(
             width: 56 * scale,
             height: 56 * scale,
@@ -402,16 +402,12 @@ class _SettingsPageState extends State<SettingsPage> {
               color: accentColorNotifier.value.withValues(alpha: 0.05),
               border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12 * scale),
-              child: info.hasPhoto
-                  ? Image.memory(
-                      Uint8List.fromList(info.photoBytes),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          _buildAvatarFallback(info.name, scale: scale),
-                    )
-                  : _buildAvatarFallback(info.name, scale: scale),
+            child: StudentAvatar(
+              info: info,
+              client: widget.client,
+              scale: scale,
+              radius: 12 * scale,
+              fontSize: 28,
             ),
           ),
           SizedBox(width: 14 * scale),
@@ -437,18 +433,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: textHint(context), size: 22 * scale),
             ],
           ),
-    );
-  }
-
-  Widget _buildAvatarFallback(String name, {double scale = 1.0}) {
-    return Container(
-      color: accentColorNotifier.value.withValues(alpha: 0.08),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0] : '?',
-          style: TextStyle(fontSize: 28 * scale, fontWeight: FontWeight.w600, color: accentColorNotifier.value),
-        ),
-      ),
     );
   }
 

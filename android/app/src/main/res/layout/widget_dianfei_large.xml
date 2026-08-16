@@ -7,7 +7,7 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- 标题行 -->
+    <!-- 标题行 + 右上角刷新 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -31,6 +31,29 @@
             android:text="合闸"
             android:textSize="11sp"
             android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginStart="4dp">
+
+            <ImageButton
+                android:id="@+id/btn_dianfei_refresh"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/widget_ic_refresh"
+                android:background="@android:color/transparent"
+                android:scaleType="fitCenter"
+                android:padding="1dp"
+                android:contentDescription="刷新电费" />
+
+            <ProgressBar
+                android:id="@+id/pb_dianfei_refresh"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
     <!-- 剩余电量 -->

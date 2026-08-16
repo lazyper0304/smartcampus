@@ -102,7 +102,10 @@ abstract class FixedDianfeiWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        render(context, appWidgetManager, appWidgetIds)
+        // 与可拖拽电费组件一致：绑定电表后每次 onUpdate（含右上角刷新按钮）实时查询
+        for (widgetId in appWidgetIds) {
+            DianfeiWidgetBinder.renderWithQuery(context, appWidgetManager, widgetId, layoutId, this.javaClass)
+        }
     }
 
     final override fun onAppWidgetOptionsChanged(
@@ -111,43 +114,21 @@ abstract class FixedDianfeiWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: Bundle,
     ) {
-        render(context, appWidgetManager, intArrayOf(appWidgetId))
+        appWidgetManager.updateAppWidget(
+            appWidgetId,
+            DianfeiWidgetBinder.build(context, layoutId, this.javaClass, appWidgetId),
+        )
     }
 
     final override fun onEnabled(context: Context) {
         super.onEnabled(context)
         val manager = AppWidgetManager.getInstance(context)
-        render(context, manager, ids(context))
-    }
-
-    private fun render(
-        context: Context,
-        manager: AppWidgetManager,
-        appWidgetIds: IntArray,
-    ) {
-        for (widgetId in appWidgetIds) {
-            val views = WidgetRenderer.renderDianfei(
-                context,
-                layoutId,
-                WidgetPrefs.loadDianfeiData(context),
+        for (widgetId in ids(context)) {
+            manager.updateAppWidget(
+                widgetId,
+                DianfeiWidgetBinder.build(context, layoutId, this.javaClass, widgetId),
             )
-            bindClick(context, views, "dianfei")
-            manager.updateAppWidget(widgetId, views)
         }
-    }
-
-    private fun bindClick(context: Context, views: RemoteViews, target: String) {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            putExtra(WidgetPrefs.EXTRA_TARGET, target)
-        }
-        val pi = PendingIntent.getActivity(
-            context,
-            target.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, pi)
     }
 
     fun ids(context: Context): IntArray =

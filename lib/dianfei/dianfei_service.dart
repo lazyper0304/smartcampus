@@ -4,13 +4,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
-import '../core/data_cache.dart';
-import '../core/local_storage.dart' as store;
 import 'dianfei_models.dart';
 
 /// 电费查询服务：封装临港电费系统的全部请求逻辑
-/// （HeadlessInAppWebView 模拟浏览器 + 站内 XHR 抓取、解析、充值下单、缓存），
-/// 页面只调本服务并渲染结果。
+/// （HeadlessInAppWebView 模拟浏览器 + 站内 XHR 抓取、解析、充值下单），
+/// 页面只调本服务并渲染结果。每次查询均为实时请求，不做内存/本地缓存。
 class DianfeiService {
   DianfeiService._();
 
@@ -30,15 +28,20 @@ class DianfeiService {
     );
   }
 
+  /// 从查询链接提取是否"后付费"（elemeterTypeRemark 含"后付费"→ 1，否则 0）。
+  /// 原生桌面组件实时查询时需该参数。
+  static int isAfterMoney(String raw) {
+    final remarkMatch = RegExp(r'[?&]elemeterTypeRemark=([^&]+)').firstMatch(raw);
+    if (remarkMatch == null) return 0;
+    return Uri.decodeComponent(remarkMatch.group(1)!).contains('后付费') ? 1 : 0;
+  }
+
   /// 查询电表数据（余量 + 月度汇总 + 30 天日度明细），失败抛异常。
+  /// 每次调用都实时请求，不做缓存。
   static Future<DianfeiQueryResult> query({
     required String meterId,
     required String wechatUserOpenid,
   }) async {
-    final cacheKey = 'dianfei_$meterId';
-    final cached = DataCache().get<DianfeiQueryResult>(cacheKey);
-    if (cached != null) return cached;
-
     final completer = Completer<DianfeiQueryResult>();
     final url = '$_base/electricmeter/index.html'
         '#/pages/meterlist/meterqueryChart'
@@ -139,7 +142,6 @@ class DianfeiService {
             onTimeout: () =>
                 const DianfeiQueryResult([], DianfeiStatus.empty));
     await headless.dispose();
-    if (result.days.isNotEmpty) DataCache().set(cacheKey, result);
     return result;
   }
 
@@ -313,84 +315,5 @@ class DianfeiService {
     } catch (_) {
       return const DianfeiQueryResult([], DianfeiStatus.empty);
     }
-  }
-
-  // ── 本地缓存（剩余电量/月度汇总，下次进入快速恢复） ──
-
-  /// 从本地缓存恢复电表状态。
-  static Future<DianfeiStatus> loadSummary() async {
-    final shengyu = await store.LocalStorage.getString('dianfei_shengyu');
-    if (shengyu == null) return DianfeiStatus.empty;
-    final leiji = await store.LocalStorage.getString('dianfei_leiji');
-    final zhuangtai = await store.LocalStorage.getString('dianfei_zhuangtai');
-    final price = await store.LocalStorage.getString('dianfei_price');
-    final monthKwh = await store.LocalStorage.getString('dianfei_monthKwh');
-    final monthMoney = await store.LocalStorage.getString('dianfei_monthMoney');
-    final monthStr = await store.LocalStorage.getString('dianfei_monthStr');
-    return DianfeiStatus(
-      shengyu: double.tryParse(shengyu) ?? 0,
-      leiji: double.tryParse(leiji ?? '0') ?? 0,
-      zhuangtai: zhuangtai ?? '',
-      price: double.tryParse(price ?? '0.55') ?? 0.55,
-      monthKwh: double.tryParse(monthKwh ?? '0') ?? 0,
-      monthMoney: double.tryParse(monthMoney ?? '0') ?? 0,
-      monthStr: monthStr ?? '',
-    );
-  }
-
-  /// 缓存电表状态到本地。
-  static Future<void> saveSummary(DianfeiStatus s) async {
-    await store.LocalStorage.setString('dianfei_shengyu', s.shengyu.toString());
-    await store.LocalStorage.setString('dianfei_leiji', s.leiji.toString());
-    await store.LocalStorage.setString('dianfei_zhuangtai', s.zhuangtai);
-    await store.LocalStorage.setString('dianfei_price', s.price.toString());
-    await store.LocalStorage.setString('dianfei_monthKwh', s.monthKwh.toString());
-    await store.LocalStorage.setString('dianfei_monthMoney', s.monthMoney.toString());
-    await store.LocalStorage.setString('dianfei_monthStr', s.monthStr);
-  }
-
-  // ── 电费数据长期缓存（获取一次长期存储，仅手动刷新重新获取） ──
-
-  /// 缓存每日用电明细（JSON 数组）
-  static Future<void> saveDays(List<DayData> days) async {
-    await store.LocalStorage.setString(
-      'dianfei_days',
-      jsonEncode(days.map((d) => {'date': d.date, 'kwh': d.kwh}).toList()),
-    );
-  }
-
-  /// 恢复每日用电明细
-  static Future<List<DayData>> loadDays() async {
-    final raw = await store.LocalStorage.getString('dianfei_days');
-    if (raw == null || raw.isEmpty) return [];
-    try {
-      final list = jsonDecode(raw) as List;
-      return list
-          .map((e) => DayData(
-                (e as Map)['date']?.toString() ?? '',
-                ((e as Map)['kwh'] as num?)?.toDouble() ?? 0,
-              ))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  /// 记录最后获取时间（页面显示"数据获取于"）
-  static Future<void> saveUpdatedAt(String formatted) async {
-    await store.LocalStorage.setString('dianfei_updatedAt', formatted);
-  }
-
-  static Future<String> loadUpdatedAt() async {
-    return await store.LocalStorage.getString('dianfei_updatedAt') ?? '';
-  }
-
-  /// 是否已有本地缓存（首次查询后置 1）
-  static Future<bool> hasCache() async {
-    return await store.LocalStorage.getString('dianfei_cached') == '1';
-  }
-
-  static Future<void> markCached() async {
-    await store.LocalStorage.setString('dianfei_cached', '1');
   }
 }

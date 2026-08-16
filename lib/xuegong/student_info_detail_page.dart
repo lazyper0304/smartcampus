@@ -1,9 +1,9 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
+import 'student_avatar.dart';
 import 'student_info_manager.dart';
 import '../main.dart';
+import '../core/http_client.dart';
 import '../core/simple_page.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -12,7 +12,10 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 class StudentInfoDetailPage extends StatelessWidget {
   final StudentInfo info;
 
-  const StudentInfoDetailPage({super.key, required this.info});
+  /// 登录会话客户端（传给头像组件拉取学籍照片；null 时头像仅显示姓氏占位）
+  final SharedHttpClient? client;
+
+  const StudentInfoDetailPage({super.key, required this.info, this.client});
 
   @override
   Widget build(BuildContext context) {
@@ -38,12 +41,11 @@ class StudentInfoDetailPage extends StatelessWidget {
                       color: accentColorNotifier.value.withValues(alpha: 0.05),
                       border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.1)),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(17),
-                      child: info.hasPhoto
-                          ? Image.memory(Uint8List.fromList(info.photoBytes), fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _avatarFallback(info.name))
-                          : _avatarFallback(info.name),
+                    child: StudentAvatar(
+                      info: info,
+                      client: client,
+                      radius: 17,
+                      fontSize: 34,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -60,16 +62,6 @@ class StudentInfoDetailPage extends StatelessWidget {
               _buildSectionCard(section),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _avatarFallback(String name) {
-    return Container(
-      color: accentColorNotifier.value.withValues(alpha: 0.08),
-      child: Center(
-        child: Text(name.isNotEmpty ? name[0] : '?',
-            style: TextStyle(fontSize: 34, fontWeight: FontWeight.w600, color: accentColorNotifier.value)),
       ),
     );
   }

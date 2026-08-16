@@ -41,10 +41,11 @@ object WidgetUpdater {
             val layout = WidgetRenderer.dianfeiLayoutFor(widthDp)
             manager.updateAppWidget(
                 widgetId,
-                WidgetRenderer.renderDianfei(
+                DianfeiWidgetBinder.build(
                     context,
                     layout,
-                    WidgetPrefs.loadDianfeiData(context),
+                    DianfeiWidgetProvider::class.java,
+                    widgetId,
                 ),
             )
         }
@@ -95,7 +96,7 @@ object WidgetUpdater {
         for (widgetId in ids) {
             manager.updateAppWidget(
                 widgetId,
-                WidgetRenderer.renderDianfei(context, layout, WidgetPrefs.loadDianfeiData(context)),
+                DianfeiWidgetBinder.build(context, layout, provider, widgetId),
             )
         }
     }

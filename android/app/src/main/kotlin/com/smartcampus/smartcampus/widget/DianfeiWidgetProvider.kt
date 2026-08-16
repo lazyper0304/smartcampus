@@ -1,20 +1,16 @@
 package com.smartcampus.smartcampus.widget
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
-import android.widget.RemoteViews
-import com.smartcampus.smartcampus.MainActivity
-import com.smartcampus.smartcampus.R
 
 /**
- * 电费桌面组件：
- *  - 数据源：WidgetPrefs（Flutter 侧在电费查询后写入）
- *  - 布局：按组件实际宽度切换 small/medium/large
+ * 电费桌面组件（小/中/大三档尺寸，拖拽自动切换）：
+ *  - 数据源：WidgetPrefs（App 侧查询后写入的最新快照）
+ *  - 实时查询：绑定电表后，每次 onUpdate（添加/右上角刷新按钮）都在组件进程内
+ *    直接请求电费接口（无需 cookie），成功后回写并重绘
  *  - 点击：打开 App 并跳转电费页（extra target=dianfei）
  */
 class DianfeiWidgetProvider : AppWidgetProvider() {
@@ -25,16 +21,10 @@ class DianfeiWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         for (widgetId in appWidgetIds) {
-            val options = appWidgetManager.getAppWidgetOptions(widgetId)
-            val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val widthDp = appWidgetManager.getAppWidgetOptions(widgetId)
+                .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             val layout = WidgetRenderer.dianfeiLayoutFor(widthDp)
-            val views = WidgetRenderer.renderDianfei(
-                context,
-                layout,
-                WidgetPrefs.loadDianfeiData(context),
-            )
-            bindClick(context, views, "dianfei")
-            appWidgetManager.updateAppWidget(widgetId, views)
+            DianfeiWidgetBinder.renderWithQuery(context, appWidgetManager, widgetId, layout, this.javaClass)
         }
     }
 
@@ -44,35 +34,18 @@ class DianfeiWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: Bundle,
     ) {
-        val widthDp =
-            newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+        // 尺寸变化只重绘，不触发网络查询
+        val widthDp = newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
         val layout = WidgetRenderer.dianfeiLayoutFor(widthDp)
-        val views = WidgetRenderer.renderDianfei(
-            context,
-            layout,
-            WidgetPrefs.loadDianfeiData(context),
+        appWidgetManager.updateAppWidget(
+            appWidgetId,
+            DianfeiWidgetBinder.build(context, layout, this.javaClass, appWidgetId),
         )
-        bindClick(context, views, "dianfei")
-        appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WidgetUpdater.updateDianfeiWidgets(context)
-    }
-
-    private fun bindClick(context: Context, views: RemoteViews, target: String) {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            putExtra(WidgetPrefs.EXTRA_TARGET, target)
-        }
-        val pi = PendingIntent.getActivity(
-            context,
-            target.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, pi)
     }
 
     companion object {

@@ -96,6 +96,24 @@ class StudentInfo {
 
   bool get hasPhoto => photoBytes.isNotEmpty;
   bool get isExpired => DateTime.now().difference(fetchedAt).inHours > 1;
+
+  /// 复制并替换照片相关字段（学籍照片拉取成功后更新缓存用）
+  StudentInfo copyWith({String? photoUrl, List<int>? photoBytes}) => StudentInfo(
+        name: name,
+        studentId: studentId,
+        department: department,
+        major: major,
+        className: className,
+        gender: gender,
+        ethnicity: ethnicity,
+        politicsStatus: politicsStatus,
+        idNumber: idNumber,
+        phone: phone,
+        photoUrl: photoUrl ?? this.photoUrl,
+        photoBytes: photoBytes ?? this.photoBytes,
+        allData: allData,
+        fetchedAt: fetchedAt,
+      );
 }
 
 /// 学生信息管理器 - 后台提取并缓存
@@ -173,6 +191,11 @@ class StudentInfoManager {
   /// 清除缓存
   static Future<void> clearCache() async {
     await LocalStorage.remove(_cacheKey);
+  }
+
+  /// 写回缓存（学籍照片拉取成功后更新 photoBytes 用）
+  static Future<void> saveInfo(StudentInfo info) async {
+    await LocalStorage.setString(_cacheKey, jsonEncode(info.toJson()));
   }
 
   /// 持续重试直到成功获取个人信息（登录阻塞页 FetchInfoPage 使用）
