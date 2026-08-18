@@ -91,12 +91,42 @@ object WidgetRenderer {
 
         val json = runCatching { dataJson?.let { JSONObject(it) } }.getOrNull()
         if (json == null) {
-            renderCourseEmpty(views, layoutId, theme)
+            renderCourseEmpty(views, layoutId, theme, hasData = false)
             return views
         }
 
         views.setTextViewText(R.id.tv_title, json.optString("title", "今日课程"))
-        views.setTextViewText(R.id.tv_week, json.optString("week", ""))
+
+        // 原生计算「今天」：避免 Flutter 写死星期几导致跨天不刷新。
+        // days 为新格式（整学期课程，含 weeks），courses 为旧格式兼容。
+        val today = currentDayOfWeek() // 1=周一 … 7=周日
+        val weekNames = arrayOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+        val daysObj = json.optJSONObject("days") // 兼容旧格式：取 JSON 对象
+        val legacyCourses = json.optJSONArray("courses")
+        val hasData = daysObj != null || legacyCourses != null
+
+        // 教学周次：优先用 firstMonday 锚点按设备时钟现场推算，彻底消除「周次滞后」；
+        // 无锚点时回退到 Flutter 写入的 currentWeek 兜底。
+        val firstMondayMillis = json.optLong("firstMonday", -1L)
+        val computedWeek = if (firstMondayMillis > 0) {
+            computeWeekFromMonday(firstMondayMillis)
+        } else {
+            json.optInt("currentWeek", 1)
+        }
+
+        val courses: JSONArray
+        val weekLabel: String
+        if (daysObj != null) {
+            // 取出当日课程，再按推算出的教学周次过滤（weeks 为空表示每周都有）
+            val raw = daysObj.optJSONArray(today.toString()) ?: JSONArray()
+            courses = filterByWeek(raw, computedWeek)
+            weekLabel = "第 ${computedWeek} 周 · ${weekNames[today - 1]}"
+        } else {
+            // 旧格式：直接使用写死的 courses 与 week
+            courses = legacyCourses ?: JSONArray()
+            weekLabel = json.optString("week", "")
+        }
+        views.setTextViewText(R.id.tv_week, weekLabel)
 
         // 更新时间（三档布局均有，左下角显示"更新于 M月d日 HH:mm"）
         val updated = json.optString("updatedAt", "")
@@ -108,8 +138,7 @@ object WidgetRenderer {
             views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
         }
 
-        val courses = json.optJSONArray("courses") ?: JSONArray()
-        val isEmpty = json.optBoolean("empty", courses.length() == 0)
+        val isEmpty = !hasData || courses.length() == 0
 
         // 小号：仅第一节课 + 共 N 节
         if (layoutId == R.layout.widget_course_small) {
@@ -118,6 +147,10 @@ object WidgetRenderer {
                 views.setViewVisibility(R.id.tv_course1_time, android.view.View.GONE)
                 views.setViewVisibility(R.id.tv_more, android.view.View.GONE)
                 views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
+                views.setTextViewText(
+                    R.id.tv_empty,
+                    if (hasData) "今日无课" else "暂无课程数据",
+                )
                 views.setTextColor(R.id.tv_empty, theme.textSecondary)
             } else {
                 views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
@@ -160,6 +193,10 @@ object WidgetRenderer {
 
         if (isEmpty) {
             views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
+            views.setTextViewText(
+                R.id.tv_empty,
+                if (hasData) "今日无课" else "暂无课程数据",
+            )
             views.setTextColor(R.id.tv_empty, theme.textSecondary)
         } else {
             views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
@@ -168,16 +205,86 @@ object WidgetRenderer {
         return views
     }
 
-    private fun renderCourseEmpty(views: RemoteViews, layoutId: Int, theme: WidgetTheme) {
+    /**
+     * 当前星期几（1=周一 … 7=周日）。
+     * 用 Calendar 而非 java.time（兼容 minSdk 24）。
+     */
+    private fun currentDayOfWeek(): Int {
+        val cal = java.util.Calendar.getInstance()
+        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK) // 1=周日 … 7=周六
+        return if (dow == java.util.Calendar.SUNDAY) 7 else dow - 1
+    }
+
+    /**
+     * 由校历第一周周一（epoch millis）按设备时钟推算当前教学周次。
+     * 镜像 course_service.dart::_estimateWeekFromMonday：
+     *   week = (本周周一 − firstMonday) / 7天 + 1，clamp[1,30]，未来第一周→1。
+     * 以「当日零点」归零后再回退到本周周一，避免时分导致的跨周边界 off-by-one。
+     */
+    private fun computeWeekFromMonday(firstMondayMillis: Long): Int {
+        val first = java.util.Calendar.getInstance().apply {
+            timeInMillis = firstMondayMillis
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (first.timeInMillis > System.currentTimeMillis()) return 1
+
+        val today = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val dow = currentDayOfWeek() // 1=周一 … 7=周日
+        today.add(java.util.Calendar.DAY_OF_MONTH, -(dow - 1)) // 回退到本周周一
+
+        val dayMillis = 24L * 60 * 60 * 1000
+        val days = ((today.timeInMillis - first.timeInMillis) / dayMillis).toInt()
+        val est = days / 7 + 1
+        return if (est < 1 || est > 30) 1 else est
+    }
+
+    /**
+     * 按教学周次过滤当日课程：weeks 为空表示每周都有课；
+     * 否则仅保留 weeks 含 [week] 的课程（与 Flutter 侧 weeks 语义一致）。
+     */
+    private fun filterByWeek(courses: JSONArray, week: Int): JSONArray {
+        val result = JSONArray()
+        for (i in 0 until courses.length()) {
+            val c = courses.optJSONObject(i) ?: continue
+            val weeksArr = c.optJSONArray("weeks")
+            val show = if (weeksArr == null || weeksArr.length() == 0) {
+                true
+            } else {
+                var contains = false
+                for (j in 0 until weeksArr.length()) {
+                    if (weeksArr.optInt(j, 0) == week) { contains = true; break }
+                }
+                contains
+            }
+            if (show) result.put(c)
+        }
+        return result
+    }
+
+    private fun renderCourseEmpty(
+        views: RemoteViews,
+        layoutId: Int,
+        theme: WidgetTheme,
+        hasData: Boolean,
+    ) {
         views.setTextColor(R.id.tv_title, theme.textPrimary)
         views.setTextColor(R.id.tv_week, theme.textSecondary)
         views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
+        val emptyText = if (hasData) "今日无课" else "暂无课程数据"
         if (layoutId == R.layout.widget_course_small) {
             views.setViewVisibility(R.id.tv_course1_name, android.view.View.GONE)
             views.setViewVisibility(R.id.tv_course1_time, android.view.View.GONE)
             views.setViewVisibility(R.id.tv_more, android.view.View.GONE)
             views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
-            views.setTextViewText(R.id.tv_empty, "暂无课程数据")
+            views.setTextViewText(R.id.tv_empty, emptyText)
             views.setTextColor(R.id.tv_empty, theme.textSecondary)
             return
         }
@@ -187,7 +294,7 @@ object WidgetRenderer {
             views.setViewVisibility(rowId(i), android.view.View.GONE)
         }
         views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
-        views.setTextViewText(R.id.tv_empty, "暂无课程数据")
+        views.setTextViewText(R.id.tv_empty, emptyText)
         views.setTextColor(R.id.tv_empty, theme.textSecondary)
     }
 

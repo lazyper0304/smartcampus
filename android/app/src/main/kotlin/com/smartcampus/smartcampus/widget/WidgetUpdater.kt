@@ -120,4 +120,15 @@ object WidgetUpdater {
         updateAllCourseWidgets(context)
         updateAllDianfeiWidgets(context)
     }
+
+    /** 是否存在任意课程表组件（用于决定是否调度/取消定时刷新） */
+    fun hasAnyCourseWidget(context: Context): Boolean {
+        return CourseWidgetProvider.ids(context).isNotEmpty() ||
+            AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(ComponentName(context, CourseWidgetProvider4x2::class.java))
+                .isNotEmpty() ||
+            AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(ComponentName(context, CourseWidgetProvider4x4::class.java))
+                .isNotEmpty()
+    }
 }

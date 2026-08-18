@@ -7,41 +7,54 @@ class WidgetCourseItem {
   final String time; // 节次，如 "1-2节"
   final String name; // 课程名
   final String room; // 教室
+  final List<int> weeks; // 该课程出现的教学周（空 = 每周都有）；用于原生按「今天所在周」过滤
   const WidgetCourseItem({
     required this.time,
     required this.name,
     this.room = '',
+    this.weeks = const [],
   });
 
-  Map<String, String> toJson() => {
+  Map<String, dynamic> toJson() => {
         'time': time,
         'name': name,
         'room': room,
+        'weeks': weeks,
       };
 }
 
 /// 课程表组件整体数据
+///
+/// 注意：组件「今天」的星期几必须在**原生渲染时**用当前日期计算，
+/// 不能在 Flutter 侧写死。因此这里保存整周（7 天）的课程 + 当前周次，
+/// 由原生 WidgetRenderer 在每次渲染时按当天 weekday 取出今日课程并生成标签。
+/// 这样即使组件多日未刷新，只要原生重新渲染就会显示正确的「今天」。
 class WidgetCourseData {
   final String title;
-  final String week; // 如 "第3周 · 周六"
-  final List<WidgetCourseItem> courses;
-  final bool empty;
-  final String updatedAt; // 如 "08:30"
+  final int currentWeek; // 兜底用：当前教学周（优先用 firstMondayMillis 现场计算）
+  final int? firstMondayMillis; // 校历第一周周一（epoch millis），用于原生按设备时钟推算周次
+  final Map<int, List<WidgetCourseItem>> days; // key = weekday(1=周一 … 7=周日)，存整学期课程（含 weeks）
+  final String updatedAt; // 如 "8月16日 08:28"
 
   const WidgetCourseData({
     this.title = '今日课程',
-    this.week = '',
-    this.courses = const [],
-    this.empty = false,
+    this.currentWeek = 1,
+    this.firstMondayMillis,
+    this.days = const {},
     this.updatedAt = '',
   });
 
   Map<String, dynamic> toJson() => {
         'title': title,
-        'week': week,
-        'courses': courses.map((c) => c.toJson()).toList(),
-        'empty': empty,
+        'currentWeek': currentWeek,
+        if (firstMondayMillis != null) 'firstMonday': firstMondayMillis,
         'updatedAt': updatedAt,
+        'days': days.map(
+          (k, v) => MapEntry(
+            k.toString(),
+            v.map((c) => c.toJson()).toList(),
+          ),
+        ),
       };
 }
 

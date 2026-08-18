@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="宜院宾果"
         android:name="${applicationName}"
@@ -123,6 +124,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/dianfei_widget_info_4x4" />
+        </receiver>
+
+        <!-- 课程表组件定时刷新：AlarmManager 每 30 分钟触发一次轻量重绘（仅课程组件） -->
+        <receiver
+            android:name=".widget.CourseWidgetAlarmReceiver"
+            android:exported="false" />
+
+        <!-- 开机后重新调度课程表组件的定时刷新 -->
+        <receiver
+            android:name=".widget.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
         </receiver>
     </application>
     <!-- Required to query activities that can process text, see:

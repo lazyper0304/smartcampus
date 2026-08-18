@@ -60,6 +60,16 @@ class CourseWidgetProvider : AppWidgetProvider() {
         super.onEnabled(context)
         // 首次添加组件：把当前已缓存数据立即渲染（无数据时显示占位）
         WidgetUpdater.updateCourseWidgets(context)
+        // 启动定时刷新（跨天后自动翻正「今天」）；重复添加同 provider 时幂等
+        WidgetRefreshScheduler.schedule(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        // 所有课程组件均已移除时，取消定时刷新
+        if (!WidgetUpdater.hasAnyCourseWidget(context)) {
+            WidgetRefreshScheduler.cancel(context)
+        }
     }
 
     private fun bindClick(context: Context, views: RemoteViews, target: String) {

@@ -45,6 +45,16 @@ abstract class FixedCourseWidgetProvider : AppWidgetProvider() {
         super.onEnabled(context)
         val manager = AppWidgetManager.getInstance(context)
         render(context, manager, ids(context))
+        // 启动定时刷新（跨天后自动翻正「今天」）；重复添加时幂等
+        WidgetRefreshScheduler.schedule(context)
+    }
+
+    final override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        // 所有课程组件均已移除时，取消定时刷新
+        if (!WidgetUpdater.hasAnyCourseWidget(context)) {
+            WidgetRefreshScheduler.cancel(context)
+        }
     }
 
     private fun render(

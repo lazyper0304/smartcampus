@@ -516,6 +516,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
         WidgetService.buildCourseData(
           courses: allCourses,
           currentWeek: currentWeek,
+          firstMonday: weekInfo.firstMonday,
         ),
       );
     } catch (e) {

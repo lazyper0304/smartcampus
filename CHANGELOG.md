@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🐛 Bug 修复
+- **桌面课程组件「今天」跨天不自动更新（星期一更新的数据，星期二仍显示星期一）**：根因是「今天」的星期几在 **Flutter 侧写死进 JSON**（旧 `WidgetCourseData.week` = `第 X 周 · 周一`），而原生 `AppWidgetProvider` 仅原样渲染该缓存，且 `widget_info` 的 `updatePeriodMillis="0"` 使系统从不主动重绘——组件一旦添加便永久冻结在最后保存的那一天，只有重新打开课表页才会翻正。修复分两步：① **数据改存整周**——`WidgetCourseData` 改为保存 `currentWeek` + 按 weekday(1..7) 分组的 `days` 全周课程，`buildCourseData` 按当前教学周过滤后逐日分组排序；② **原生渲染时计算今天**——`WidgetRenderer.renderCourse` 改用 `Calendar` 取当前 weekday（兼容 minSdk 24），结合 `currentWeek` 现场生成「第 X 周 · 周Y」标签并从 `days[today]` 取今日课程（旧 `courses` 缓存兼容回退）；③ **新增定时刷新**——新增 `WidgetRefreshScheduler`（AlarmManager 每 30 分钟 `setRepeating` 轻量重绘，无网络请求）+ `CourseWidgetAlarmReceiver` + `BootReceiver`（开机重排），三个课程组件 provider 的 `onEnabled` 调度、`onDisabled` 最后一个移除时取消；`AndroidManifest` 注册 `RECEIVE_BOOT_COMPLETED` 与两个接收器。修复后：组件在每天 0 点后约 30 分钟内自动翻正到正确「今天」，无需打开 App；旧格式缓存若仍存则按原 `week` 文案展示直至下次同步。
+- **桌面课程组件「教学周次滞后」彻底解决**：此前 `days` 整周课程仍由 Flutter 侧按 `currentWeek` 过滤（只存当周课），且「第 X 周」标签沿用写入时的周次——用户数周不打开 App 时，组件虽已能翻正「星期几」，但显示的仍是旧的教学周次与旧周课程。修复：① **保存整学期**——`buildCourseData` 不再按 `currentWeek` 过滤，整学期课程按 weekday 分组，每门课的生效周次 `weeks`（`List<int>`，空=每周）一并存入 `WidgetCourseItem`；② **携带校历锚点**——`WidgetCourseData` 新增 `firstMondayMillis`（校历第一周周一 epoch millis，由 `course_page` 传入 `weekInfo.firstMonday`），`toJson` 写入 `firstMonday` 字段；③ **原生按设备时钟推算周次并过滤**——`WidgetRenderer.renderCourse` 优先读取 `firstMonday`，`computeWeekFromMonday()` 以「当日零点归一」后回退到本周周一，按 `(本周周一 − firstMonday)/7天 + 1` 现场推算教学周次（clamp [1,30]，未来第一周→1，镜像 `course_service._estimateWeekFromMonday`），再用 `filterByWeek()` 按推算周次筛出 `days[today]` 中本周有课的课程，标签改为「第 `{computedWeek}` 周 · 周Y」；无锚点旧数据回退 `currentWeek`。效果：组件在 30 分钟定时重绘时，仅凭设备时钟即可同步到正确的星期几与教学周次，彻底消除「周次滞后」，无需打开 App 或重新同步课表。
+
 ## [1.2.3] - 2026-08-16
 
 ### ✨ 新增

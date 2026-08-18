@@ -6,6 +6,7 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import com.smartcampus.smartcampus.widget.WidgetPrefs
+import com.smartcampus.smartcampus.widget.WidgetRefreshScheduler
 import com.smartcampus.smartcampus.widget.WidgetUpdater
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -44,6 +45,11 @@ class MainActivity : FlutterActivity() {
         intent?.getStringExtra(WidgetPrefs.EXTRA_TARGET)?.let {
             pendingWidgetTarget = it
             Log.d(TAG, "widget click (cold start): $it")
+        }
+        // 确保课程组件定时刷新已调度：覆盖「App 升级但组件早已存在、未重启」的场景
+        // （AppWidgetProvider.onEnabled 仅首次添加时触发，升级不会重排）。setRepeating 幂等。
+        if (WidgetUpdater.hasAnyCourseWidget(this)) {
+            WidgetRefreshScheduler.schedule(this)
         }
     }
 

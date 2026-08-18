@@ -114,39 +114,50 @@ class WidgetService {
 
   // ==================== 数据整理 ====================
 
-  /// 由课程列表 + 当前周次整理「今日课程」组件快照。
-  /// [courses] 应为已合并实验课的完整课表；[now] 用于判定星期几。
+  /// 由课程列表 + 当前周次整理课程表组件快照。
+  ///
+  /// 关键：保存**整个学期**课程（按 weekday 1..7 分组，保留每门课的生效周次 [weeks]），
+  /// 不在 Flutter 侧过滤「当前周」、也不写死「今天」。
+  /// 由原生 WidgetRenderer 在**每次渲染时**用设备时钟 + [firstMonday] 现场推算教学周次，
+  /// 再按当日 weekday 取出今日课程并生成「第 X 周 · 周Y」标签。
+  /// 这样即使组件数周未打开 App，只要原生被 AlarmManager 触发重新渲染，
+  /// 就能自动翻到正确的星期几与正确的教学周次，彻底消除「周次滞后」。
+  ///
+  /// [courses] 应为已合并实验课的完整课表；[firstMonday] 为校历第一周周一（用于推算周次）；
+  /// [currentWeek] 作为无 [firstMonday] 时的兜底；[now] 仅用于更新时间展示。
   static WidgetCourseData buildCourseData({
     required List<Course> courses,
     required int currentWeek,
+    DateTime? firstMonday,
     DateTime? now,
   }) {
     final time = now ?? DateTime.now();
-    final today = time.weekday; // 1=周一 … 7=周日
 
-    // 今日且本周有课的课程，按开始节次排序
-    final todayCourses = courses
-        .where((c) => c.day == today && c.weeks.contains(currentWeek))
-        .toList()
-      ..sort((a, b) => (a.sections.isEmpty ? 0 : a.sections.first)
+    // 按 weekday 分组：保存整学期课程，不按 currentWeek 过滤（周次交给原生现场推算）
+    final byDay = <int, List<Course>>{};
+    for (final c in courses) {
+      (byDay[c.day] ??= []).add(c);
+    }
+
+    final days = <int, List<WidgetCourseItem>>{};
+    for (int d = 1; d <= 7; d++) {
+      final list = byDay[d] ?? <Course>[];
+      list.sort((a, b) => (a.sections.isEmpty ? 0 : a.sections.first)
           .compareTo(b.sections.isEmpty ? 0 : b.sections.first));
-
-    const weekNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    final items = todayCourses
-        .take(5)
-        .map((c) => WidgetCourseItem(
-              time: c.sectionRangesCompact,
-              name: c.name,
-              room: [c.position, c.teacher]
-                  .where((e) => e.isNotEmpty)
-                  .join(' · '),
-            ))
-        .toList();
+      days[d] = list.take(12).map((c) => WidgetCourseItem(
+            time: c.sectionRangesCompact,
+            name: c.name,
+            room: [c.position, c.teacher]
+                .where((e) => e.isNotEmpty)
+                .join(' · '),
+            weeks: c.weeks,
+          )).toList();
+    }
 
     return WidgetCourseData(
-      week: '第 $currentWeek 周 · ${weekNames[today - 1]}',
-      courses: items,
-      empty: items.isEmpty,
+      currentWeek: currentWeek,
+      firstMondayMillis: firstMonday?.millisecondsSinceEpoch,
+      days: days,
       updatedAt: _formatTime(time),
     );
   }
