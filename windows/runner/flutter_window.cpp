@@ -36,6 +36,13 @@ bool FlutterWindow::OnCreate() {
   // window is shown. It is a no-op if the first frame hasn't completed yet.
   flutter_controller_->ForceRedraw();
 
+  // ⚠️ 兜底显示窗口（2026-08-20 修复）：SetNextFrameCallback 存在竞态——
+  // 当 FlutterViewController 构造期间引擎已抢先完成首帧、且 ForceRedraw()
+  // 在部分时序下为 no-op 时，"下一帧"回调永远不触发，主窗口永远不可见
+  // （进程在运行、Flutter 视图正常渲染但被隐藏的父窗口遮挡）。
+  // 直接 Show 让窗口立即显示，UI 随后正常渲染。
+  this->Show();
+
   return true;
 }
 
