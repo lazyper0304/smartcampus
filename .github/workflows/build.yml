@@ -50,6 +50,11 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          # ⚠️ 2026-08-20：固定 Flutter 3.44.9，禁止跟随最新 stable——
+          # 3.47.x 在 Windows 默认启用 Impeller(D3D12) 渲染，首帧需编译全部
+          # shader pipeline（数分钟）→ 启动白屏（v1.2.0 用 3.44.9 正常，
+          # v1.2.1+ 自动升级 3.47 后白屏）。Android/Windows 两端统一锁定。
+          flutter-version: '3.44.9'
 
       - name: Read version
         id: version
@@ -105,6 +110,11 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          # ⚠️ 2026-08-20：固定 Flutter 3.44.9，禁止跟随最新 stable——
+          # 3.47.x 在 Windows 默认启用 Impeller(D3D12) 渲染，首帧需编译全部
+          # shader pipeline（数分钟）→ 启动白屏（v1.2.0 用 3.44.9 正常，
+          # v1.2.1+ 自动升级 3.47 后白屏）。Android/Windows 两端统一锁定。
+          flutter-version: '3.44.9'
 
       - name: Get dependencies
         run: flutter pub get
