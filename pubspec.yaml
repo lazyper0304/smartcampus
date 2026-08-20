@@ -50,7 +50,13 @@ dependencies:
   # 临时文件路径
   path_provider: ^2.1.0
   # 液态玻璃 UI 风格
-  liquid_glass_widgets: ^0.29.1
+  # ⚠️ 2026-08-20：必须精确锁定 0.29.2，禁止 ^0.29.1 浮动——
+  # pub.dev 8-12~8-19 密集发布 0.29.5~0.30.1，其中 0.29.8 将 shader 加载
+  # 重构为 dart:ui.FragmentProgram 直接加载（cached isolate pipelines），
+  # 在 Windows Impeller(D3D12) 上首次编译极慢/挂起 → 启动白屏数分钟
+  # （v1.2.0 用 0.29.2 正常，v1.2.4 自动升级 0.29.8 白屏）。
+  # pubspec.lock 同时提交到 git 双保险防漂移。
+  liquid_glass_widgets: 0.29.2
   # 动态流体气泡背景
   fluid_background: ^1.0.5
   # 图片缓存

@@ -5,6 +5,7 @@
 build/
 *.iml
 *.lock
+!pubspec.lock
 .flutter-plugins
 .flutter-plugins-dependencies
 
