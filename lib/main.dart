@@ -60,7 +60,14 @@ void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await CrashLog.init();
-    await LiquidGlassWidgets.initialize();
+
+    // ⚠️ 2026-08-20：LiquidGlassWidgets.initialize() 内部用
+    // FragmentProgram.fromAsset 预编译多个玻璃 shader——在 Windows
+    // Impeller(D3D12) 上首次编译耗时可达数分钟。若在 runApp 前 await，
+    // 首帧永远不会渲染 → 窗口白屏数分钟（v1.2.4 修复窗口显示后暴露）。
+    // 改为 runApp 后异步预热：首帧立即渲染 SplashPage；玻璃组件自带
+    // fallback 渲染，shader 就绪后自动切换到完整玻璃效果。
+    final Future<void> glassInit = LiquidGlassWidgets.initialize();
 
     // 加载保存的主题模式
     final saved = await LocalStorage.getString('theme_mode');
@@ -114,6 +121,23 @@ void main() {
         ),
       ),
     ));
+
+    // ⚠️ 首帧渲染完成后再预热 shader（addPostFrameCallback 保证 runApp
+    // 的首帧已提交渲染，此后预热不再阻塞任何帧）。fire-and-forget：
+    // 预热失败/超时只影响玻璃观感（组件自带 fallback 渲染），不影响功能。
+    // 15s 超时兜底：Windows Impeller(D3D12) 上 FragmentProgram 首次编译
+    // 可能极慢甚至挂起，超时后放弃预热，组件以 fallback 玻璃继续工作。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      glassInit
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => CrashLog.write(
+                'LiquidGlassWidgets.initialize TIMEOUT(15s), fallback glass'),
+          )
+          .catchError((Object e) {
+        CrashLog.write('LiquidGlassWidgets.initialize FAILED: $e');
+      });
+    });
   }, (error, stack) {
     CrashLog.write('UNCAUGHT_ZONE_ERROR: $error\n$stack');
   });
