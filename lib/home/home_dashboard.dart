@@ -3,6 +3,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/beginner_mode.dart';
 import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
 import '../course/course.dart';
@@ -140,6 +141,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
             ? '下午好'
             : '晚上好';
     if (GuestMode.active) return '欢迎使用宜院宾果';
+    if (BeginnerMode.active) return '欢迎使用宜院宾果';
     return _studentName != null && _studentName!.isNotEmpty
         ? '$base，$_studentName'
         : '宜院宾果';

@@ -1,6 +1,9 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.2.5] - 2026-08-22
+
+### ✨ 新增
+- **登录页新增「新生模式」**：适用于已录入智慧校园、但班级等个人信息暂未录入的账号。点击「新生模式」**跳转独立的新生登录页**（顶部常驻提示："该模式适用于已录入智慧校园，但班级等个人信息暂未录入。使用该模式登录，跳过个人信息获取，其他保持一致"，该页无游客模式选项），使用同一账号密码链路登录，**登录成功后跳过个人信息获取（不进入 FetchInfoPage 阻塞页），直接进入主界面**；启动自动重登、首页问候语、设置页个人信息卡同步适配（新生模式显示"个人信息暂未录入，点击尝试获取"占位，点按可手动补录并自动退出新生模式）。新增 `lib/core/beginner_mode.dart`（`BeginnerMode` 全局状态，仿 `GuestMode` 持久化）与 `lib/auth/beginner_login_page.dart`（`BeginnerLoginPage`）。
 
 ### 🐛 Bug 修复
 - **Windows 启动白屏数分钟（首帧延迟）**：`main()` 在 `runApp` 前 `await LiquidGlassWidgets.initialize()`，其内部用 `FragmentProgram.fromAsset` 预编译多个玻璃 shader——在 Windows Impeller(D3D12) 上首次编译耗时可达数分钟，首帧迟迟不渲染 → 窗口白屏（v1.2.4 修复窗口显示后暴露）。修复：改为 **runApp 后异步预热**（`addPostFrameCallback` 保证首帧已提交，shader 编译不再阻塞任何帧），SplashPage 立即渲染；15s 超时兜底，预热失败/超时组件以 fallback 玻璃继续工作，不影响功能。

@@ -2,28 +2,32 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/beginner_mode.dart';
 import '../core/guest_mode.dart';
 import '../core/ios_kit.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../home/main_screen.dart';
-import '../splash/fetch_info_page.dart';
 import '../xuegong/student_info_manager.dart';
 import 'auth_service.dart';
-import 'beginner_login_page.dart';
 import '../core/liquid_background.dart';
 import '../main.dart';
 
 Color get _accentBlue => accentColorNotifier.value;
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+/// 新生模式独立登录页。
+///
+/// 适用于已录入智慧校园、但班级等个人信息暂未录入的账号。
+/// 进入即顶部常驻提示，登录成功后跳过个人信息获取（不进入 FetchInfoPage），
+/// 直接进主界面；其余与会话、SSO、功能入口完全一致。本页无游客模式选项。
+class BeginnerLoginPage extends StatefulWidget {
+  const BeginnerLoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<BeginnerLoginPage> createState() => _BeginnerLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _BeginnerLoginPageState extends State<BeginnerLoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -92,17 +96,13 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // 有缓存则直接进主页面；首次登录需先获取个人信息（FetchInfoPage 阻塞）
-      final cached = await StudentInfoManager.getCached();
+      // 新生模式：跳过个人信息获取，直接进入主界面
+      await BeginnerMode.enter();
       if (!mounted) return;
-      if (cached != null) {
-        replacePage(
-          context,
-          MainScreen(client: _authService.client, userId: _usernameController.text.trim()),
-        );
-      } else {
-        replacePage(context, FetchInfoPage(client: _authService.client));
-      }
+      replacePage(
+        context,
+        MainScreen(client: _authService.client, userId: _usernameController.text.trim()),
+      );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,23 +114,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// 跳转新生模式独立登录页（该页无游客模式选项，顶部常驻提示）。
-  void _handleBeginnerLogin() {
-    if (_isLoading) return;
-    pushPage(context, const BeginnerLoginPage());
-  }
-
-  /// 游客登录：无需账号密码，仅可使用无需登录的功能
-  Future<void> _handleGuestLogin() async {
-    if (_isLoading) return;
-    await GuestMode.enter();
-    if (!mounted) return;
-    replacePage(
-      context,
-      MainScreen(client: _authService.client, userId: ''),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -139,9 +122,7 @@ class _LoginPageState extends State<LoginPage> {
       // 与主界面同款的统一液态玻璃背景（主题渐变 + 动态气泡）
       background: const LiquidBackground(),
       statusBarStyle: GlassStatusBarStyle.auto,
-      // 透明 Scaffold：提供 Material 祖先（TextField/Checkbox 需要）+ 
-      // SnackBar 宿主（0.26.0 起 GlassScaffold 内部是 CupertinoPageScaffold，
-      // 无 Material Scaffold 注册，登录失败提示 SnackBar 无法显示）。
+      // 透明 Scaffold：提供 Material 祖先（TextField/Checkbox 需要）+ SnackBar 宿主
       body: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
@@ -151,43 +132,90 @@ class _LoginPageState extends State<LoginPage> {
               constraints: const BoxConstraints(maxWidth: 480),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0),
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeOut,
-                builder: (context, value, child) {
-                  return Opacity(
-                    opacity: value,
-                    child: Transform.translate(
-                      offset: Offset(0, 30 * (1 - value)),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 24),
-                    Text(
-                      '宜院宾果',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        // 跟随主题（浅色深字 / 深色浅字），不再固定白色
-                        color: colorScheme.onSurface,
-                        letterSpacing: 2,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, 30 * (1 - value)),
+                        child: child,
                       ),
-                    ),
-                    const SizedBox(height: 48),
-                    _buildLoginCard(colorScheme),
-                    const SizedBox(height: 32),
-                  ],
+                    );
+                  },
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 24),
+                      Text(
+                        '宜院宾果',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '新生模式',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _accentBlue,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // 顶部常驻提示：进入即见，说明新生模式用途
+                      _buildHintCard(),
+                      const SizedBox(height: 20),
+                      _buildLoginCard(colorScheme),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             ),
-            ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 新生模式用途提示卡片（进入页面即展示，常驻）
+  Widget _buildHintCard() {
+    return contentCardGlass(
+      context: context,
+      borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _accentBlue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.school_rounded, color: _accentBlue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '该模式适用于已录入智慧校园，但班级等个人信息暂未录入。'
+              '使用该模式登录，跳过个人信息获取，其他保持一致。',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -304,78 +332,6 @@ class _LoginPageState extends State<LoginPage> {
               child: Text(
                 '使用统一认证登录',
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: Divider(color: Colors.grey.withValues(alpha: 0.2))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('或',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                ),
-                Expanded(child: Divider(color: Colors.grey.withValues(alpha: 0.2))),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 44,
-              child: OutlinedButton.icon(
-                onPressed: _isLoading ? null : _handleGuestLogin,
-                icon: Icon(Icons.person_outline_rounded,
-                    size: 18, color: _accentBlue),
-                label: Text(
-                  '游客登录',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _accentBlue,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: _accentBlue.withValues(alpha: 0.4)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                '游客模式仅可使用无需登录的功能',
-                style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 44,
-              child: OutlinedButton.icon(
-                onPressed: _isLoading ? null : _handleBeginnerLogin,
-                icon: Icon(Icons.school_rounded,
-                    size: 18, color: _accentBlue),
-                label: Text(
-                  '新生模式',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _accentBlue,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: _accentBlue.withValues(alpha: 0.4)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                '已录入智慧校园，但个人信息暂未补全',
-                style: TextStyle(fontSize: 11, color: Colors.grey[400]),
               ),
             ),
           ],

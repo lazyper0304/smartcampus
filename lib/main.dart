@@ -8,6 +8,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'auth/auth_service.dart';
 import 'auth/login_page.dart';
+import 'core/beginner_mode.dart';
 import 'core/guest_mode.dart';
 import 'core/crash_log.dart';
 import 'core/http_client.dart';
@@ -553,6 +554,7 @@ class _SplashPageState extends State<SplashPage>
     final client = SharedHttpClient();
     await client.loadCookies();
     await GuestMode.load();
+    await BeginnerMode.load();
 
     // 游客模式：跳过会话校验，直接进入首页（仅可用免登录功能）
     if (GuestMode.active) {
@@ -571,10 +573,11 @@ class _SplashPageState extends State<SplashPage>
       final savedUser = await LocalStorage.getString('saved_username') ?? '';
 
       // 首次进入需先获取到个人信息（无缓存时走 FetchInfoPage 阻塞获取），
-      // 后续有缓存直接进主界面
+      // 后续有缓存直接进主界面。
+      // 新生模式：已登录但个人信息暂未录入，跳过获取直接进主界面。
       final cached = await StudentInfoManager.getCached();
       if (!mounted) return;
-      if (cached == null) {
+      if (cached == null && !BeginnerMode.active) {
         replacePage(context, FetchInfoPage(client: client));
         return;
       }

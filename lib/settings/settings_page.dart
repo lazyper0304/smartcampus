@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/login_page.dart';
+import '../core/beginner_mode.dart';
 import '../core/guest_mode.dart';
 import '../core/theme_utils.dart';
 import '../core/local_storage.dart';
@@ -37,6 +38,8 @@ class _SettingsPageState extends State<SettingsPage> {
   StudentInfo? _studentInfo;
   bool _loadingInfo = true;
 
+  Color get _accentBlueForCard => accentColorNotifier.value;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +51,11 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     if (info != null) {
       setState(() { _studentInfo = info; _loadingInfo = false; });
+      return;
+    }
+    // 新生模式：已登录但个人信息暂未录入，不主动拉取，避免触发获取流程
+    if (BeginnerMode.active) {
+      setState(() { _loadingInfo = false; });
       return;
     }
     // 无缓存：进入即自动拉取（学号、姓名、专业等），期间显示"正在获取中"
@@ -62,6 +70,11 @@ class _SettingsPageState extends State<SettingsPage> {
     if (widget.client == null) return;
     setState(() => _loadingInfo = true);
     final info = await StudentInfoManager.fetchAndCache(widget.client!);
+    if (!mounted) return;
+    // 新生模式下成功获取到个人信息 → 退出新生模式，回归常规模式
+    if (info != null && BeginnerMode.active) {
+      await BeginnerMode.exit();
+    }
     if (mounted) setState(() { _studentInfo = info; _loadingInfo = false; });
   }
 
@@ -346,6 +359,48 @@ class _SettingsPageState extends State<SettingsPage> {
       return _buildStudentCard(_studentInfo!, scale: scale);
     }
 
+    // 新生模式：已登录但个人信息暂未录入，展示待录入占位（点击可手动尝试获取）
+    if (BeginnerMode.active) {
+      return IosCard(
+        padding: const EdgeInsets.all(14),
+        onTap: widget.client != null ? _refreshInfo : null,
+        child: Row(
+          children: [
+            Container(
+              width: 56 * scale, height: 56 * scale,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13 * scale),
+                color: _accentBlueForCard.withValues(alpha: 0.10),
+                border: Border.all(color: _accentBlueForCard.withValues(alpha: 0.18)),
+              ),
+              child: Icon(Icons.school_rounded,
+                  color: _accentBlueForCard, size: 28 * scale),
+            ),
+            SizedBox(width: 14 * scale),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '新生模式',
+                    style: TextStyle(
+                        fontSize: 15 * scale, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '个人信息暂未录入，点击尝试获取',
+                    style: TextStyle(fontSize: 12 * scale, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+            if (widget.client != null)
+              Icon(Icons.refresh_rounded, color: Colors.grey.shade400, size: 22 * scale),
+          ],
+        ),
+      );
+    }
+
     // 无数据 → 占位卡片，点击手动获取
     return IosCard(
       padding: const EdgeInsets.all(14),
@@ -445,6 +500,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _logout(BuildContext context) async {
     await GuestMode.exit();
+    await BeginnerMode.exit();
     await StudentInfoManager.clearCache();
     await LocalStorage.remove('username');
     await LocalStorage.remove('password');
