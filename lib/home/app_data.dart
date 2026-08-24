@@ -64,7 +64,7 @@ class AppEntry {
 /// 所有应用列表
 final List<AppEntry> allApps = [
   // ── 教务 ──
-  AppEntry(icon: Icons.calendar_month_rounded, name: '课程表', category: AppCategory.jiaowu,
+  AppEntry(icon: Icons.calendar_month_rounded, name: '我的课表', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => CourseTablePage(client: c, userId: uid)),
   AppEntry(icon: Icons.groups_rounded, name: '全校课表', category: AppCategory.jiaowu,

@@ -568,9 +568,14 @@ class QuickAppsStore {
   static const String storageKey = 'home_quick_apps';
   static const int maxCount = 12;
   static const List<String> defaults = [
-    '课程表', '成绩查询', '校历服务', '校园新闻',
+    '我的课表', '成绩查询', '校历服务', '校园新闻',
     '临港电费', '校车时间', '网络服务', 'VR地图',
   ];
+
+  /// 历史名称迁移（改名后旧配置按此映射，避免常用功能条目被静默过滤）
+  static const Map<String, String> renamedApps = {
+    '课程表': '我的课表',
+  };
 
   /// 读取配置并映射为 AppEntry（过滤已下架条目，配置损坏时回退默认）
   static Future<List<AppEntry>> load() async {
@@ -578,7 +583,9 @@ class QuickAppsStore {
     try {
       final raw = await LocalStorage.getString(storageKey);
       if (raw != null && raw.isNotEmpty) {
-        names = (jsonDecode(raw) as List).cast<String>();
+        names = ((jsonDecode(raw) as List).cast<String>())
+            .map((n) => renamedApps[n] ?? n)
+            .toList();
       }
     } catch (_) {/* 配置损坏时回退默认 */}
     return names

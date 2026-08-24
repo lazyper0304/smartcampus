@@ -274,7 +274,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         icon: const Icon(Icons.login_rounded, size: 18),
                         label: const Text('去登录'),
                         onPressed: () => showGuestLoginDialog(
-                            context, featureName: '课程表'),
+                            context, featureName: '我的课表'),
                       ),
                     ],
                   ),

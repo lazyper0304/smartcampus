@@ -601,7 +601,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      title: const Text('课程表'),
+      title: const Text('我的课表'),
       centerTitle: true,
       actions: [
         if (!_isLoading && _courses != null) ...[
