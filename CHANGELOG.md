@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.2.6] - 2026-08-24
 
 ### ✨ 新增
 - **VPN 账号卡新增「记住密码」勾选**：账号卡内密码行下方新增复选框（默认勾选，兼容旧版本已保存密码的用户），整行可点击切换。取消勾选时立即清除本地已存密码且不再预填，连接时也不写入；重新勾选后恢复保存。`VpnService.loadConfig()` 返回值扩展 `rememberPassword` 字段，新增 `setRememberPassword()` 统一持久化入口。
