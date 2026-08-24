@@ -79,6 +79,9 @@ flutter {
 }
 
 dependencies {
+    // 校园 VPN：zju-connect 开源 EasyConnect 协议实现（gomobile AAR，
+    // Login/Logout/StartStack API，配合 YibinVpnService 的 TUN 使用）
+    implementation(files("libs/zju-connect.aar"))
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")

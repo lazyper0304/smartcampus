@@ -80,7 +80,14 @@ class _LiquidBackgroundState extends State<LiquidBackground>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     if (!widget.isGlobal && _counted) {
-      pageBgCount.value--;
+      _counted = false;
+      // ⚠️ 不能同步递减：dispose 在 finalizeTree（widget 树锁定）期间执行，
+      // 同步通知会让全局垫底层的 ValueListenableBuilder 在锁定态被
+      // markNeedsBuild（页面返回时抛 "widget tree was locked"，与 initState
+      // 延迟递增同理）。延迟到本帧结束后递减。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        pageBgCount.value--;
+      });
     }
     super.dispose();
   }

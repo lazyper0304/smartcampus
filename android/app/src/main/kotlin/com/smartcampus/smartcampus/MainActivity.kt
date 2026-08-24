@@ -5,6 +5,7 @@ import android.content.Intent
 import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import com.smartcampus.smartcampus.vpn.VpnBridge
 import com.smartcampus.smartcampus.widget.WidgetPrefs
 import com.smartcampus.smartcampus.widget.WidgetRefreshScheduler
 import com.smartcampus.smartcampus.widget.WidgetUpdater
@@ -19,12 +20,17 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "com.smartcampus.smartcampus/file"
         private const val WIDGET_CHANNEL = "com.smartcampus.smartcampus/widget"
+        private const val VPN_CHANNEL = "com.smartcampus.smartcampus/vpn"
+        private const val VPN_PERMISSION_REQUEST = 7001
         private const val FILE_PROVIDER_AUTH = ".fileprovider"
         private const val TAG = "SmartWidget"
 
         /** 组件点击后待通知 Flutter 的目标（冷启动时引擎未就绪，暂存于此） */
         @Volatile
         private var pendingWidgetTarget: String? = null
+
+        /** VPN 授权等待中的 Flutter 回调（系统授权弹窗期间挂起） */
+        private var vpnPrepareResult: MethodChannel.Result? = null
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -37,6 +43,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
         registerWidgetChannel(flutterEngine)
+        registerVpnChannel(flutterEngine)
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -50,6 +57,15 @@ class MainActivity : FlutterActivity() {
         // （AppWidgetProvider.onEnabled 仅首次添加时触发，升级不会重排）。setRepeating 幂等。
         if (WidgetUpdater.hasAnyCourseWidget(this)) {
             WidgetRefreshScheduler.schedule(this)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // VPN 系统授权弹窗结果 → 唤醒等待中的 prepare 调用
+        if (requestCode == VPN_PERMISSION_REQUEST) {
+            vpnPrepareResult?.success(resultCode == RESULT_OK)
+            vpnPrepareResult = null
         }
     }
 
@@ -125,6 +141,71 @@ class MainActivity : FlutterActivity() {
                     // 手动刷新所有组件
                     "refreshAllWidgets" -> {
                         WidgetUpdater.updateAll(this)
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // ==================== 校园 VPN 通道 ====================
+
+    private fun registerVpnChannel(flutterEngine: FlutterEngine) {
+        // 原生事件（隧道建立/掉线/错误）→ Flutter
+        val vpnChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            VPN_CHANNEL,
+        )
+        VpnBridge.setEventSink { event ->
+            vpnChannel.invokeMethod("onVpnEvent", event)
+        }
+        // 图形验证码：Go 侧阻塞回调 → Flutter 弹窗输入 → 回传验证码
+        // invokeMethod 带 Result 回调的重载必须在主线程调用
+        VpnBridge.setCaptchaRequester { imageBase64, callback ->
+            runOnUiThread {
+                vpnChannel.invokeMethod("getCaptcha", imageBase64, object : MethodChannel.Result {
+                    override fun success(r: Any?) {
+                        callback(r as? String ?: "")
+                    }
+
+                    override fun error(code: String, msg: String?, details: Any?) {
+                        callback("")
+                    }
+
+                    override fun notImplemented() {
+                        callback("")
+                    }
+                })
+            }
+        }
+        vpnChannel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // VPN 系统授权：已授权返回 true；否则弹系统对话框，
+                    // 结果经 onActivityResult 回传（Flutter 侧 await 阻塞等待）
+                    "prepare" -> {
+                        val consent = android.net.VpnService.prepare(this)
+                        if (consent == null) {
+                            result.success(true)
+                        } else {
+                            vpnPrepareResult = result
+                            startActivityForResult(consent, VPN_PERMISSION_REQUEST)
+                        }
+                    }
+                    // 连接：login 为阻塞网络操作，放后台线程，结果经主线程回传
+                    "connect" -> {
+                        val username = call.argument<String>("username") ?: ""
+                        val password = call.argument<String>("password") ?: ""
+                        val server = call.argument<String>("server")
+                            ?: "https://vpn.yibinu.edu.cn"
+                        val debugLog = call.argument<Boolean>("debug") ?: false
+                        VpnBridge.connectAsync(
+                            this, username, password, server, debugLog,
+                        ) { ip ->
+                            result.success(ip)
+                        }
+                    }
+                    "disconnect" -> {
+                        VpnBridge.disconnect(this)
                         result.success(true)
                     }
                     else -> result.notImplemented()

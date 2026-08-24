@@ -35,6 +35,7 @@ import '../qxfacx/qxfacx_page.dart';
 import '../wspj/wspj_page.dart';
 import '../mail/mail_page.dart';
 import '../leader_mail/leader_mail_page.dart';
+import '../vpn/vpn_page.dart';
 
 /// 应用分类
 enum AppCategory { jiaowu, service, news }
@@ -125,6 +126,9 @@ final List<AppEntry> allApps = [
     pageBuilder: (ctx, c, uid) => const EmployPage()),
   AppEntry(icon: Icons.lan_rounded, name: '网络服务', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const NetworkServicePage()),
+  AppEntry(icon: Icons.vpn_lock_rounded, name: '校园VPN', category: AppCategory.service,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => VpnPage(initialUsername: uid)),
   AppEntry(icon: Icons.shield_rounded, name: '校园安全', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const SafetyPage()),
   AppEntry(icon: Icons.map_rounded, name: 'VR地图', category: AppCategory.service,
