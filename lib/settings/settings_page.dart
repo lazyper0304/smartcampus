@@ -463,6 +463,8 @@ class _SettingsPageState extends State<SettingsPage> {
               scale: scale,
               radius: 12 * scale,
               fontSize: 28,
+              // 设置页个人信息栏不显示照片头像，仅详情页显示
+              showPhoto: false,
             ),
           ),
           SizedBox(width: 14 * scale),

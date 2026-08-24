@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### ✨ 新增
+- **服务板块新增「领导信箱」入口**：校领导联系渠道，含「书记信箱」shuji@yibinu.edu.cn 与「院长信箱」yuanzhang@yibinu.edu.cn。新建 `lib/leader_mail/leader_mail_page.dart`（`LeaderMailPage`），点击卡片复制邮箱地址，点击右侧发送按钮唤起系统邮件客户端（无可用邮件客户端时自动复制邮箱并提示）；入口注册于 `lib/home/app_data.dart` 的「服务」分类。
+
+### 🎨 UI 优化
+- **设置页个人信息栏不再显示学籍照片头像**：`StudentAvatar` 新增 `showPhoto` 开关（默认 true），设置页个人信息卡传 `showPhoto: false`——仅显示姓氏首字占位、且不发起照片拉取；学籍照片头像仍保留在「学生信息详情页」。首字占位不再自带纯色背景，背景统一由调用方外层容器（设置页 / 详情页均自带主题色背景与边框）提供，避免与外层叠加出现多余色块、并防止方形背景盖住圆角。
+
 ## [1.2.5] - 2026-08-22
 
 ### ✨ 新增

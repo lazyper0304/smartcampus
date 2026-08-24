@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +13,9 @@ import 'student_info_manager.dart';
 /// 并在有登录会话（client）时异步拉取 ehall 学籍照片：
 ///   https://ehall.yibinu.edu.cn/jwapp/sys/jwpubapp/showImageBydsForZPGL.do?XH=<学号>&&ZPLX=XJZP
 /// 拉取成功后会写回本地缓存，下次进入秒开显示。
+///
+/// [showPhoto] 控制是否显示照片头像：为 false 时只显示姓氏首字占位，
+/// 且不发起照片拉取（用于设置页个人信息栏，避免在该处暴露照片）。
 class StudentAvatar extends StatefulWidget {
   final StudentInfo info;
 
@@ -29,6 +31,10 @@ class StudentAvatar extends StatefulWidget {
   /// 姓氏占位字号
   final double fontSize;
 
+  /// 是否显示学籍照片头像；为 false 时只显示姓氏首字占位且不拉取照片。
+  /// 设置页个人信息栏传 false，详情页使用默认 true。
+  final bool showPhoto;
+
   const StudentAvatar({
     super.key,
     required this.info,
@@ -36,6 +42,7 @@ class StudentAvatar extends StatefulWidget {
     this.scale = 1.0,
     this.radius = 12,
     this.fontSize = 28,
+    this.showPhoto = true,
   });
 
   @override
@@ -58,7 +65,10 @@ class _StudentAvatarState extends State<StudentAvatar> {
         StudentInfoManager.saveInfo(info.copyWith(photoBytes: [])),
       );
     }
-    if ((!info.hasPhoto || cacheCorrupt) && widget.client != null) {
+    // showPhoto=false 时不发起拉取（如设置页个人信息栏）
+    if (widget.showPhoto &&
+        (!info.hasPhoto || cacheCorrupt) &&
+        widget.client != null) {
       _fetchXjzp();
     }
   }
@@ -204,10 +214,12 @@ class _StudentAvatarState extends State<StudentAvatar> {
 
   @override
   Widget build(BuildContext context) {
-    final info = widget.info;
-    final bytes = info.hasPhoto
-        ? Uint8List.fromList(info.photoBytes)
-        : _fetched;
+    // showPhoto=false 时始终显示姓氏首字占位（即便本地已缓存照片）
+    final bytes = widget.showPhoto
+        ? (widget.info.hasPhoto
+            ? Uint8List.fromList(widget.info.photoBytes)
+            : _fetched)
+        : null;
     if (bytes != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(widget.radius),
@@ -215,7 +227,7 @@ class _StudentAvatarState extends State<StudentAvatar> {
           bytes,
           fit: BoxFit.cover,
           // 照片解码失败时回退姓氏占位
-          errorBuilder: (_, __, ___) => _fallback(),
+          errorBuilder: (_, _, _) => _fallback(),
         ),
       );
     }
@@ -224,16 +236,15 @@ class _StudentAvatarState extends State<StudentAvatar> {
 
   Widget _fallback() {
     final accent = accentColorNotifier.value;
-    return Container(
-      color: accent.withValues(alpha: 0.08),
-      child: Center(
-        child: Text(
-          widget.info.name.isNotEmpty ? widget.info.name[0] : '?',
-          style: TextStyle(
-            fontSize: widget.fontSize * widget.scale,
-            fontWeight: FontWeight.w600,
-            color: accent,
-          ),
+    // 背景由调用方外层容器提供（设置页 / 详情页均自带主题色背景与边框），
+    // 此处不绘制纯色背景，避免与外层叠加出现多余色块、并防止方形背景盖住圆角。
+    return Center(
+      child: Text(
+        widget.info.name.isNotEmpty ? widget.info.name[0] : '?',
+        style: TextStyle(
+          fontSize: widget.fontSize * widget.scale,
+          fontWeight: FontWeight.w600,
+          color: accent,
         ),
       ),
     );
