@@ -20,6 +20,11 @@ import '../core/adaptive_split_view.dart';
 import '../core/simple_page.dart';
 import '../core/ios_kit.dart';
 import '../xuegong/student_info_manager.dart';
+import '../countdown/countdown_card.dart';
+import '../dianfei/dianfei_card.dart';
+import '../holiday/moyu_calendar_card.dart';
+import 'home_cards.dart';
+import 'home_cards_page.dart';
 import '../main.dart';
 
 class HomeDashboard extends StatefulWidget {
@@ -47,6 +52,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   /// 学生姓名（用于问候语），游客或未获取到为空
   String? _studentName;
+
+  /// 卡片配置异步加载任务与已加载版本号（配合 ValueListenableBuilder：
+  /// 配置版本变化时重新读取，避免依赖手动注册的监听器）
+  Future<List<String>>? _cardsFuture;
+  int _loadedVersion = -1;
 
   @override
   void initState() {
@@ -169,6 +179,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
           child: RefreshIndicator(
             onRefresh: () {
               DataCache().invalidateAll();
+              // 下拉刷新同时重读卡片配置
+              homeCardsChangedNotifier.value++;
               return _loadData();
             },
             child: ListView(
@@ -186,8 +198,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         title: _greeting,
                         eyebrow: _dateLabel,
                       ),
-                      const SizedBox(height: 10),
-                      // ── 大屏两栏：左（常用功能）右（今日课程 + 校园新闻卡片）──
+                      const SizedBox(height: 16),
+                      // ── 大屏两栏：左（常用功能）右（信息卡片）──
                       // 窄屏自动回落单列（顺序与原先一致，零回归）
                       AdaptiveSplitView(
                         leftFlex: 2,
@@ -196,13 +208,23 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           client: widget.client,
                           userId: widget.userId ?? '',
                         ),
-                        right: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildTodayCoursesCard(context),
-                            const SizedBox(height: 16),
-                            _buildNewsCard(context),
-                          ],
+                        right: ValueListenableBuilder<int>(
+                          valueListenable: homeCardsChangedNotifier,
+                          builder: (context, version, _) {
+                            // 配置版本变化（或首次）时重新读取卡片配置；
+                            // ValueListenableBuilder 自行挂监听，
+                            // 管理页保存后本栏即时重建刷新
+                            if (_cardsFuture == null ||
+                                version != _loadedVersion) {
+                              _loadedVersion = version;
+                              _cardsFuture = HomeCardsStore.load();
+                            }
+                            return FutureBuilder<List<String>>(
+                              future: _cardsFuture,
+                              builder: (context, snap) =>
+                                  _buildRightCards(context, snap.data),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -214,6 +236,61 @@ class _HomeDashboardState extends State<HomeDashboard> {
         ),
       ),
     );
+  }
+
+  /// 右栏信息卡片：按 HomeCardsStore 配置的顺序渲染可见卡片。
+  /// [ids] 为 null（配置尚未读出）时先渲染默认全量，读出后无缝切换。
+  Widget _buildRightCards(BuildContext context, List<String>? ids) {
+    final cardIds = ids ?? List.of(HomeCardsStore.defaults);
+    if (cardIds.isEmpty) {
+      return IosCard(
+        onTap: () => pushPage(context, const HomeCardsPage()),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Icons.dashboard_customize_rounded,
+                    size: 36, color: textHint(context)),
+                const SizedBox(height: 8),
+                Text('暂无信息卡片，点击添加',
+                    style: TextStyle(color: textHint(context))),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final children = <Widget>[];
+    for (var i = 0; i < cardIds.length; i++) {
+      if (i > 0) children.add(const SizedBox(height: 16));
+      // 稳定 key：增删/换序时按卡片身份对位更新，避免元素复用错位
+      children.add(KeyedSubtree(
+        key: ValueKey('home_card_${cardIds[i]}'),
+        child: _FadeSlideIn(child: _buildCardById(context, cardIds[i])),
+      ));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+
+  /// 卡片 id → 具体卡片
+  Widget _buildCardById(BuildContext context, String id) {
+    switch (id) {
+      case 'today_courses':
+        return _buildTodayCoursesCard(context);
+      case 'news':
+        return _buildNewsCard(context);
+      case 'countdown':
+        return const CountdownCard();
+      case 'moyu':
+        return const MoyuCalendarCard();
+      case 'dianfei':
+        return const DianfeiCard();
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _buildTodayCoursesCard(BuildContext context) {

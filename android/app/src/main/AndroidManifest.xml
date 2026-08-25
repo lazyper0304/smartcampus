@@ -139,6 +139,84 @@
                 android:resource="@xml/dianfei_widget_info_4x4" />
         </receiver>
 
+        <!-- 桌面组件：摸鱼日历 2x2（可拖拽放大，按实际尺寸切换布局） -->
+        <receiver
+            android:name=".widget.MoyuWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_moyu_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/moyu_widget_info" />
+        </receiver>
+
+        <!-- 桌面组件：摸鱼日历 4x2 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.MoyuWidgetProvider4x2"
+            android:exported="true"
+            android:label="@string/widget_moyu_4x2_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/moyu_widget_info_4x2" />
+        </receiver>
+
+        <!-- 桌面组件：摸鱼日历 4x4 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.MoyuWidgetProvider4x4"
+            android:exported="true"
+            android:label="@string/widget_moyu_4x4_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/moyu_widget_info_4x4" />
+        </receiver>
+
+        <!-- 桌面组件：倒计时 2x2（可拖拽放大，按实际尺寸切换布局） -->
+        <receiver
+            android:name=".widget.CountdownWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_countdown_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info" />
+        </receiver>
+
+        <!-- 桌面组件：倒计时 4x2 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.CountdownWidgetProvider4x2"
+            android:exported="true"
+            android:label="@string/widget_countdown_4x2_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info_4x2" />
+        </receiver>
+
+        <!-- 桌面组件：倒计时 4x4 固定尺寸（不支持拖拽放大的系统） -->
+        <receiver
+            android:name=".widget.CountdownWidgetProvider4x4"
+            android:exported="true"
+            android:label="@string/widget_countdown_4x4_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info_4x4" />
+        </receiver>
+
         <!-- 课程表组件定时刷新：AlarmManager 每 30 分钟触发一次轻量重绘（仅课程组件） -->
         <receiver
             android:name=".widget.CourseWidgetAlarmReceiver"

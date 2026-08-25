@@ -19,6 +19,12 @@ object WidgetPrefs {
     /** 电费组件数据 JSON */
     const val KEY_DIANFEI = "widget_dianfei_data"
 
+    /** 摸鱼日历组件数据 JSON（节日未来日期表，daysLeft 由原生现算） */
+    const val KEY_MOYU = "widget_moyu_data"
+
+    /** 倒计时组件数据 JSON（自定义目标一次性日期，daysLeft 由原生现算） */
+    const val KEY_COUNTDOWN = "widget_countdown_data"
+
     /** 电费实时查询参数（电费接口无需 cookie，组件端可直接查询） */
     const val KEY_DIANFEI_METER = "widget_dianfei_meter"
     const val KEY_DIANFEI_OPENID = "widget_dianfei_openid"
@@ -46,6 +52,20 @@ object WidgetPrefs {
 
     fun loadDianfeiData(context: Context): String? =
         prefs(context).getString(KEY_DIANFEI, null)
+
+    fun saveMoyuData(context: Context, json: String) {
+        prefs(context).edit().putString(KEY_MOYU, json).apply()
+    }
+
+    fun loadMoyuData(context: Context): String? =
+        prefs(context).getString(KEY_MOYU, null)
+
+    fun saveCountdownData(context: Context, json: String) {
+        prefs(context).edit().putString(KEY_COUNTDOWN, json).apply()
+    }
+
+    fun loadCountdownData(context: Context): String? =
+        prefs(context).getString(KEY_COUNTDOWN, null)
 
     /** 电费实时查询参数（Flutter 侧绑定/解绑时写入；空 meterId 表示清空） */
     data class DianfeiParams(

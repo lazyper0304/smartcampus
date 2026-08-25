@@ -505,4 +505,320 @@ object WidgetRenderer {
         6 -> R.id.tv_kwh_6
         else -> R.id.tv_kwh_7
     }
+
+    // ==================== 摸鱼日历 ====================
+
+    fun moyuLayoutFor(widthDp: Int): Int = when {
+        widthDp < 180 -> R.layout.widget_moyu_small
+        widthDp < 300 -> R.layout.widget_moyu_medium
+        else -> R.layout.widget_moyu_large
+    }
+
+    /**
+     * 渲染摸鱼日历组件。
+     *
+     * 数据由 Flutter 写入（WidgetPrefs.KEY_MOYU）：
+     *  - festivals: [{name, weekly?, dates:[millis...]}] —— 节日给出未来多次到来的日期表
+     *    （当年+次年，覆盖农历/公历/每周循环），原生按设备时钟挑「下一个未到来」的日期；
+     *  - customs: [{name, date}] —— 自定义目标，过期由原生过滤。
+     * 「还有几天」在**每次渲染时**按当日零点现场计算（与课程组件「今天」同理），
+     * 配合 AlarmManager 30 分钟重绘实现跨天自动翻正。
+     */
+    fun renderMoyu(
+        context: Context,
+        layoutId: Int,
+        dataJson: String?,
+        theme: WidgetTheme = themeFor(context),
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, layoutId)
+        views.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
+        // 静态标签显式着色（RemoteViews 不继承 XML textColor 的主题色）
+        views.setTextColor(R.id.tv_title, theme.textPrimary)
+
+        val json = runCatching { dataJson?.let { JSONObject(it) } }.getOrNull()
+
+        // 组装倒计时条目并按剩余天数升序（自定义目标归「倒计时」组件）
+        data class MoyuEntry(val name: String, val daysLeft: Int, val dateLabel: String)
+        val entries = mutableListOf<MoyuEntry>()
+        if (json != null) {
+            val todayZero = todayZeroMillis()
+            val festivals = json.optJSONArray("festivals") ?: JSONArray()
+            for (i in 0 until festivals.length()) {
+                val f = festivals.optJSONObject(i) ?: continue
+                val name = f.optString("name", "") ?: continue
+                if (name.isEmpty()) continue
+                val weekly = f.optInt("weekly", 0)
+                val targetDay = if (weekly in 1..7) {
+                    nextWeeklyZero(weekly)
+                } else {
+                    val dates = f.optJSONArray("dates") ?: JSONArray()
+                    var pick = -1L
+                    for (j in 0 until dates.length()) {
+                        val d = dates.optLong(j, -1L)
+                        if (d >= todayZero && (pick == -1L || d < pick)) pick = d
+                    }
+                    pick
+                }
+                if (targetDay > 0) {
+                    entries.add(
+                        MoyuEntry(name, daysBetween(todayZero, targetDay), labelOf(targetDay)),
+                    )
+                }
+            }
+            val customs = json.optJSONArray("customs") ?: JSONArray()
+            for (i in 0 until customs.length()) {
+                val c = customs.optJSONObject(i) ?: continue
+                val name = c.optString("name", "") ?: continue
+                val date = c.optLong("date", -1L)
+                if (name.isEmpty() || date < todayZero) continue
+                entries.add(
+                    MoyuEntry(
+                        name,
+                        daysBetween(todayZero, date),
+                        labelOf(date),
+                    ),
+                )
+            }
+        }
+        entries.sortBy { it.daysLeft }
+
+        // 头部右侧：最近目标名
+        val nearestName = entries.firstOrNull()?.name ?: ""
+        views.setTextViewText(R.id.tv_nearest, if (nearestName.isEmpty()) "" else "最近 · $nearestName")
+        views.setTextColor(R.id.tv_nearest, theme.textSecondary)
+
+        val isEmpty = entries.isEmpty()
+        val slots = when (layoutId) {
+            R.layout.widget_moyu_small -> 1
+            R.layout.widget_moyu_medium -> 3
+            else -> 5
+        }
+        for (i in 1..slots) {
+            val entry = entries.getOrNull(i - 1)
+            val visible = entry != null
+            if (layoutId != R.layout.widget_moyu_small) {
+                views.setViewVisibility(rowMoyuId(i), if (visible) android.view.View.VISIBLE else android.view.View.GONE)
+            }
+            if (!visible) continue
+            views.setTextViewText(nameMoyuId(i), entry!!.name)
+            views.setTextViewText(dateMoyuId(i), entry.dateLabel)
+            views.setTextViewText(
+                daysMoyuId(i),
+                if (entry.daysLeft == 0) "就是今天" else "还有${entry.daysLeft}天",
+            )
+            views.setTextColor(nameMoyuId(i), theme.textPrimary)
+            views.setTextColor(dateMoyuId(i), theme.textTertiary)
+            // 最近一项用强调色突出；其余次级
+            views.setTextColor(daysMoyuId(i), if (i == 1) theme.accent else theme.textSecondary)
+        }
+
+        if (isEmpty) {
+            views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_empty, if (json == null) "暂无倒计时数据" else "没有可倒计时目标")
+            views.setTextColor(R.id.tv_empty, theme.textSecondary)
+        } else {
+            views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
+        }
+
+        // 更新时间：仅在有数据时显示，不写死默认文案
+        val updated = json?.optString("updatedAt", "") ?: ""
+        if (!isEmpty && updated.isNotEmpty()) {
+            views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_update, "更新于 $updated")
+            views.setTextColor(R.id.tv_update, theme.textTertiary)
+        } else {
+            views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
+        }
+
+        return views
+    }
+
+    /** 当日零点（epoch millis），避免时分导致的跨天 off-by-one。 */
+    private fun todayZeroMillis(): Long = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** 下一个 [weekday]（1=周一 … 7=周日）的零点；当天即该星期几时返回今天。 */
+    private fun nextWeeklyZero(weekday: Int): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val dow = currentDayOfWeek() // 1=周一 … 7=周日
+        val diff = ((weekday - dow) % 7 + 7) % 7
+        cal.add(java.util.Calendar.DAY_OF_MONTH, diff)
+        return cal.timeInMillis
+    }
+
+    private fun daysBetween(fromZero: Long, toZero: Long): Int =
+        ((toZero - fromZero) / (24L * 60 * 60 * 1000)).toInt()
+
+    private fun labelOf(millis: Long): String {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+    }
+
+    private fun rowMoyuId(i: Int): Int = when (i) {
+        1 -> R.id.moyu_row_1
+        2 -> R.id.moyu_row_2
+        3 -> R.id.moyu_row_3
+        4 -> R.id.moyu_row_4
+        else -> R.id.moyu_row_5
+    }
+
+    private fun nameMoyuId(i: Int): Int = when (i) {
+        1 -> R.id.tv_moyu_name_1
+        2 -> R.id.tv_moyu_name_2
+        3 -> R.id.tv_moyu_name_3
+        4 -> R.id.tv_moyu_name_4
+        else -> R.id.tv_moyu_name_5
+    }
+
+    private fun dateMoyuId(i: Int): Int = when (i) {
+        1 -> R.id.tv_moyu_date_1
+        2 -> R.id.tv_moyu_date_2
+        3 -> R.id.tv_moyu_date_3
+        4 -> R.id.tv_moyu_date_4
+        else -> R.id.tv_moyu_date_5
+    }
+
+    private fun daysMoyuId(i: Int): Int = when (i) {
+        1 -> R.id.tv_moyu_days_1
+        2 -> R.id.tv_moyu_days_2
+        3 -> R.id.tv_moyu_days_3
+        4 -> R.id.tv_moyu_days_4
+        else -> R.id.tv_moyu_days_5
+    }
+
+    // ==================== 倒计时（自定义目标） ====================
+
+    fun countdownLayoutFor(widthDp: Int): Int = when {
+        widthDp < 180 -> R.layout.widget_countdown_small
+        widthDp < 300 -> R.layout.widget_countdown_medium
+        else -> R.layout.widget_countdown_large
+    }
+
+    /**
+     * 渲染倒计时组件。
+     *
+     * 数据由 Flutter 写入（WidgetPrefs.KEY_COUNTDOWN）：
+     *  - items: [{name, date}] —— 自定义目标（一次性日期，epoch millis 零点），
+     *    过期条目由原生过滤；「还有几天」每次渲染按当日零点现场计算，
+     *    配合 AlarmManager 30 分钟重绘实现跨天自动翻正。
+     */
+    fun renderCountdown(
+        context: Context,
+        layoutId: Int,
+        dataJson: String?,
+        theme: WidgetTheme = themeFor(context),
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, layoutId)
+        views.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
+        // 静态标签显式着色（RemoteViews 不继承 XML textColor 的主题色）
+        views.setTextColor(R.id.tv_title, theme.textPrimary)
+
+        val json = runCatching { dataJson?.let { JSONObject(it) } }.getOrNull()
+
+        data class CdEntry(val name: String, val daysLeft: Int, val dateLabel: String)
+        val entries = mutableListOf<CdEntry>()
+        if (json != null) {
+            val todayZero = todayZeroMillis()
+            val items = json.optJSONArray("items") ?: JSONArray()
+            for (i in 0 until items.length()) {
+                val o = items.optJSONObject(i) ?: continue
+                val name = o.optString("name", "") ?: continue
+                val date = o.optLong("date", -1L)
+                if (name.isEmpty() || date < todayZero) continue
+                entries.add(CdEntry(name, daysBetween(todayZero, date), labelOf(date)))
+            }
+        }
+        entries.sortBy { it.daysLeft }
+
+        // 头部右侧：最近目标名
+        val nearestName = entries.firstOrNull()?.name ?: ""
+        views.setTextViewText(R.id.tv_nearest, if (nearestName.isEmpty()) "" else "最近 · $nearestName")
+        views.setTextColor(R.id.tv_nearest, theme.textSecondary)
+
+        val isEmpty = entries.isEmpty()
+        val slots = when (layoutId) {
+            R.layout.widget_countdown_small -> 1
+            R.layout.widget_countdown_medium -> 3
+            else -> 5
+        }
+        for (i in 1..slots) {
+            val entry = entries.getOrNull(i - 1)
+            val visible = entry != null
+            if (layoutId != R.layout.widget_countdown_small) {
+                views.setViewVisibility(rowCdId(i), if (visible) android.view.View.VISIBLE else android.view.View.GONE)
+            }
+            if (!visible) continue
+            views.setTextViewText(nameCdId(i), entry!!.name)
+            views.setTextViewText(dateCdId(i), entry.dateLabel)
+            views.setTextViewText(
+                daysCdId(i),
+                if (entry.daysLeft == 0) "就是今天" else "还有${entry.daysLeft}天",
+            )
+            views.setTextColor(nameCdId(i), theme.textPrimary)
+            views.setTextColor(dateCdId(i), theme.textTertiary)
+            // 最近一项用强调色突出；其余次级
+            views.setTextColor(daysCdId(i), if (i == 1) theme.accent else theme.textSecondary)
+        }
+
+        if (isEmpty) {
+            views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_empty, if (json == null) "暂无倒计时数据" else "没有倒计时目标")
+            views.setTextColor(R.id.tv_empty, theme.textSecondary)
+        } else {
+            views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
+        }
+
+        // 更新时间：仅在有数据时显示，不写死默认文案
+        val updated = json?.optString("updatedAt", "") ?: ""
+        if (!isEmpty && updated.isNotEmpty()) {
+            views.setViewVisibility(R.id.tv_update, android.view.View.VISIBLE)
+            views.setTextViewText(R.id.tv_update, "更新于 $updated")
+            views.setTextColor(R.id.tv_update, theme.textTertiary)
+        } else {
+            views.setViewVisibility(R.id.tv_update, android.view.View.GONE)
+        }
+
+        return views
+    }
+
+    private fun rowCdId(i: Int): Int = when (i) {
+        1 -> R.id.cd_row_1
+        2 -> R.id.cd_row_2
+        3 -> R.id.cd_row_3
+        4 -> R.id.cd_row_4
+        else -> R.id.cd_row_5
+    }
+
+    private fun nameCdId(i: Int): Int = when (i) {
+        1 -> R.id.tv_cd_name_1
+        2 -> R.id.tv_cd_name_2
+        3 -> R.id.tv_cd_name_3
+        4 -> R.id.tv_cd_name_4
+        else -> R.id.tv_cd_name_5
+    }
+
+    private fun dateCdId(i: Int): Int = when (i) {
+        1 -> R.id.tv_cd_date_1
+        2 -> R.id.tv_cd_date_2
+        3 -> R.id.tv_cd_date_3
+        4 -> R.id.tv_cd_date_4
+        else -> R.id.tv_cd_date_5
+    }
+
+    private fun daysCdId(i: Int): Int = when (i) {
+        1 -> R.id.tv_cd_days_1
+        2 -> R.id.tv_cd_days_2
+        3 -> R.id.tv_cd_days_3
+        4 -> R.id.tv_cd_days_4
+        else -> R.id.tv_cd_days_5
+    }
 }

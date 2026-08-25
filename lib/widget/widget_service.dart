@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../countdown/countdown_service.dart';
 import '../course/course.dart';
 import '../dianfei/dianfei_models.dart';
+import '../holiday/festival.dart';
+import '../holiday/holiday_data.dart';
 import 'widget_models.dart';
 
 /// 桌面组件桥接服务：
@@ -73,6 +76,16 @@ class WidgetService {
     if (!_isAndroid) return;
     try {
       await _channel.invokeMethod('saveDianfeiData', {
+        'data': jsonEncode(data.toJson()),
+      });
+    } catch (_) {}
+  }
+
+  /// 推送摸鱼日历组件数据并刷新所有已添加的摸鱼组件。
+  static Future<void> saveMoyuData(WidgetMoyuData data) async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('saveMoyuData', {
         'data': jsonEncode(data.toJson()),
       });
     } catch (_) {}
@@ -185,6 +198,62 @@ class WidgetService {
             : d.date;
         return WidgetDayUsage(label: label, kwh: d.kwh);
       }).toList(),
+      updatedAt: _formatTime(time),
+    );
+  }
+
+  /// 由内置节日整理摸鱼日历组件快照（自定义倒计时归「倒计时」组件）。
+  ///
+  /// 关键：节日保存**当年+次年**多次到来的日期表（农历/公历经
+  /// [CountdownSource.upcomingOccurrences] 本地计算），周循环只存 weekday；
+  /// 「还有几天」由原生 WidgetRenderer 在每次渲染时按当日零点现场计算，
+  /// 组件数日未打开 App 也能跨天自动翻正。
+  static WidgetMoyuData buildMoyuData({DateTime? now}) {
+    final time = now ?? DateTime.now();
+    final today = DateTime(time.year, time.month, time.day);
+
+    final festivals = kFestivalSources.map((s) {
+      if (s is WeeklyFestival) {
+        return WidgetMoyuFestival(
+            name: s.name, weekly: s.weekday, dates: const []);
+      }
+      final dates = s
+          .upcomingOccurrences(today, 3) // 当年+次年，多取一次留余量
+          .map((d) => DateTime(d.year, d.month, d.day).millisecondsSinceEpoch)
+          .toList();
+      return WidgetMoyuFestival(name: s.name, dates: dates);
+    }).toList();
+
+    return WidgetMoyuData(
+      festivals: festivals,
+      updatedAt: _formatTime(time),
+    );
+  }
+
+  /// 推送倒计时组件数据并刷新所有已添加的倒计时组件。
+  static Future<void> saveCountdownData(WidgetCountdownData data) async {
+    if (!_isAndroid) return;
+    try {
+      await _channel.invokeMethod('saveCountdownData', {
+        'data': jsonEncode(data.toJson()),
+      });
+    } catch (_) {}
+  }
+
+  /// 由自定义倒计时目标整理「倒计时」组件快照。
+  /// 目标只存一次性日期，「还有几天」由原生在每次渲染时按当日零点现场计算。
+  static Future<WidgetCountdownData> buildCountdownData({DateTime? now}) async {
+    final time = now ?? DateTime.now();
+    final targets = await CountdownService.getTargets();
+    return WidgetCountdownData(
+      items: targets
+          .map((c) => WidgetCountdownItem(
+                name: c.name,
+                date: DateTime(c.targetDate.year, c.targetDate.month,
+                        c.targetDate.day)
+                    .millisecondsSinceEpoch,
+              ))
+          .toList(),
       updatedAt: _formatTime(time),
     );
   }

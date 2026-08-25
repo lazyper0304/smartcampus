@@ -17,8 +17,11 @@ import '../core/ios_kit.dart';
 import '../xuegong/student_avatar.dart';
 import '../xuegong/student_info_detail_page.dart';
 import '../xuegong/student_info_manager.dart';
+import '../holiday/moyu_calendar_page.dart';
 import 'appearance_page.dart';
 import 'privacy_policy_page.dart';
+import '../countdown/countdown_page.dart';
+import '../home/home_cards_page.dart';
 import 'quick_apps_page.dart';
 import 'update/update_dialogs.dart';
 import '../main.dart';
@@ -143,6 +146,30 @@ class _SettingsPageState extends State<SettingsPage> {
                                     scale: scale,
                                     onTap: () =>
                                         pushPage(context, const QuickAppsPage()),
+                                  ),
+                                  IosListTile(
+                                    icon: Icons.dashboard_customize_rounded,
+                                    title: '首页卡片',
+                                    subtitle: '增删与排序首页信息卡片',
+                                    scale: scale,
+                                    onTap: () =>
+                                        pushPage(context, const HomeCardsPage()),
+                                  ),
+                                  IosListTile(
+                                    icon: Icons.timer_outlined,
+                                    title: '倒计时',
+                                    subtitle: '自定义倒计时目标 · 桌面组件数据源',
+                                    scale: scale,
+                                    onTap: () =>
+                                        pushPage(context, const CountdownPage()),
+                                  ),
+                                  IosListTile(
+                                    icon: Icons.celebration_rounded,
+                                    title: '摸鱼日历',
+                                    subtitle: '节日倒计时 · 自定义目标',
+                                    scale: scale,
+                                    onTap: () => pushPage(
+                                        context, const MoyuCalendarPage()),
                                   ),
                                 ],
                               ),

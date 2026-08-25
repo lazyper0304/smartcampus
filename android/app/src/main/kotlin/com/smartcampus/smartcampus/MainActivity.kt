@@ -53,9 +53,12 @@ class MainActivity : FlutterActivity() {
             pendingWidgetTarget = it
             Log.d(TAG, "widget click (cold start): $it")
         }
-        // 确保课程组件定时刷新已调度：覆盖「App 升级但组件早已存在、未重启」的场景
+        // 确保课程/摸鱼/倒计时组件定时刷新已调度：覆盖「App 升级但组件早已存在、未重启」的场景
         // （AppWidgetProvider.onEnabled 仅首次添加时触发，升级不会重排）。setRepeating 幂等。
-        if (WidgetUpdater.hasAnyCourseWidget(this)) {
+        if (WidgetUpdater.hasAnyCourseWidget(this) ||
+            WidgetUpdater.hasAnyMoyuWidget(this) ||
+            WidgetUpdater.hasAnyCountdownWidget(this)
+        ) {
             WidgetRefreshScheduler.schedule(this)
         }
     }
@@ -113,6 +116,24 @@ class MainActivity : FlutterActivity() {
                         if (json != null) {
                             WidgetPrefs.saveDianfeiData(this, json)
                             WidgetUpdater.updateAllDianfeiWidgets(this)
+                        }
+                        result.success(true)
+                    }
+                    // Flutter 侧摸鱼日历数据变化后写入组件数据并刷新（2x2 + 4x2/4x4 全部）
+                    "saveMoyuData" -> {
+                        val json = call.argument<String>("data")
+                        if (json != null) {
+                            WidgetPrefs.saveMoyuData(this, json)
+                            WidgetUpdater.updateAllMoyuWidgets(this)
+                        }
+                        result.success(true)
+                    }
+                    // Flutter 侧倒计时目标变化后写入组件数据并刷新（2x2 + 4x2/4x4 全部）
+                    "saveCountdownData" -> {
+                        val json = call.argument<String>("data")
+                        if (json != null) {
+                            WidgetPrefs.saveCountdownData(this, json)
+                            WidgetUpdater.updateAllCountdownWidgets(this)
                         }
                         result.success(true)
                     }

@@ -101,3 +101,67 @@ class WidgetDianfeiData {
         'updatedAt': updatedAt,
       };
 }
+
+/// 摸鱼日历组件 · 节日条目：给出未来多次到来的日期表（当年+次年），
+/// [weekly] 非 0 时（1=周一…7=周日）原生按设备时钟现算下一个该星期几。
+class WidgetMoyuFestival {
+  final String name;
+  final int weekly; // 0 = 非周循环
+  final List<int> dates; // epoch millis（零点），升序
+
+  const WidgetMoyuFestival({
+    required this.name,
+    this.weekly = 0,
+    required this.dates,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (weekly != 0) 'weekly': weekly,
+        'dates': dates,
+      };
+}
+
+/// 摸鱼日历组件整体数据（仅内置节日）。
+///
+/// 「还有几天」不在 Flutter 侧写死：节日存未来日期表、周循环只存 weekday，
+/// 由原生 WidgetRenderer 在每次渲染时按当日零点现场计算，配合 AlarmManager
+/// 30 分钟重绘实现跨天自动翻正。
+class WidgetMoyuData {
+  final List<WidgetMoyuFestival> festivals;
+  final String updatedAt;
+
+  const WidgetMoyuData({
+    this.festivals = const [],
+    this.updatedAt = '',
+  });
+
+  Map<String, dynamic> toJson() => {
+        'festivals': festivals.map((f) => f.toJson()).toList(),
+        'updatedAt': updatedAt,
+      };
+}
+
+/// 倒计时组件 · 单条自定义目标（过期由原生过滤）
+class WidgetCountdownItem {
+  final String name;
+  final int date; // epoch millis（零点）
+
+  const WidgetCountdownItem({required this.name, required this.date});
+
+  Map<String, dynamic> toJson() => {'name': name, 'date': date};
+}
+
+/// 倒计时组件整体数据（仅自定义目标）。
+/// 「还有几天」同样由原生在每次渲染时按当日零点现场计算。
+class WidgetCountdownData {
+  final List<WidgetCountdownItem> items;
+  final String updatedAt;
+
+  const WidgetCountdownData({this.items = const [], this.updatedAt = ''});
+
+  Map<String, dynamic> toJson() => {
+        'items': items.map((e) => e.toJson()).toList(),
+        'updatedAt': updatedAt,
+      };
+}

@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### ✨ 新增
+- **首页卡片支持自定义（增删 / 排序）**：新建 `lib/home/home_cards.dart`（5 张信息卡片注册表：今日课程/校园新闻/倒计时/摸鱼日历/电费，配置持久化到 `home_cards`，可见 id 数组顺序即展示顺序）与 `home_cards_page.dart`（管理页：已显示列表**长按拖拽排序 + 左滑删除**、未显示列表点击添加，交互对齐「常用功能」管理页）；首页右栏按配置动态渲染（空态显示引导卡，点击进管理页），监听 `homeCardsChangedNotifier` 变更信号即时刷新。入口：**设置 → 首页卡片**。
+- **设置页新增「倒计时」入口**：自定义倒计时目标的管理入口移至「设置 → 倒计时」（与摸鱼日历同区）；首页倒计时卡片改为纯展示（移除整卡跳转），桌面倒计时组件点击仍进倒计时管理页不变。
+- **「倒计时」独立功能（自定义倒计时从摸鱼日历拆分）**：新建 `lib/countdown/` 模块（model/service/page 分离）——`countdown_service.dart`（`CustomTarget` 模型 + CRUD + 变更信号，存储沿用键 `moyu_custom_countdowns` 兼容旧数据）、`countdown_page.dart`（管理页：增删改/置顶/下拉刷新，玻璃底部弹窗编辑器 + iOS 日期选择器）、`countdown_card.dart`（首页卡片：高亮最近目标秒级倒计时 + 清单，纯展示，编辑入口在「设置 → 倒计时」，监听变更信号即时刷新）。`LiveCountdown` 实时组件迁至 `lib/core/live_countdown.dart` 供双模块复用。摸鱼日历（`lib/holiday/`）回归纯节日清单：卡片与「设置 → 摸鱼日历」页不再含自定义目标。
+- **新增「倒计时」桌面小组件（2×2 / 4×2 / 4×4）**：展示自定义倒计时目标。数据经 MethodChannel `saveCountdownData` 写入 SharedPreferences（键 `widget_countdown_data`，仅 `{name, date}`），原生 `renderCountdown()` 每次渲染按当日零点现场计算「还有N天」并过滤过期条目，配合 AlarmManager 30 分钟重绘跨天自动翻正；三档布局（2×2 单条 / 4×2 三行 / 4×4 五行）+ 固定尺寸 provider（`CountdownWidgetProvider4x2/4x4`）；点击跳转倒计时管理页（target=countdown）；定时重绘接收器、主题切换全量刷新、App 启动调度条件均已并入。触发时机：首页卡片加载与管理页增删改后自动推送。
+- **首页新增「电费」卡片**（`lib/dianfei/dianfei_card.dart`）：已绑定时进入首页自动实时查询一次（接口无需 cookie），大字显示剩余电量 + 合闸状态徽章 + 本月用电/金额；未绑定显示引导文案、查询失败提示重试；整卡点击进入电费页。接入首页右栏（顺序：今日课程 → 校园新闻 → 倒计时 → 摸鱼日历 → 电费）。
+- **新增「摸鱼日历」桌面小组件（2×2 / 4×2 / 4×4）**：与首页摸鱼日历卡片同源数据的桌面组件，展示距离最近目标的倒计时。**数据链路**：`WidgetService.buildMoyuData()` 由内置节日表 + 自定义目标本地生成快照——节日存**当年+次年**多次到来的日期表（农历/公历经 `CountdownSource.upcomingOccurrences()` 纯 Dart 计算）、周循环只存 weekday、自定义目标存一次性日期；经 MethodChannel `saveMoyuData` 写入原生 SharedPreferences（键 `widget_moyu_data`）。**原生渲染现算天数**：`WidgetRenderer.renderMoyu()` 在每次渲染时按当日零点从日期表现场挑选下一个未来日期计算「还有N天」（周循环用 `nextWeeklyZero` 按设备时钟推算），配合既有 AlarmManager 30 分钟重绘实现跨天自动翻正，无需打开 App；条目按剩余天数升序，最近一项强调色高亮，头部右侧显示「最近 · 目标名」。**三档布局**：2×2 单条平铺、4×2 三行列表、4×4 五行列表，另有固定尺寸 provider（`MoyuWidgetProvider4x2/4x4`）兼容不支持拖拽放大的系统；点击组件跳转「设置 → 摸鱼日历」管理页（冷启动经 pendingWidgetTarget 暂存路由）。触发时机：首页卡片加载、管理页增删改/下拉刷新时自动推送并刷新组件。
+- **首页新增「摸鱼日历」卡片**：本地离线算法计算距离各法定/趣味节日与每周六的倒计时，支持实时刷新。新建 `lib/holiday/` 模块（model/service/page 分离）：`lunar.dart`（1900–2100 中国农历转公历本地算法，无网络依赖）、`festival.dart`（节日来源抽象：公历固定/农历/每周循环）、`holiday_data.dart`（注册 8 个目标：周六、元旦、春节、元宵、劳动节、端午、中秋、国庆；不带 emoji 图标）、`countdown_service.dart`（聚合倒计时 + 按剩余天数升序排序（置顶优先）+ 自定义目标 `LocalStorage` 持久化，键 `moyu_custom_countdowns`）、`countdown_tile.dart`（`LiveCountdown` 每秒自重建实时组件）、`moyu_calendar_card.dart`（首页卡片：高亮最近目标 + 秒级倒计时 + 节日清单，纯展示）、`moyu_calendar_page.dart`（管理页：节日总览 + 自定义目标增删改/置顶，玻璃弹窗 + iOS 日期选择器），**管理入口移至「设置 → 摸鱼日历」**。首页右栏（`home_dashboard.dart`）接入卡片，每分钟自动刷新天数；自定义目标纯本地、游客可用。算法已用 2026-08-25 基准数值验证，12 条倒计时天数与预期完全一致。
+
+### 🔧 重构
+- **自定义倒计时从摸鱼日历拆分为独立「倒计时」功能**：摸鱼日历（首页卡片 + 设置管理页 + 摸鱼桌面组件）回归纯节日清单；自定义目标的展示/编辑移入新「倒计时」卡片与管理页，桌面数据同步拆分（`widget_moyu_data` 仅节日日期表、`widget_countdown_data` 仅目标）。原「卡片添加自定义后不显示」「高亮被周六占据」等问题随拆分一并消除：倒计时卡片监听 `CountdownService.changed` 变更信号即时重载，高亮取排序首条（置顶优先 → 天数升序）。
+
+### 🐛 Bug 修复
+- **首页电费卡片余额显示为 0**：根因是 `DianfeiService.query()` 内部所有失败路径（网络异常、解析失败等）均静默返回 `DianfeiStatus.empty`（剩余电量=0），首页卡片无法区分「真 0」与「查询失败」，且 headless WebView 查询在刚进入首页时可能尚未就绪导致首次查询失败。修复：① 恢复本地缓存——电费页查询成功时将最新快照持久化；② 首页卡片先读缓存**秒显**，再后台实时刷新覆盖，并显示数据时间；③ 失败判定改为显式状态（快照为空即视为失败），显示重试入口而非误导性的 0。
+
 ## [1.2.6] - 2026-08-24
 
 ### ✨ 新增

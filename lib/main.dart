@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart' show CupertinoThemeData, CupertinoTextThemeData;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'auth/auth_service.dart';
@@ -233,6 +234,14 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       title: '宜院宾果',
       debugShowCheckedModeBanner: false,
       navigatorKey: _navigatorKey,
+      // 中文本地化：CupertinoDatePicker 等组件显示中文（月份「N月」等）
+      locale: const Locale('zh'),
+      supportedLocales: const [Locale('zh'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ],
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
       themeMode: _themeMode,

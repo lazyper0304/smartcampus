@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -109,6 +111,11 @@ class _DianfeiPageState extends State<DianfeiPage> {
       final s = result.status;
       _wechatUserId = s.wechatUserId;
       final updatedAt = _formatNow();
+
+      // 查询有效（状态非空）时写本地缓存，供首页电费卡片秒显
+      if (s.zhuangtai.isNotEmpty) {
+        unawaited(DianfeiService.cacheStatus(s));
+      }
 
       // 桌面组件：查询成功后同步最新快照（非阻塞）
       WidgetService.saveDianfeiData(
@@ -366,7 +373,6 @@ class _DianfeiPageState extends State<DianfeiPage> {
     double total = 0, maxKwh = 0;
     for (final d in days) { total += d.kwh; if (d.kwh > maxKwh) maxKwh = d.kwh; }
     final avg = total / days.length;
-    final monthLabel = days.isNotEmpty && days.first.date.length >= 5 ? days.first.date.substring(0, 2) : '';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),

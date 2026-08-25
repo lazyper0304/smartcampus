@@ -22,6 +22,8 @@ import '../xuegong/student_info_manager.dart';
 import '../widget/widget_service.dart';
 import '../course/course_page.dart';
 import '../dianfei/dianfei_page.dart';
+import '../countdown/countdown_page.dart';
+import '../holiday/moyu_calendar_page.dart';
 import 'home_dashboard.dart';
 import 'app_data.dart';
 import '../core/navigation.dart';
@@ -91,6 +93,10 @@ class _MainScreenState extends State<MainScreen> {
         );
       case 'dianfei':
         pushPage(context, const DianfeiPage());
+      case 'moyu':
+        pushPage(context, const MoyuCalendarPage());
+      case 'countdown':
+        pushPage(context, const CountdownPage());
       default:
         break;
     }

@@ -4,17 +4,62 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../core/local_storage.dart' as app_storage;
 import 'dianfei_models.dart';
 
 /// 电费查询服务：封装临港电费系统的全部请求逻辑
 /// （HeadlessInAppWebView 模拟浏览器 + 站内 XHR 抓取、解析、充值下单），
-/// 页面只调本服务并渲染结果。每次查询均为实时请求，不做内存/本地缓存。
+/// 页面只调本服务并渲染结果。每次查询均为实时请求；
+/// 另提供最近一次成功结果的本地缓存读写（供首页电费卡片秒显）。
 class DianfeiService {
   DianfeiService._();
 
   static const _base = 'http://dfcz.yibinu.edu.cn';
   static const _userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
+
+  // ── 最近一次成功查询的本地缓存（首页电费卡片用） ──
+
+  static Future<void> cacheStatus(DianfeiStatus s, {DateTime? now}) async {
+    final t = now ?? DateTime.now();
+    await app_storage.LocalStorage.setString('dianfei_shengyu', s.shengyu.toString());
+    await app_storage.LocalStorage.setString('dianfei_leiji', s.leiji.toString());
+    await app_storage.LocalStorage.setString('dianfei_zhuangtai', s.zhuangtai);
+    await app_storage.LocalStorage.setString('dianfei_price', s.price.toString());
+    await app_storage.LocalStorage.setString('dianfei_monthKwh', s.monthKwh.toString());
+    await app_storage.LocalStorage.setString('dianfei_monthMoney', s.monthMoney.toString());
+    await app_storage.LocalStorage.setString('dianfei_monthStr', s.monthStr);
+    await app_storage.LocalStorage.setString(
+      'dianfei_updatedAt',
+      '${t.month}月${t.day}日 '
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
+    );
+  }
+
+  /// 读取缓存的最近一次成功查询结果；无缓存返回 null。
+  static Future<DianfeiStatus?> loadCachedStatus() async {
+    final shengyu = await app_storage.LocalStorage.getString('dianfei_shengyu');
+    if (shengyu == null || shengyu.isEmpty) return null;
+    return DianfeiStatus(
+      shengyu: double.tryParse(shengyu) ?? 0,
+      leiji:
+          double.tryParse(await app_storage.LocalStorage.getString('dianfei_leiji') ?? '') ?? 0,
+      zhuangtai: await app_storage.LocalStorage.getString('dianfei_zhuangtai') ?? '',
+      price:
+          double.tryParse(await app_storage.LocalStorage.getString('dianfei_price') ?? '') ??
+              0.55,
+      monthKwh: double.tryParse(
+              await app_storage.LocalStorage.getString('dianfei_monthKwh') ?? '') ??
+          0,
+      monthMoney: double.tryParse(
+              await app_storage.LocalStorage.getString('dianfei_monthMoney') ?? '') ??
+          0,
+      monthStr: await app_storage.LocalStorage.getString('dianfei_monthStr') ?? '',
+    );
+  }
+
+  static Future<String?> loadCachedUpdatedAt() =>
+      app_storage.LocalStorage.getString('dianfei_updatedAt');
 
   /// 从查询链接提取 wechatUserOpenid 与 meterId；格式不合法返回 null。
   static ({String openId, String meterId})? parseLink(String raw) {
