@@ -54,6 +54,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
     if (info != null) {
       setState(() { _studentInfo = info; _loadingInfo = false; });
+      // 住宿信息为后加字段：旧缓存里没有，后台补拉一次（不阻塞 UI）
+      _patchDormInfo();
       return;
     }
     // 新生模式：已登录但个人信息暂未录入，不主动拉取，避免触发获取流程
@@ -79,6 +81,18 @@ class _SettingsPageState extends State<SettingsPage> {
       await BeginnerMode.exit();
     }
     if (mounted) setState(() { _studentInfo = info; _loadingInfo = false; });
+  }
+
+  /// 旧缓存缺少住宿信息时后台补拉一次
+  ///
+  /// 住宿信息（楼栋名 / 宿舍号）是新接入的字段，老用户缓存中没有；
+  /// 而 ensureBackgroundFetch 见到已有缓存会直接跳过，故在此单独补一次。
+  /// 进程内只跑一次，失败静默保留原缓存。
+  Future<void> _patchDormInfo() async {
+    if (widget.client == null || BeginnerMode.active) return;
+    final fresh = await StudentInfoManager.ensureDormInfo(widget.client!);
+    if (!mounted || fresh == null) return;
+    setState(() => _studentInfo = fresh);
   }
 
   @override

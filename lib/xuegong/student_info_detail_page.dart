@@ -17,6 +17,9 @@ class StudentInfoDetailPage extends StatelessWidget {
 
   const StudentInfoDetailPage({super.key, required this.info, this.client});
 
+  /// 仅展示这三个区块（其余区块不展示）
+  static const List<String> _sectionOrder = ['基本信息', '学籍信息', '住宿信息'];
+
   @override
   Widget build(BuildContext context) {
     return SimplePage(
@@ -52,6 +55,11 @@ class StudentInfoDetailPage extends StatelessWidget {
                   Text(info.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(info.studentId, style: TextStyle(fontSize: 14, color: Colors.grey[500])),
+                  // 住宿信息摘要（楼栋 + 宿舍号），有数据显示在学号下方
+                  if (info.dorm.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _DormChip(text: info.dorm.summary),
+                  ],
                 ],
               ),
             ),
@@ -68,11 +76,12 @@ class StudentInfoDetailPage extends StatelessWidget {
 
   List<_SectionData> _sections() {
     final list = <_SectionData>[];
-    if (info.allData.containsKey('基本信息')) {
-      list.add(_SectionData('基本信息', info.allData['基本信息']!));
-    }
-    if (info.allData.containsKey('学籍信息')) {
-      list.add(_SectionData('学籍信息', info.allData['学籍信息']!));
+    // 只渲染 基本信息 / 学籍信息 / 住宿信息，其余区块一律不展示
+    for (final key in _sectionOrder) {
+      final fields = info.allData[key];
+      if (fields != null && fields.isNotEmpty) {
+        list.add(_SectionData(key, fields));
+      }
     }
     return list;
   }
@@ -139,4 +148,38 @@ class _SectionData {
   final String title;
   final Map<String, String> fields;
   _SectionData(this.title, this.fields);
+}
+
+/// 住宿信息小标签（如「临港4舍 805」）
+class _DormChip extends StatelessWidget {
+  final String text;
+  const _DormChip({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: accentColorNotifier.value.withValues(alpha: 0.08),
+        border: Border.all(color: accentColorNotifier.value.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bed_outlined,
+              size: 14, color: accentColorNotifier.value.withValues(alpha: 0.85)),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: accentColorNotifier.value.withValues(alpha: 0.9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

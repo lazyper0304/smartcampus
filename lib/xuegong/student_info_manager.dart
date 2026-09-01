@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
+import 'dorm_info.dart';
 import 'xuegong_data_service.dart';
 
 /// 学生信息数据
@@ -97,6 +98,10 @@ class StudentInfo {
   bool get hasPhoto => photoBytes.isNotEmpty;
   bool get isExpired => DateTime.now().difference(fetchedAt).inHours > 1;
 
+  /// 住宿信息（楼栋名 / 宿舍号 / 单元），来自 allData['住宿信息']；
+  /// 旧缓存无该区块时返回空对象（isEmpty == true）
+  DormInfo get dorm => DormInfo.fromSection(allData['住宿信息']);
+
   /// 复制并替换照片相关字段（学籍照片拉取成功后更新缓存用）
   StudentInfo copyWith({String? photoUrl, List<int>? photoBytes}) => StudentInfo(
         name: name,
@@ -143,6 +148,8 @@ class StudentInfoManager {
         final service = XuegongDataService(client);
         final data = await service.extractStructuredData(
           'https://ybxyxsglxt.yibinu.edu.cn/syt/xsinfo/stuinfo.htm',
+          // 页面解析不出学号时，用登录账号兜底查询住宿信息
+          fallbackStudentId: await LocalStorage.getString('saved_username'),
         );
 
         // 检查是否提取到了基本信息
@@ -159,6 +166,12 @@ class StudentInfoManager {
           return null;
         }
 
+        // 照片由 ehall 学籍照片接口单独获取（详见 StudentAvatar），
+        // 本次若未带回照片则沿用旧缓存，避免刷新时把已缓存照片清空
+        final prev = await getCached();
+        final photoUrl = data['_photoUrl']?.toString() ?? '';
+        final photoBytes = (data['_photoBytes'] as List<int>?) ?? const [];
+
         final info = StudentInfo(
           name: basic['姓名'] ?? '',
           studentId: basic['学号'] ?? '',
@@ -170,8 +183,10 @@ class StudentInfoManager {
           politicsStatus: basic['政治面貌'] ?? '',
           idNumber: basic['身份证号'] ?? '',
           phone: basic['联系电话'] ?? '',
-          photoUrl: data['_photoUrl']?.toString() ?? '',
-          photoBytes: (data['_photoBytes'] as List<int>?) ?? [],
+          photoUrl: photoUrl.isNotEmpty ? photoUrl : (prev?.photoUrl ?? ''),
+          photoBytes: photoBytes.isNotEmpty
+              ? photoBytes
+              : (prev?.photoBytes ?? const []),
           allData: data.map((k, v) {
             if (v is Map) return MapEntry(k, v.map((k2, v2) => MapEntry(k2.toString(), v2.toString())));
             return MapEntry(k, <String, String>{});
@@ -223,6 +238,28 @@ class StudentInfoManager {
       }
     } finally {
       _backgroundFetching = false;
+    }
+  }
+
+  static bool _dormPatching = false;
+
+  /// 旧缓存缺少「住宿信息」时补拉一次（进程内仅一次，失败不影响原缓存）
+  ///
+  /// 住宿信息是后加的字段，老用户缓存里没有；走到这里说明缓存存在，
+  /// 常规的 ensureBackgroundFetch 会因"已有缓存"直接跳过，需要单独补一次。
+  static Future<StudentInfo?> ensureDormInfo(SharedHttpClient client) async {
+    if (_dormPatching) return null;
+    final cached = await getCached();
+    if (cached == null) return null;
+    if (cached.allData.containsKey('住宿信息')) return null;
+
+    _dormPatching = true;
+    try {
+      final fresh = await fetchAndCache(client);
+      // 拉取失败返回 null，旧缓存保持不变
+      return fresh;
+    } finally {
+      _dormPatching = false;
     }
   }
 }
