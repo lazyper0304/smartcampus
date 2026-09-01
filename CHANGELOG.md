@@ -7,6 +7,9 @@
 - **个人信息页新增「住宿信息」（楼栋名 / 宿舍号）**：数据来自学工系统住宿接口 `POST //syt/sgxt/bed/querylist.htm?xh=<学号>&type=ZSXX`（响应 `data[0]` 中 `sslmc` 楼栋名称、`ssmc` 宿舍号、`unit` 单元）。新增 `lib/xuegong/dorm_info.dart`（`DormInfo` 模型：分页响应取首条、`null`/空值归一、与区块字段互转、`summary` 摘要文案）；`xuegong_data_service.dart` 抽出 `_withSession()` 统管后台 WebView 生命周期，**住宿请求复用同一次 SSO 会话**（学工 JSESSIONID 只存在于 WebView Cookie 存储、不会回流到 SharedHttpClient，用 HttpClient 直连只能拿到登录页而非 JSON），在已登录页面上下文内用同源 `fetch` 发起请求，并异步轮询 `window.__dormResult` 取回结果（不依赖 `evaluateJavascript` 对 Promise 的等待行为）；学号优先取个人信息页解析结果，缺失时以登录账号兜底。详情页新增「住宿信息」区块（**楼栋名称 / 宿舍号**，`unit` 单元只解析不展示），姓名下方另以胶囊标签展示「临港4舍 805」摘要；同时收敛区块范围——**只展示 基本信息 / 学籍信息 / 住宿信息 三个区块**，接口返回的其他区块不再渲染。
 - **旧缓存自动补拉住宿信息**：新增 `StudentInfoManager.ensureDormInfo()`，缓存中缺少「住宿信息」区块时后台补拉一次（进程内仅一次，失败静默保留原缓存）——住宿信息是后加字段，而 `ensureBackgroundFetch` 见到已有缓存会直接跳过，故需单独补一次；设置页加载缓存后自动触发，老用户无需手动刷新。补拉同时沿用旧缓存的学籍照片，避免刷新后头像被清空。
 
+### 🔧 重构
+
+- **依赖升级（约束内 + 两处大版本）**：`flutter pub upgrade` 落地 20 个约束内更新（flutter_pdfview 1.4.4→1.4.5、html 0.15.6→0.15.7、image 4.9.1→4.9.2 等）；放开两处直接依赖大版本——`cached_network_image` 3.4.1→**4.0.0**（新增 cupertino_ui/material_ui 传递依赖）、`google_mlkit_text_recognition` 0.16.0→**0.17.1**（同步 google_mlkit_commons 0.12→0.13）。`liquid_glass_widgets` 仍锁定 **0.29.2**（禁浮动，0.29.8 在 Windows Impeller 白屏）；`jni` 仍按 1.0.0 覆盖。pubspec.lock 一并更新。dart analyze 全量 0 error。
 ## [1.2.7] - 2026-08-25
 
 ### ✨ 新增

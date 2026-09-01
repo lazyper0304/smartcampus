@@ -47,7 +47,7 @@ dependencies:
   encrypt: ^5.0.3
   html: ^0.15.5
   # 验证码 OCR 识别
-  google_mlkit_text_recognition: ^0.16.0
+  google_mlkit_text_recognition: ^0.17.1
   # 图像二值化预处理
   image: ^4.5.3
   # 临时文件路径
@@ -63,7 +63,7 @@ dependencies:
   # 动态流体气泡背景
   fluid_background: ^1.0.5
   # 图片缓存
-  cached_network_image: ^3.4.1
+  cached_network_image: ^4.0.0
   # 打开外部链接
   url_launcher: ^6.3.1
   # 内置浏览器（模拟浏览器登录学工系统）
