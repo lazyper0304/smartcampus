@@ -53,13 +53,12 @@ dependencies:
   # 临时文件路径
   path_provider: ^2.1.0
   # 液态玻璃 UI 风格
-  # ⚠️ 2026-08-20：必须精确锁定 0.29.2，禁止 ^0.29.1 浮动——
-  # pub.dev 8-12~8-19 密集发布 0.29.5~0.30.1，其中 0.29.8 将 shader 加载
-  # 重构为 dart:ui.FragmentProgram 直接加载（cached isolate pipelines），
-  # 在 Windows Impeller(D3D12) 上首次编译极慢/挂起 → 启动白屏数分钟
-  # （v1.2.0 用 0.29.2 正常，v1.2.4 自动升级 0.29.8 白屏）。
-  # pubspec.lock 同时提交到 git 双保险防漂移。
-  liquid_glass_widgets: 0.29.2
+  # 2026-09-01 用户要求升级 0.29.2 → 1.2.3（0.x→1.x 大版本）。
+  # 历史风险：0.29.8 的 FragmentProgram shader 加载曾在 Windows Impeller(D3D12) 白屏；
+  # 1.2.3 按用户要求升级，Windows 运行时白屏风险待真机/Windows 构建验证
+  # （本沙箱仅能编译 Android + 静态分析，无法验证 Windows 运行时）。
+  # 精确锁定 1.2.3 防自动浮动。pubspec.lock 提交 git 双保险。
+  liquid_glass_widgets: 1.2.3
   # 动态流体气泡背景
   fluid_background: ^1.0.5
   # 图片缓存
@@ -105,12 +104,11 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon.png"
 
 dependency_overrides:
-  # 锁定 jni 到 1.0.0：绕过 dart-lang/jni 1.0.1（构建当天发布）的回归
-  # —— 其 android/build.gradle 第 84 行仍调用 kotlin {} DSL，与
-  # settings.gradle.kts 锁定的 Kotlin Gradle Plugin 2.3.20 不兼容，
-  # 导致 CI `:jni` 项目评估报 "Could not find method kotlin()"。
-  # jni 自 0.11.0 起已移除对 kotlin_gradle_plugin 的依赖，1.0.0 不会触发该问题。
-  jni: 1.0.0
+  # 2026-09-01 用户要求升级 1.0.0 → 1.0.3。
+  # 原回归：jni 1.0.1 的 android/build.gradle 调用 kotlin {} DSL，与 Kotlin Gradle Plugin 2.3.20 不兼容
+  # （报 "Could not find method kotlin()"）。1.0.3 是否已修复待 Android 编译验证；若仍报该错，
+  # 需升级 settings.gradle.kts 的 Kotlin Gradle Plugin 或回退本 override。
+  jni: 1.0.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

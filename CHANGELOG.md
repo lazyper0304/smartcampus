@@ -12,6 +12,8 @@
 - **依赖升级（约束内 + 两处大版本）**：`flutter pub upgrade` 落地 20 个约束内更新（flutter_pdfview 1.4.4→1.4.5、html 0.15.6→0.15.7、image 4.9.1→4.9.2 等）；放开两处直接依赖大版本——`cached_network_image` 3.4.1→**4.0.0**（新增 cupertino_ui/material_ui 传递依赖）、`google_mlkit_text_recognition` 0.16.0→**0.17.1**（同步 google_mlkit_commons 0.12→0.13）。`liquid_glass_widgets` 仍锁定 **0.29.2**（禁浮动，0.29.8 在 Windows Impeller 白屏）；`jni` 仍按 1.0.0 覆盖。pubspec.lock 一并更新。dart analyze 全量 0 error。
 - **Flutter SDK 升级 3.44.0 → 3.47.2 + 强制升级父包**：`flutter upgrade`（Dart 3.12.0 → 3.13.x）带动 SDK/工具链捆绑传递依赖上移（meta 1.18.0→1.19.0、vector_math 2.4.0→2.4.2、clock/intl/code_assets/hooks/objective_c/record_use/matcher/stack_trace 等随新 SDK 上移）；`flutter pub upgrade --major-versions` 强制拉动父直接依赖到最新大版本（pdf/printing/encrypt/crypto 等已在其最新大版本）。`liquid_glass_widgets` 仍锁定 **0.29.2**（升级流程两次尝试改为 ^1.2.3，均已回退——Windows Impeller 白屏铁律）；`jni` 仍按 1.0.0 覆盖（绕 Kotlin Gradle 回归）。`flutter` 自动改写 `analysis_options.yaml`（排除 build/各平台目录，收口分析范围）。注：`qr`/`pointycastle`/`archive` 仍被父包（pdf/encrypt，已最新）自身约束封顶，结构上不可达；`package_config`/`cli_util` 等 dev 工具链随 Dart SDK 仍封顶。pubspec.lock 更新；dart analyze 0 error、Android `compileDebugKotlin` BUILD SUCCESSFUL 双重验证。
 
+- **升级 liquid_glass_widgets 0.29.2 → 1.2.3 + jni 1.0.0 → 1.0.3（用户明确要求，解除两项历史锁定）**：`liquid_glass_widgets` 升 0.x→1.x 大版本——`dart analyze` 0 error（glass UI API 用法兼容，无新增问题）、Android `compileDebugKotlin` BUILD SUCCESSFUL；⚠️ 历史 0.29.8 的 FragmentProgram shader 加载曾致 Windows Impeller 白屏，1.2.3 的 Windows 运行时白屏风险**本沙箱无法验证**（仅编译 Android + 静态分析），需真机/Windows 构建实测。`jni` 解除 1.0.0 override 锁定、升 1.0.3——原 1.0.1 的 `kotlin {}` DSL 回归在 1.0.3 已不存在，Android 编译 BUILD SUCCESSFUL（不再报 `Could not find method kotlin()`）；新增传递依赖 `jni_util 1.0.0`。pubspec.yaml 注释同步更新、pubspec.lock 更新。
+
 ## [1.2.7] - 2026-08-25
 
 ### ✨ 新增
