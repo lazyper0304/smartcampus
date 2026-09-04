@@ -158,6 +158,11 @@ class _CountdownCardState extends State<CountdownCard> {
     final accent = e.target.colorValue == null
         ? accentColorNotifier.value
         : Color(e.target.colorValue!);
+    final date = '${e.target.targetDate.year}-'
+        '${e.target.targetDate.month.toString().padLeft(2, '0')}-'
+        '${e.target.targetDate.day.toString().padLeft(2, '0')}';
+    final baseWeight =
+        e.target.pinned ? FontWeight.w600 : FontWeight.normal;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -166,18 +171,45 @@ class _CountdownCardState extends State<CountdownCard> {
             Text(e.target.emoji!, style: const TextStyle(fontSize: 15)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '距『${e.target.name}』${e.daysLabel}',
-              style: TextStyle(
-                fontSize: 13.5,
-                color: textPrimary(context),
-                fontWeight: e.target.pinned ? FontWeight.w600 : FontWeight.normal,
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: textPrimary(context),
+                  fontWeight: baseWeight,
+                ),
+                children: [
+                  TextSpan(text: '距『${e.target.name}』'),
+                  if (e.isPast)
+                    TextSpan(
+                      text: e.daysLabel,
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else ...[
+                    TextSpan(text: '还有'),
+                    TextSpan(
+                      text: '${e.daysLeft}',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(text: '天'),
+                  ],
+                ],
               ),
             ),
           ),
           Text(
-            '${e.target.targetDate.month}/${e.target.targetDate.day}',
-            style: TextStyle(fontSize: 12, color: textHint(context)),
+            date,
+            style: TextStyle(
+              fontSize: 12,
+              color: textHint(context),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
           if (e.target.pinned) ...[
             const SizedBox(width: 4),

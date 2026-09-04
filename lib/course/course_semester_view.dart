@@ -160,17 +160,24 @@ class SemesterCourseListView extends StatelessWidget {
   final CourseTableConfig config;
   final void Function(Course)? onCourseTap;
 
+  /// 列表末尾追加的额外底部留白（叠加在 12 的基础 padding 上）。
+  ///
+  /// 主界面 tab 嵌入时由调用方传入底部浮动导航栏的避让高度，避免最后一张
+  /// 课程卡片滚到底时被玻璃导航栏压住。独立推送页传 0。
+  final double bottomPadding;
+
   const SemesterCourseListView({
     super.key,
     required this.courses,
     required this.config,
     this.onCourseTap,
+    this.bottomPadding = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomPadding),
       children:
           buildSemesterCourseItems(context, courses, config, onCourseTap: onCourseTap),
     );

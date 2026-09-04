@@ -6,6 +6,7 @@ import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
+import '../core/responsive.dart';
 import '../core/local_storage.dart';
 import 'course.dart';
 import 'course_service.dart';
@@ -27,7 +28,17 @@ class CourseTablePage extends StatefulWidget {
   final SharedHttpClient client;
   final String? userId;
 
-  const CourseTablePage({super.key, required this.client, this.userId});
+  /// 是否作为主界面底部/侧边导航的常驻 tab 嵌入。
+  /// 嵌入时需预留浮动玻璃栏（或侧栏）高度，避免末行课程被遮挡；
+  /// 作为独立推送页（首页卡片 / 应用宫格 / 桌面组件）时不预留。
+  final bool embeddedInTab;
+
+  const CourseTablePage({
+    super.key,
+    required this.client,
+    this.userId,
+    this.embeddedInTab = false,
+  });
 
   @override
   State<CourseTablePage> createState() => _CourseTablePageState();
@@ -592,7 +603,15 @@ class _CourseTablePageState extends State<CourseTablePage> {
   Widget build(BuildContext context) {
     return SimplePage(
       statusBarStyle: GlassStatusBarStyle.auto,
+      // 作为主界面底部/侧边栏 tab 嵌入时，GlassScaffold 已提供液态玻璃背景，
+      // 不再叠加一层 LiquidBackground（避免双重气泡/渐变错位显割裂）；
+      // 独立推送页（首页卡片 / 应用宫格 / 桌面组件）保持 background: true。
+      background: !widget.embeddedInTab,
       child: Scaffold(
+        // 强制透明：嵌入 GlassScaffold 时其内置主题会把 scaffoldBackgroundColor
+        // 改为不透明实色，导致「课表」tab 出现纯色背景遮挡课表——显式透明，
+        // 让页面透出与主界面一致的液态玻璃背景（与其他 tab 统一）。
+        backgroundColor: Colors.transparent,
         appBar: _buildAppBar(),
         body: _buildBody(),
       ),
@@ -601,6 +620,12 @@ class _CourseTablePageState extends State<CourseTablePage> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      // 透明导航栏：覆盖 GlassScaffold 内可能下发的非透明 appBarTheme，
+      // 让标题栏直接透出底部液态玻璃背景，消除与页面主体的硬边界（割裂感）。
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
       title: const Text('我的课表'),
       centerTitle: true,
       actions: [
@@ -684,8 +709,16 @@ class _CourseTablePageState extends State<CourseTablePage> {
       );
     }
 
-    return Column(
-      children: [
+    return Padding(
+      // 作为主界面底部 tab 嵌入时，预留浮动玻璃栏高度，避免末行课程被遮挡；
+      // 独立推送页（首页卡片 / 应用宫格 / 桌面组件）不预留，保持整屏铺满。
+      // ⚠️ 课表是内容密集页：用 denseBottomBarPadding 精确避让（栏高 + 安全区
+      // + 8），而非通用的 120dp —— 课表网格为固定行高（cellHeight × 行数），
+      // 多留的那段空白会挤压网格可视高度，把最后一行课程挤出屏幕（截断）。
+      padding: EdgeInsets.only(
+          bottom: widget.embeddedInTab ? denseBottomBarPadding(context) : 0),
+      child: Column(
+        children: [
         // 数据获取日期提示（长期缓存模式：仅手动刷新才会重新获取）
         if (_updatedAt != null && _updatedAt!.isNotEmpty)
           Padding(
@@ -725,6 +758,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
           child: _isWeeklyView ? _buildWeeklyView() : _buildSemesterView(),
         ),
       ],
+      ),
     );
   }
 
@@ -785,6 +819,9 @@ class _CourseTablePageState extends State<CourseTablePage> {
       todayDay: _todayDay,
       firstMonday: _firstMonday,
       maxWeek: _maxWeek,
+      // 末行（第 11、12 节）之后补一段可滚动空白，避免滚动到底时末行
+      // 紧贴视口底边被裁掉一截（独立推送页无浮动导航栏，传 0）。
+      bottomPadding: widget.embeddedInTab ? kCourseGridTailSpace : 0,
       onSwipe: (d) {
         if (d > 0 && _currentWeek < _maxWeek) {
           setState(() => _currentWeek++);
@@ -802,6 +839,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return SemesterCourseListView(
       courses: _courses!,
       config: _config,
+      // 列表末尾补浮动导航栏避让高度，最后一张卡片滚到底不被压住。
+      bottomPadding: widget.embeddedInTab ? denseBottomBarPadding(context) : 0,
     );
   }
 }

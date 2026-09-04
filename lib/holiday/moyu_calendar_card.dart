@@ -129,22 +129,43 @@ class _MoyuCalendarCardState extends State<MoyuCalendarCard> {
   }
 
   Widget _buildRow(BuildContext context, CountdownEntry e) {
+    final accent = accentColorNotifier.value;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              '距『${e.name}』${e.daysLabel}',
-              style: TextStyle(
-                fontSize: 13.5,
-                color: textPrimary(context),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(fontSize: 13.5, color: textPrimary(context)),
+                children: [
+                  TextSpan(text: '距『${e.name}』'),
+                  if (e.isPast)
+                    TextSpan(
+                      text: e.daysLabel,
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else ...[
+                    TextSpan(text: '还有'),
+                    TextSpan(
+                      text: '${e.daysLeft}',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(text: '天'),
+                  ],
+                ],
               ),
             ),
           ),
           Text(
-            '${e.target.month}/${e.target.day}',
-            style: TextStyle(fontSize: 12, color: textHint(context)),
+            '${e.target.year}-${e.target.month.toString().padLeft(2, '0')}-${e.target.day.toString().padLeft(2, '0')}',
+            style: TextStyle(fontSize: 12, color: textHint(context), fontFeatures: const [FontFeature.tabularFigures()]),
           ),
         ],
       ),

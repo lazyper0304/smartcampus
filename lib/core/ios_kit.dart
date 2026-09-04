@@ -447,6 +447,7 @@ class IosListTile extends StatelessWidget {
   final Color? iconBackground;
   final String title;
   final String? subtitle;
+  final Widget? subtitleWidget;
   final Widget? trailing;
   final VoidCallback? onTap;
 
@@ -461,6 +462,7 @@ class IosListTile extends StatelessWidget {
     this.iconBackground,
     required this.title,
     this.subtitle,
+    this.subtitleWidget,
     this.trailing,
     this.onTap,
     this.scale = 1.0,
@@ -488,10 +490,11 @@ class IosListTile extends StatelessWidget {
               // ⚠️ 显式主题色：GlassListTile 内部默认取 CupertinoTheme
               // textStyle.color（fallback 为黑色），深色模式下黑字不可见
               color: textPrimary(context))),
-      subtitle: subtitle != null
-          ? Text(subtitle!,
-              style: TextStyle(fontSize: 12 * scale, color: textSecondary(context)))
-          : null,
+      subtitle: subtitleWidget ??
+          (subtitle != null
+              ? Text(subtitle!,
+                  style: TextStyle(fontSize: 12 * scale, color: textSecondary(context)))
+              : null),
       trailing: trailing ?? (onTap != null ? GlassListTile.chevron : null),
       onTap: onTap,
     );

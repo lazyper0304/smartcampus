@@ -61,7 +61,7 @@ class _JiaocaiPageState extends State<JiaocaiPage> {
       statusBarStyle: GlassStatusBarStyle.auto,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('教材查询'),
+          title: const Text('已购教材'),
           centerTitle: true,
           actions: [
             if (_orders != null)

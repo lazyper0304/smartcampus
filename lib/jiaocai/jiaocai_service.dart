@@ -7,7 +7,7 @@ import '../core/http_client.dart';
 import '../core/data_cache.dart';
 import 'jiaocai.dart';
 
-/// 教材查询服务
+/// 已购教材服务
 class JiaocaiService {
   final SharedHttpClient client;
   final String baseUrl = 'https://ehall.yibinu.edu.cn';

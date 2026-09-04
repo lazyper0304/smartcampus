@@ -116,6 +116,13 @@ class CourseScheduleGrid extends StatelessWidget {
   final List<String> dayLabels;
   final bool mergeSections;
 
+  /// 网格最后一行（第 11、12 节）之后追加的可滚动空白。
+  ///
+  /// 主界面 tab 嵌入时由调用方传 [kCourseGridTailSpace]：滚动到底时末行
+  /// 课程不会紧贴视口底边（此前末行被裁掉一截、下方又是一整块固定留白，
+  /// 观感像"课程被截断 + 一块容器"）。独立推送页无浮动导航栏，保持 0。
+  final double bottomPadding;
+
   const CourseScheduleGrid({
     super.key,
     required this.courses,
@@ -129,6 +136,7 @@ class CourseScheduleGrid extends StatelessWidget {
     this.onCourseTap,
     this.dayLabels = kDayLabels,
     this.mergeSections = true,
+    this.bottomPadding = 0,
   });
 
   @override
@@ -260,6 +268,9 @@ class CourseScheduleGrid extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // 末行（第 11、12 节）之后的可滚动空白：滚动到底时末行
+                    // 完整停在视口内，不再贴边被裁。
+                    if (bottomPadding > 0) SizedBox(height: bottomPadding),
                   ],
                 ),
               ),

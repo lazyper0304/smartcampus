@@ -84,7 +84,7 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.school_rounded, name: '综合素质', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => ZhszPage(client: c)),
-  AppEntry(icon: Icons.menu_book_rounded, name: '教材查询', category: AppCategory.jiaowu,
+  AppEntry(icon: Icons.menu_book_rounded, name: '已购教材', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => JiaocaiPage(client: c, userId: uid)),
   AppEntry(icon: Icons.account_tree_rounded, name: '教学单位', category: AppCategory.jiaowu,

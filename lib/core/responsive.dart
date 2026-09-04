@@ -39,6 +39,40 @@ bool isWideScreen(BuildContext context) =>
 double bottomBarSafePadding(BuildContext context) =>
     isWideScreen(context) ? kBottomSafePaddingWide : kBottomBarSafePadding;
 
+/// 浮动玻璃底部导航栏（`GlassTabBar.bottom`）的实测高度（含内部留白）。
+///
+/// 用于内容密集页（课表）精确避让：普通页面统一用 [kBottomBarSafePadding]
+/// （120）留足呼吸空间没问题，但课表网格是固定行高（cellHeight × 行数），
+/// 多留的空白会挤压网格可视高度，把最后一行课程挤出屏幕。
+const double kGlassBottomBarHeight = 64.0;
+
+/// 课表网格末行（第 11、12 节）之后追加的**可滚动**空白高度。
+///
+/// 网格是固定行高（cellHeight × 行数），末行常紧贴视口底边被裁掉一截，
+/// 观感像"课程卡片被截断"；补这段空白后滚动到底时末行可完整停在视口内。
+const double kCourseGridTailSpace = 32.0;
+
+/// 密集内容页（课表 tab）的底部留白：只避开浮动导航栏本身
+/// （栏高 + 系统安全区 + 8 呼吸），不再额外多留。
+///
+/// ⚠️ 系统安全区必须**直接从 FlutterView 读**，不能用
+/// `MediaQuery.paddingOf` / `viewPaddingOf`：GlassScaffold 内部已把 body 的
+/// padding 与 viewPadding 一并清零（真机实测两者 `bottom` 均为 0），但
+/// bottomBar 外层仍按真实手势区 `SafeArea` 抬高 20dp —— 用 MediaQuery 会少
+/// 算这 20dp，课表网格底部压到导航栏上（实测内容底 2880 > 栏顶 2832）；
+/// 三键导航设备（48dp）会压得更多。
+/// `MediaQueryData.fromView` 返回的是 view 原始 metrics（已换算为逻辑
+/// 像素），不受任何祖先 MediaQuery 覆盖影响。
+///
+/// 宽屏（侧边 Rail）下不存在底部浮动栏，沿用常规间距。
+double denseBottomBarPadding(BuildContext context) {
+  if (isWideScreen(context)) return kBottomSafePaddingWide;
+  final view = View.maybeOf(context);
+  final systemBottom =
+      view == null ? 0.0 : MediaQueryData.fromView(view).viewPadding.bottom;
+  return kGlassBottomBarHeight + systemBottom + 8;
+}
+
 /// 根据「可用宽度」计算应用网格列数，自适应横屏与桌面宽屏。
 /// 档位与首页「常用功能」宫格对齐（3 → 4 → 6 → 8），
 /// 调用方须传入**实际渲染宽度**（LayoutBuilder 约束），而非屏幕总宽，

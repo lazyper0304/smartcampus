@@ -102,15 +102,41 @@ class _CountdownPageState extends State<CountdownPage> {
   Widget _targetRow(BuildContext context, CustomTarget c) {
     final item =
         CountdownService.buildItems(DateTime.now(), [c]).first;
+    final accent = c.colorValue == null
+        ? accentOf(context)
+        : Color(c.colorValue!);
+    final date = '${c.targetDate.year}-'
+        '${c.targetDate.month.toString().padLeft(2, '0')}-'
+        '${c.targetDate.day.toString().padLeft(2, '0')}';
     return IosListTile(
       icon: c.emoji != null ? null : Icons.flag_rounded,
-      iconColor: c.colorValue == null
-          ? accentOf(context)
-          : Color(c.colorValue!),
+      iconColor: accent,
       title: c.emoji != null ? '${c.emoji} ${c.name}' : c.name,
-      subtitle: item.isPast
-          ? '已到来 · ${c.targetDate.month}/${c.targetDate.day}'
-          : '还剩 ${item.daysLeft} 天 · ${c.targetDate.year}/${c.targetDate.month}/${c.targetDate.day}',
+      subtitleWidget: RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: 12, color: textSecondary(context)),
+          children: [
+            if (item.isPast)
+              TextSpan(
+                text: '已到来',
+                style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+              )
+            else ...[
+              TextSpan(text: '还剩 '),
+              TextSpan(
+                text: '${item.daysLeft}',
+                style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+              ),
+              TextSpan(text: ' 天'),
+            ],
+            TextSpan(text: ' · '),
+            TextSpan(
+              text: date,
+              style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+            ),
+          ],
+        ),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -118,7 +144,7 @@ class _CountdownPageState extends State<CountdownPage> {
             icon: Icon(
               c.pinned ? Icons.push_pin : Icons.push_pin_outlined,
               size: 18,
-              color: c.pinned ? accentOf(context) : textHint(context),
+              color: c.pinned ? accent : textHint(context),
             ),
             onPressed: () async {
               await CountdownService.togglePin(c.id);

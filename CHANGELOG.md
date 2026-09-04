@@ -1,11 +1,34 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.2.8] - 2026-09-04
 
 ### ✨ 新增
+- **首页「教材查询」入口改名为「已购教材」**：`lib/home/app_data.dart` 的教务分类入口 `name`、`lib/jiaocai/jiaocai_page.dart` 页面 `AppBar` 标题、以及 `lib/jiaocai/jiaocai_service.dart` 服务类注释均由「教材查询」改为「已购教材」；`lib/core/guest_mode.dart` 受登录拦截的功能列表说明同步更新。纯文案改动，无逻辑变化，dart analyze 0 error。
+
+- **底部液态玻璃导航栏新增「课表」tab（复用「我的课表」界面）**：`lib/home/main_screen.dart` 的窄屏底部 `GlassTabBar.bottom` 与宽屏侧边栏 `_railDefs` 各新增第 2 个标签「课表」（图标 `CupertinoIcons.calendar`，选中态 accent 着色），主页面栈 `_buildPages()` 相应新增 `CourseTablePage`（传 `embeddedInTab: true`）。为兼容底部 tab 嵌入，`lib/course/course_page.dart` 的 `CourseTablePage` 新增 `embeddedInTab` 参数——为 true 时在 body 底部预留 `bottomBarSafePadding`（窄屏 120 / 宽屏 32），避免末行课程被浮动玻璃栏遮挡；作为独立推送页（首页卡片 / 应用宫格 / 桌面组件）时保持默认 `false`、整屏铺满。窄屏 tab 顺序：首页 / 课表 / 应用 / 设置。dart analyze 0 error。
+
 
 - **个人信息页新增「住宿信息」（楼栋名 / 宿舍号）**：数据来自学工系统住宿接口 `POST //syt/sgxt/bed/querylist.htm?xh=<学号>&type=ZSXX`（响应 `data[0]` 中 `sslmc` 楼栋名称、`ssmc` 宿舍号、`unit` 单元）。新增 `lib/xuegong/dorm_info.dart`（`DormInfo` 模型：分页响应取首条、`null`/空值归一、与区块字段互转、`summary` 摘要文案）；`xuegong_data_service.dart` 抽出 `_withSession()` 统管后台 WebView 生命周期，**住宿请求复用同一次 SSO 会话**（学工 JSESSIONID 只存在于 WebView Cookie 存储、不会回流到 SharedHttpClient，用 HttpClient 直连只能拿到登录页而非 JSON），在已登录页面上下文内用同源 `fetch` 发起请求，并异步轮询 `window.__dormResult` 取回结果（不依赖 `evaluateJavascript` 对 Promise 的等待行为）；学号优先取个人信息页解析结果，缺失时以登录账号兜底。详情页新增「住宿信息」区块（**楼栋名称 / 宿舍号**，`unit` 单元只解析不展示），姓名下方另以胶囊标签展示「临港4舍 805」摘要；同时收敛区块范围——**只展示 基本信息 / 学籍信息 / 住宿信息 三个区块**，接口返回的其他区块不再渲染。
 - **旧缓存自动补拉住宿信息**：新增 `StudentInfoManager.ensureDormInfo()`，缓存中缺少「住宿信息」区块时后台补拉一次（进程内仅一次，失败静默保留原缓存）——住宿信息是后加字段，而 `ensureBackgroundFetch` 见到已有缓存会直接跳过，故需单独补一次；设置页加载缓存后自动触发，老用户无需手动刷新。补拉同时沿用旧缓存的学籍照片，避免刷新后头像被清空。
+
+### 🎨 UI 优化
+
+- **首页「摸鱼日历」日期补齐年份并对齐年月日**：`lib/holiday/moyu_calendar_card.dart` 与 `lib/holiday/moyu_calendar_page.dart` 的节日倒计时行日期由 `月/日` 改为 `年-月-日`（月/日零填充两位，形如 `2027-01-01`），并加 `FontFeature.tabularFigures()` 使各自行数字列等宽对齐、跨行年份与分隔符不再错位；仅改展示格式，无逻辑变化。dart analyze 0 error。
+
+- **首页「摸鱼日历」距离天数用主题色高亮（与上方最近节日高亮一致）**：`lib/holiday/moyu_calendar_card.dart`（`_buildRow`）与 `lib/holiday/moyu_calendar_page.dart`（`_festivalRow`）的节日倒计时行由单行 `Text` 改为 `RichText`——「距『名称』」与「还有/天」保持 `textPrimary`，仅数字（按 `e.isPast`/`e.daysLeft` 拆分「还有N天」取 N）与「已到来」改用主题色 `accentColorNotifier.value` 且 `FontWeight.w600` 高亮，与卡片顶部最近节日实时倒计时的 accent 高亮风格统一；仅展示样式改动。dart analyze 0 error。
+
+- **首页「倒计时」日期补齐年份并对齐、距离天数主题色高亮（与摸鱼日历一致）**：`lib/countdown/countdown_card.dart`（`_buildRow`）由单行 `Text` 改 `RichText`——「距『名称』」与「还有/天」保持 `textPrimary`，仅数字（按 `e.isPast`/`e.daysLeft` 拆分「还有N天」取 N）与「已到来」用主题色（`accentColorNotifier.value`；自定义目标带 `colorValue` 时用其色）`FontWeight.w600` 高亮；日期由 `月/日` 改 `年-月-日`（零填充两位）并加 `FontFeature.tabularFigures()` 对齐。`lib/countdown/countdown_page.dart`（`_targetRow`）副标题改经 `IosListTile.subtitleWidget`（`lib/core/ios_kit.dart` 新增可选 `Widget?` 参数，向后兼容原有 `String? subtitle`）传 `RichText`——「还剩 N 天」的 N 与「已到来」主题色高亮、日期统一 `年-月-日` 等宽对齐；`iconColor` 与置顶图钉复用同一 accent。dart analyze 0 error。
+
+- **底部液态玻璃导航栏玻璃厚度调小**：`lib/home/main_screen.dart` 底部 `GlassTabBar.bottom` 的 `LiquidGlassSettings.thickness` 由 30 降至 18（折射更轻薄），其余 glass 参数（blur / glowIntensity / refractiveIndex / specularSharpness / standardOpacityMultiplier）不变；页面级 `GlassScaffold` 的同源厚度保持 30（如需整体一致请告知一并下调）。dart analyze 0 error。
+
+
+- **全校课表周课表支持左右滑动翻周**：`lib/course/all_class_schedule_page.dart` 详情态周课表 `CourseScheduleGrid` 新增 `onSwipe` 回调（与「我的课表」`CourseTablePage` 同款逻辑）——横向位移 `|dx|≥50` 触发上一周/下一周，与顶部 `CourseWeekBar` 共用 `_currentWeek` 状态；学期课表为列表视图不受影响。dart analyze 0 error。
+
+### 🐛 Bug 修复
+
+- **课表 tab 底部留白过大导致末行课程被截断**：`lib/core/responsive.dart` 新增 `kGlassBottomBarHeight`（浮动玻璃导航栏 `GlassTabBar.bottom` 实测高度 64）与 `denseBottomBarPadding()`（栏高 + 系统安全区 + 8），`lib/course/course_page.dart` 的 body 底部 padding 由通用 `bottomBarSafePadding`（固定 120）改为 `denseBottomBarPadding`——课表网格是固定行高（cellHeight × 行数），多留的空白会挤压网格可视高度、把第 11、12 节挤出屏幕；真机实测可视区由 425.5dp 增至 453dp。⚠️ 必须用 `MediaQuery.viewPaddingOf` 而非 `paddingOf`：进入 Scaffold 后手势导航区已被消耗，`paddingOf(context).bottom` 返回 0 会少算 20dp，导致网格底部压到导航栏上（实测内容底 2880 > 栏顶 2832）。
+
+- **课表网格末行补可滚动空白**：`CourseScheduleGrid` 与 `SemesterCourseListView` 新增 `bottomPadding` 参数——周课表在末行（第 11、12 节）之后追加 `kCourseGridTailSpace`（32）可滚动空白，学期课表列表末尾补浮动导航栏避让高度，滚动到底时末行不再紧贴视口底边被裁掉一截。独立推送页（首页卡片 / 应用宫格 / 桌面组件）传 0，保持整屏铺满。dart analyze 0 error。
 
 ### 🔧 重构
 

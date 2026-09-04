@@ -570,6 +570,15 @@ class _AllClassSchedulePageState extends State<AllClassSchedulePage> {
         todayDay: _todayDay,
         firstMonday: _firstMonday,
         maxWeek: _maxWeek,
+        // 复用「我的课表」同款左右滑动翻周：网格内部 Listener 检测横向位移
+        // （|dx|≥50）→ 上一周/下一周，与顶部 CourseWeekBar 共用 _currentWeek 状态。
+        onSwipe: (d) {
+          if (d > 0 && _currentWeek < _maxWeek) {
+            setState(() => _currentWeek++);
+          } else if (d < 0 && _currentWeek > 1) {
+            setState(() => _currentWeek--);
+          }
+        },
       ),
     ];
   }

@@ -44,6 +44,7 @@ class _RailTabDef {
 
 const List<_RailTabDef> _railDefs = [
   _RailTabDef(CupertinoIcons.house_fill, '首页'),
+  _RailTabDef(CupertinoIcons.calendar, '课表'),
   _RailTabDef(CupertinoIcons.square_grid_2x2_fill, '应用'),
   _RailTabDef(CupertinoIcons.settings, '设置'),
 ];
@@ -148,12 +149,18 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// 三个主页面（首页 / 应用 / 设置），在底部栏与侧边栏两种布局中复用。
+  /// 四个主页面（首页 / 课表 / 应用 / 设置），在底部栏与侧边栏两种布局中复用。
   List<Widget> _buildPages() => [
         HomeDashboard(
           key: const ValueKey('home'),
           client: widget.client,
           userId: widget.userId,
+        ),
+        CourseTablePage(
+          key: const ValueKey('course'),
+          client: widget.client,
+          userId: widget.userId,
+          embeddedInTab: true,
         ),
         _AppsPage(
           key: const ValueKey('apps'),
@@ -212,7 +219,7 @@ class _MainScreenState extends State<MainScreen> {
             quality: GlassQuality.premium,
             // 透出型液态玻璃：极低模糊让下方滚动文字清晰透出，保留折射边缘
             settings: const LiquidGlassSettings(
-              thickness: 30,
+              thickness: 18,
               blur: 5,
               glowIntensity: 1.2,
               refractiveIndex: 2.6,
@@ -232,6 +239,12 @@ class _MainScreenState extends State<MainScreen> {
                 icon: const Icon(CupertinoIcons.house),
                 activeIcon: Icon(CupertinoIcons.house_fill, color: _accentBlue),
                 label: '首页',
+              ),
+              GlassTab(
+                icon: const Icon(CupertinoIcons.calendar),
+                activeIcon:
+                    Icon(CupertinoIcons.calendar, color: _accentBlue),
+                label: '课表',
               ),
               GlassTab(
                 icon: const Icon(CupertinoIcons.square_grid_2x2),

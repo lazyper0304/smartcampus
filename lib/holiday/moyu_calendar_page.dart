@@ -11,6 +11,7 @@ import '../core/ios_kit.dart';
 import '../core/responsive.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
+import '../main.dart' show accentColorNotifier;
 import 'countdown_service.dart';
 
 class MoyuCalendarPage extends StatefulWidget {
@@ -63,16 +64,42 @@ class _MoyuCalendarPageState extends State<MoyuCalendarPage> {
   }
 
   Widget _festivalRow(BuildContext context, CountdownEntry e) {
+    final accent = accentColorNotifier.value;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       child: Row(
         children: [
           Expanded(
-            child: Text('距『${e.name}』${e.daysLabel}',
-                style: const TextStyle(fontSize: 15)),
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(fontSize: 15, color: textPrimary(context)),
+                children: [
+                  TextSpan(text: '距『${e.name}』'),
+                  if (e.isPast)
+                    TextSpan(
+                      text: e.daysLabel,
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else ...[
+                    TextSpan(text: '还有'),
+                    TextSpan(
+                      text: '${e.daysLeft}',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(text: '天'),
+                  ],
+                ],
+              ),
+            ),
           ),
-          Text('${e.target.month}/${e.target.day}',
-              style: TextStyle(fontSize: 13, color: textHint(context))),
+          Text('${e.target.year}-${e.target.month.toString().padLeft(2, '0')}-${e.target.day.toString().padLeft(2, '0')}',
+              style: TextStyle(fontSize: 13, color: textHint(context), fontFeatures: const [FontFeature.tabularFigures()])),
         ],
       ),
     );
