@@ -134,6 +134,10 @@ class VpnWindowsCore {
             inCaptcha = true;
             _dispatchCaptcha(line.substring('@CAPTCHA:'.length).trim(),
                 (answer) {
+              // 应答已写回：验证码阶段结束，恢复 SOCKS 探测判定
+              // （不复位会让下方 `if (inCaptcha) continue` 永久跳过
+              // _probePort，UI 卡死在「正在认证」——2026-09-06 实测）
+              inCaptcha = false;
               _pendingAnswers.add(answer);
               _drainStdin();
             }, onProgress);
@@ -174,8 +178,10 @@ class VpnWindowsCore {
           VpnService.lastError.value ??= _friendlyError(gotError);
           return false;
         }
-        if (inCaptcha) continue; // 等用户输入验证码，不计失败
+        // 端口已监听即成功，即使仍显示验证码等待（内核可能已就绪）；
+        // inCaptcha 仅在端口未就绪时延长等待窗口
         if (await _probePort(1080)) return true;
+        if (inCaptcha) continue;
       }
       VpnService.lastError.value ??= 'VPN 内核启动超时，请重试';
       return false;

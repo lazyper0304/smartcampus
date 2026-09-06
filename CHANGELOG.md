@@ -4,6 +4,7 @@
 
 ### 🐛 Bug 修复
 
+- **修复 Windows 端 VPN 连接成功后 UI 永久卡「正在认证」**：验证码标志 `inCaptcha` 置位后从未复位，SOCKS 1080 探测循环里 `if (inCaptcha) continue` 在验证码应答写回后仍永久跳过 `_probePort`——隧道实际已建立（SOCKS 探测 301/200 正常）但 phase 无法切到 connected。修复：验证码应答回调复位 `inCaptcha`，并把端口探测移到 inCaptcha 判断之前（端口已监听即成功，等待标志仅用于端口未就绪时延长窗口）。`dart analyze lib/vpn` 0 issue。
 - **修复 Windows 端 VPN 仍报 `protocol version not supported`**：新内核（AES-CBC 套件）已解决 RC4 被禁问题，但 `-server` 仍传域名——`vpn.yibinu.edu.cn` 的 AAAA 记录优先，内核 `tlsConn` 为裸 TCP 直连（不走系统 Happy Eyeballs），隧道落入拒绝 legacy TLS1.1 的 IPv6 入口。`vpn_windows_core.dart` 启动前解析 A 记录把 host 钉为 IPv4（`InternetAddress.lookup(IPv4)`，失败兜底学校 VPN 已知 IPv4 字面量；Android 端由 fork `SetForceIPv4(true)` 等效故不受影响）。`dart analyze lib/vpn` 0 issue。
 
 - **修复 Windows/Android 端 VPN 隧道握手失败（`protocol version not supported` / `handshake failure`）**：学校 VPN 服务器（M7.6.8R2）已禁用 RC4，且域名 `vpn.yibinu.edu.cn` 的 AAAA（IPv6）记录优先导致隧道 TLS 直连落入拒绝 legacy TLS1.1 的 IPv6 入口。fork `protocol.go` 的隧道 ClientHello 密码套件由 `[RC4]` 改为 `[AES_128_CBC_SHA, AES_256_CBC_SHA, RC4]`（AES 优先、RC4 兜底老固件）；Windows 端 server 参数钉 IPv4 字面量。实测全链路打通：登录→验证码→token→隧道×3→分配内网 IP→KeepAlive OK→SOCKS5 代理可用（ehall/图书馆 200）。
