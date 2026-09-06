@@ -38,7 +38,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- 校园 VPN：zju-connect TUN 隧道前台服务 -->
+        <!-- 校园 VPN：yibinu-connect TUN 隧道前台服务 -->
         <service
             android:name=".vpn.YibinVpnService"
             android:exported="false"

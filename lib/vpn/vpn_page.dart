@@ -9,7 +9,7 @@ import '../core/theme_utils.dart' show textSecondary, dividerColor;
 import 'vpn_service.dart';
 import 'vpn_windows_core.dart' show VpnWindowsCoreCaptchaBridge;
 
-/// 校园 VPN 页面 — 深信服 EasyConnect 接入（zju-connect 开源实现）。
+/// 校园 VPN 页面 — 深信服 EasyConnect 接入（yibinu-connect 开源实现）。
 ///
 /// 大圆钮连接/断开 + 账号配置卡片；状态经 VpnService.phase 全局通知器驱动。
 /// 仅 Android / Windows 端可用。

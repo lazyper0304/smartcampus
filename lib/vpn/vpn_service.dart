@@ -28,10 +28,10 @@ enum VpnPhase {
 
 /// 校园 VPN 服务。
 ///
-/// 参考 hitsz-connect-verge 的思路，协议实现采用开源的 zju-connect：
+/// 参考 hitsz-connect-verge 的思路，协议实现采用开源的 yibinu-connect（原 zju-connect，yibinu fork）：
 /// - Android：官方发布的 gomobile AAR（Login/Logout/StartStack）+ 自建
 ///   VpnService 建立 TUN 网卡，分流模式仅路由内网网段（10/8、172.16/12、192.168/16）。
-/// - Windows：下载 zju-connect 命令行内核作为子进程运行，本地暴露
+/// - Windows：随包分发 yibinu-connect 命令行内核作为子进程运行，本地暴露
 ///   SOCKS5(127.0.0.1:1080)/HTTP(127.0.0.1:1081) 代理。
 ///
 /// 接入地址 https://vpn.yibinu.edu.cn（深信服 EasyConnect），账号同学校统一身份认证。
@@ -199,7 +199,7 @@ class VpnService {
           'username': username,
           'password': password,
           'server': server ?? kDefaultServer,
-          // debug 构建开启 zju-connect 详细日志，定位 token/IP 阶段失败点
+          // debug 构建开启 yibinu-connect 详细日志，定位 token/IP 阶段失败点
           'debug': kDebugMode,
         });
         if (ip == null || ip.isEmpty) {

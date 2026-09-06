@@ -12,10 +12,10 @@ import com.smartcampus.smartcampus.MainActivity
 import mobile.Mobile
 
 /**
- * 校园 VPN 前台服务 — 建立 TUN 网卡并把 fd 交给 zju-connect 的 gvisor 栈。
+ * 校园 VPN 前台服务 — 建立 TUN 网卡并把 fd 交给 yibinu-connect 的 gvisor 栈。
  *
  * 分流策略（split tunnel）：仅路由内网网段 10/8、172.16/12、192.168/16，
- * 普通上网流量不走隧道，避免拖慢日常网络。MTU 与 zju-connect 保持一致（1400）。
+ * 普通上网流量不走隧道，避免拖慢日常网络。MTU 与 yibinu-connect 保持一致（1400）。
  */
 class YibinVpnService : VpnService() {
     companion object {

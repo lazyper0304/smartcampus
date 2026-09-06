@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 校园 VPN 桥接 — 基于 zju-connect gomobile AAR（开源 EasyConnect 协议实现）。
+ * 校园 VPN 桥接 — 基于 yibinu-connect gomobile AAR（原 zju-connect，yibinu fork）（开源 EasyConnect 协议实现）。
  *
  * 流程：Mobile.login(server, user, pwd) → 返回虚拟内网 IP（失败返回空串）
  *      → 启动 YibinVpnService 建立 TUN → Mobile.startStack(fd) 接管分流。
@@ -22,12 +22,12 @@ object VpnBridge {
     private const val TAG = "YibinVpn"
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** 默认接入主机名（zju-connect 要求纯主机名，禁带 scheme） */
+    /** 默认接入主机名（yibinu-connect 要求纯主机名，禁带 scheme） */
     private const val DEFAULT_VPN_HOST = "vpn.yibinu.edu.cn"
 
     /**
      * 归一化服务器地址：去掉 scheme 与尾部斜杠，只留主机名。
-     * zju-connect 内部自拼 https://<host>/por/login_auth.csp，
+     * yibinu-connect 内部自拼 https://<host>/por/login_auth.csp，
      * 传入 "https://vpn.yibinu.edu.cn" 会拼成 https://https://...（DNS 解析
      * hostname="https" 失败）。UI 层可继续以完整 URL 形式存储展示。
      */
@@ -111,7 +111,7 @@ object VpnBridge {
                 val host = normalizeServer(server)
                 Log.i(TAG, "login to $host ...")
                 ensureCaptchaBridge()
-                // debugLogin 开启 zju-connect 详细日志（token/IP 阶段失败点定位）
+                // debugLogin 开启 yibinu-connect 详细日志（token/IP 阶段失败点定位）
                 clientIp = if (debugLog) {
                     Mobile.debugLogin(host, username, password)
                 } else {

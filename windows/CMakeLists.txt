@@ -102,10 +102,10 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
-# 校园 VPN 内核（zju-connect，yibinu fork 构建的 windows-amd64 exe）。
+# 校园 VPN 内核（yibinu-connect，yibinu fork 构建的 windows-amd64 exe）。
 # 与 android/app/libs 的 AAR 同构：随仓库分发，不运行时下载。
 # vpn_windows_core.dart 通过 Platform.resolvedExecutable 同目录定位。
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/vpn_core/zju-connect.exe"
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/vpn_core/yibinu-connect.exe"
   DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 

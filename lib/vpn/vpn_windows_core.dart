@@ -6,14 +6,16 @@ import 'package:path_provider/path_provider.dart';
 
 import 'vpn_service.dart';
 
-/// Windows 端 zju-connect 内核管理。
+/// Windows 端 yibinu-connect 内核管理。
 ///
 /// 内核为 yibinu fork（分支 yibinu-captcha）本地构建的 windows-amd64 exe，
 /// 与 android/app/libs 的 AAR 同构：直接随仓库/安装包分发，不做运行时下载。
 /// fork 相对上游补丁：
 /// - `-captcha-stdio`：学校强制图形验证码（RndImg=1）时经 stdin/stdout
 ///   行协议 `@CAPTCHA:<base64>` / `@CAPTCHA_ANSWER:<text>` 交互；
-/// - `-force-ipv4`：双栈解析下隧道 TLS 握手锁定 IPv4（本机 IPv6 直连被拒）。
+/// - 密码套件 AES-CBC 优先：学校 M7.6.8R2 已禁 RC4，隧道握手改为
+///   TLS1.1 + RSA/AES-CBC（2026-09 实测定案）；
+/// - 品牌更名 ZJU Connect → Yibinu Connect（TUN 网卡名同步更名）。
 /// 本地暴露 SOCKS5 127.0.0.1:1080 / HTTP 127.0.0.1:1081 代理。
 class VpnWindowsCore {
   VpnWindowsCore._();
@@ -34,13 +36,13 @@ class VpnWindowsCore {
   Future<String> _exePath() async {
     final besideApp = File(
         '${File(Platform.resolvedExecutable).parent.path}'
-        '${Platform.pathSeparator}zju-connect.exe');
+        '${Platform.pathSeparator}yibinu-connect.exe');
     if (besideApp.existsSync()) return besideApp.path;
 
     final support = await getApplicationSupportDirectory();
     final fallback =
         '${support.path}${Platform.pathSeparator}vpn_core'
-        '${Platform.pathSeparator}zju-connect.exe';
+        '${Platform.pathSeparator}yibinu-connect.exe';
     if (!File(fallback).existsSync()) {
       throw Exception(
           'VPN 内核缺失（版本 $_version）：$fallback 不存在。'
