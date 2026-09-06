@@ -4,6 +4,8 @@
 
 ### 🐛 Bug 修复
 
+- **修复 Windows 端 VPN 仍报 `protocol version not supported`**：新内核（AES-CBC 套件）已解决 RC4 被禁问题，但 `-server` 仍传域名——`vpn.yibinu.edu.cn` 的 AAAA 记录优先，内核 `tlsConn` 为裸 TCP 直连（不走系统 Happy Eyeballs），隧道落入拒绝 legacy TLS1.1 的 IPv6 入口。`vpn_windows_core.dart` 启动前解析 A 记录把 host 钉为 IPv4（`InternetAddress.lookup(IPv4)`，失败兜底学校 VPN 已知 IPv4 字面量；Android 端由 fork `SetForceIPv4(true)` 等效故不受影响）。`dart analyze lib/vpn` 0 issue。
+
 - **修复 Windows/Android 端 VPN 隧道握手失败（`protocol version not supported` / `handshake failure`）**：学校 VPN 服务器（M7.6.8R2）已禁用 RC4，且域名 `vpn.yibinu.edu.cn` 的 AAAA（IPv6）记录优先导致隧道 TLS 直连落入拒绝 legacy TLS1.1 的 IPv6 入口。fork `protocol.go` 的隧道 ClientHello 密码套件由 `[RC4]` 改为 `[AES_128_CBC_SHA, AES_256_CBC_SHA, RC4]`（AES 优先、RC4 兜底老固件）；Windows 端 server 参数钉 IPv4 字面量。实测全链路打通：登录→验证码→token→隧道×3→分配内网 IP→KeepAlive OK→SOCKS5 代理可用（ehall/图书馆 200）。
 
 ### 🔧 重构

@@ -23,6 +23,14 @@ class VpnWindowsCore {
 
   static const _version = 'yibinu-v1.3.0';
 
+  /// 隧道入口钉 IPv4：域名 vpn.yibinu.edu.cn 的 AAAA 记录优先，而内核
+  /// tlsConn 是裸 TCP 直连（不走系统 Happy Eyeballs），落 IPv6 入口会被
+  /// 拒 legacy TLS1.1（`protocol version not supported`，2026-09-06 实测）。
+  /// IPv4 125.64.220.23:443 是唯一实测全通入口（Android 端由 fork 的
+  /// SetForceIPv4(true) 等效实现）。启动前解析 A 记录替换 host，失败则
+  /// 回退用已知的学校 VPN IPv4 字面量。
+  static const _serverIPv4 = '125.64.220.23';
+
   Process? _process;
   bool _starting = false;
   IOSink? _stdin;
@@ -30,6 +38,20 @@ class VpnWindowsCore {
   final List<String> _pendingAnswers = [];
 
   bool get isRunning => _process != null;
+
+  /// 解析 [host] 的 A 记录；任何失败回退 [_serverIPv4]。
+  Future<String> _resolveIPv4(String host) async {
+    // 已是 IPv4 字面量（用户自定义服务器）则原样返回
+    if (InternetAddress.tryParse(host) != null) return host;
+    try {
+      final addrs = await InternetAddress.lookup(host, type: InternetAddressType.IPv4);
+      final v4 = addrs.where((a) => a.type == InternetAddressType.IPv4).toList();
+      if (v4.isNotEmpty) return v4.first.address;
+    } catch (_) {
+      // DNS 失败走兜底
+    }
+    return _serverIPv4;
+  }
 
   /// 内核 exe 路径：与应用主程序同目录（flutter run / Release 构建均成立），
   /// 兜底回退应用支持目录。
@@ -75,13 +97,16 @@ class VpnWindowsCore {
 
       final dir = File(exe).parent;
       final uri = Uri.parse(server);
+      // 隧道入口钉 IPv4（见 _resolveIPv4 注释）：域名 AAAA 优先会落
+      // IPv6 入口被拒 TLS1.1；HTTP 认证层不受影响（Happy Eyeballs 护住）
+      final host = await _resolveIPv4(uri.host);
 
       // 认证阶段可能需要数十秒（选路 + 登录 + 验证码交互），进程存活即认为
       // 启动流程进行中；真正的连通性由 SOCKS 端口探测确认
       _process = await Process.start(
         exe,
         [
-          '-server', uri.host,
+          '-server', host,
           '-port', '${uri.port == 0 ? 443 : uri.port}',
           '-username', username,
           '-password', password,
