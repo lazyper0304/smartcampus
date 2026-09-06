@@ -217,14 +217,23 @@ class _MainScreenState extends State<MainScreen> {
             // 显式 premium：折射（refraction）+ 色散（chromatic aberration）
             // 只有完整 shader 管线才有；standard 是轻量 shader 无折射。
             quality: GlassQuality.premium,
+            // 关闭跟随触摸的 GlassGlow 交互高光（interactionGlowColor 透明即
+            // 跳过整个 glow 渲染层，省去每帧额外开销），保留按压缩放等其它
+            // 交互反馈。
+            interactionGlowColor: Colors.transparent,
             // 透出型液态玻璃：极低模糊让下方滚动文字清晰透出，保留折射边缘
             settings: const LiquidGlassSettings(
               thickness: 18,
               blur: 5,
-              glowIntensity: 1.2,
+              // 去掉液态玻璃高光：镜面高光点(lightIntensity=0) + 物理 Fresnel
+              // 边缘亮环(fresnelStrength=0) + 最弱镜面高光(specular=soft)，
+              // 保留模糊与折射层次（标准 2D 路径的边缘辉光一并归零）。
+              glowIntensity: 0.0,
               refractiveIndex: 2.6,
-              specularSharpness: GlassSpecularSharpness.sharp,
+              specularSharpness: GlassSpecularSharpness.soft,
               standardOpacityMultiplier: 0.8,
+              lightIntensity: 0.0,
+              fresnelStrength: 0.0,
             ),
             textStyle: TextStyle(
               fontSize: 11,

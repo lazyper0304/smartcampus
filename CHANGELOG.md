@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🔧 重构
+
+- **删除「选课」模块（金智教务 xsxk）**：按需求移除整个 `lib/xsxk/`（模型 `xsxk.dart` / 服务 `xsxk_service.dart` / 页面 `xsxk_page.dart`）；同步移除首页宫格（`lib/home/app_data.dart`）教务分类的「选课」入口及其 `XsxkPage` import；并回退 `android/app/.../vpn/YibinVpnService.kt` 中仅为该模块新增的 `CAMPUS_PUBLIC_CIDRS` 校园公网 /32 路由（`125.64.220.37` 不再需要进隧道）。`graduation` / `qxfacx` 等既有模块中的「选课学年学期」「校公选课」文案与此无关、保持不变。`dart analyze lib` 0 error。
+
 ## [1.2.8] - 2026-09-04
 
 ### ✨ 新增
@@ -19,7 +25,11 @@
 
 - **首页「倒计时」日期补齐年份并对齐、距离天数主题色高亮（与摸鱼日历一致）**：`lib/countdown/countdown_card.dart`（`_buildRow`）由单行 `Text` 改 `RichText`——「距『名称』」与「还有/天」保持 `textPrimary`，仅数字（按 `e.isPast`/`e.daysLeft` 拆分「还有N天」取 N）与「已到来」用主题色（`accentColorNotifier.value`；自定义目标带 `colorValue` 时用其色）`FontWeight.w600` 高亮；日期由 `月/日` 改 `年-月-日`（零填充两位）并加 `FontFeature.tabularFigures()` 对齐。`lib/countdown/countdown_page.dart`（`_targetRow`）副标题改经 `IosListTile.subtitleWidget`（`lib/core/ios_kit.dart` 新增可选 `Widget?` 参数，向后兼容原有 `String? subtitle`）传 `RichText`——「还剩 N 天」的 N 与「已到来」主题色高亮、日期统一 `年-月-日` 等宽对齐；`iconColor` 与置顶图钉复用同一 accent。dart analyze 0 error。
 
-- **底部液态玻璃导航栏玻璃厚度调小**：`lib/home/main_screen.dart` 底部 `GlassTabBar.bottom` 的 `LiquidGlassSettings.thickness` 由 30 降至 18（折射更轻薄），其余 glass 参数（blur / glowIntensity / refractiveIndex / specularSharpness / standardOpacityMultiplier）不变；页面级 `GlassScaffold` 的同源厚度保持 30（如需整体一致请告知一并下调）。dart analyze 0 error。
+- **底部液态玻璃导航栏玻璃厚度调小**：`lib/home/main_screen.dart` 底部 `GlassTabBar.bottom` 的 `LiquidGlassSettings.thickness` 由 30 降至 18（折射更轻薄），其余 glass 参数（blur / glowIntensity / refractiveIndex / specularSharpness / standardOpacityMultiplier）不变；页面级 `GlassScaffold` 的同源厚度保持 30（如需整体一致请告知一并下调）。dart analyze 0 error.
+
+- **底部液态玻璃导航栏去掉高光**：`lib/home/main_screen.dart` 底部 `GlassTabBar.bottom` 的 `LiquidGlassSettings` 由高光态改为无高光——`specularSharpness` 由 `GlassSpecularSharpness.sharp` 改 `soft`（最弱镜面高光），并新增 `lightIntensity: 0.0`（消除镜面高光点）、`fresnelStrength: 0.0`（Premium 路径去除物理 Fresnel 边缘亮环）、`glowIntensity` 由 1.2 降至 0.0（2D 标准路径边缘辉光归零）；保留 `thickness`/`blur`/`refractiveIndex`/`standardOpacityMultiplier` 维持玻璃的模糊与折射层次。dart analyze 0 error.
+
+- **底部液态玻璃导航栏去掉跟随触摸的交互高光**：静态 `LiquidGlassSettings` 改完仍残留的"跟随手指移动的高光"来自 `GlassTabBar` 内置的 `GlassGlow` 交互层（`_wrapWithGlow`，默认 `interactionGlowColor = 0x1FFFFFFF` 半透明白、随指针位置显示）。在 `GlassTabBar.bottom(...)` 调用显式传 `interactionGlowColor: Colors.transparent`——库判定 `a == 0` 后跳过整个 glow 渲染层（不再每帧额外合层），仅去此高光，保留按压缩放等其它交互反馈。dart analyze 0 error.
 
 
 - **全校课表周课表支持左右滑动翻周**：`lib/course/all_class_schedule_page.dart` 详情态周课表 `CourseScheduleGrid` 新增 `onSwipe` 回调（与「我的课表」`CourseTablePage` 同款逻辑）——横向位移 `|dx|≥50` 触发上一周/下一周，与顶部 `CourseWeekBar` 共用 `_currentWeek` 状态；学期课表为列表视图不受影响。dart analyze 0 error。

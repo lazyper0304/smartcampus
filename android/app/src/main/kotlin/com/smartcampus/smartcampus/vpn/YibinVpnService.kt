@@ -63,9 +63,10 @@ class YibinVpnService : VpnService() {
                     .addRoute("10.0.0.0", 8)
                     .addRoute("172.16.0.0", 12)
                     .addRoute("192.168.0.0", 16)
+                tunInterface = builder
                     .setMtu(1400)
                     .setSession("宜院宾果 · 校园VPN")
-                tunInterface = builder.establish()
+                    .establish()
                 val fd = tunInterface?.fd
                 if (fd == null) {
                     Log.e(TAG, "establish TUN failed")
