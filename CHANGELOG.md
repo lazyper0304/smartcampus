@@ -4,6 +4,7 @@
 
 ### 🐛 Bug 修复
 
+- **修复 Windows 端 VPN 已连接但办公网仍不可达（流量不进隧道）**：Windows 端 yibinu-connect 内核为本地代理模式（无 TUN、不接管系统路由），APP 自身的 Dart 请求默认直连、从不经过内核暴露的本地代理——表现为「SOCKS 1080 已监听但办公网访问失败」。实测定性：办公网站点为 HTTP-only（服务器 Sangfor 资源白名单含 `off.yibinu.edu.cn:80`，经隧道实测 200；443 不在白名单，SOCKS code 5 系客户端 ACL 主动拒绝，避免触发服务端 0x08 SHUTDOWN）。修复：`VpnService.createVpnAwareHttpClient()` 工厂——Windows + VPN 已连接时 `findProxy` 指向内核 HTTP 代理 `127.0.0.1:1081`，办公网模块 4 处请求（栏目列表/搜索/详情/文件下载）统一改经此工厂创建（Android 为真实 TUN 私网路由自动接管，不受影响）。经 1081 实测：列表 21KB/详情 200/showdoc PDF 流 270KB（`%PDF-` 魔数正确）。`dart analyze lib/office lib/vpn` 0 issue。
 - **修复 Windows 端 VPN 连接成功后 UI 永久卡「正在认证」**：验证码标志 `inCaptcha` 置位后从未复位，SOCKS 1080 探测循环里 `if (inCaptcha) continue` 在验证码应答写回后仍永久跳过 `_probePort`——隧道实际已建立（SOCKS 探测 301/200 正常）但 phase 无法切到 connected。修复：验证码应答回调复位 `inCaptcha`，并把端口探测移到 inCaptcha 判断之前（端口已监听即成功，等待标志仅用于端口未就绪时延长窗口）。`dart analyze lib/vpn` 0 issue。
 - **修复 Windows 端 VPN 仍报 `protocol version not supported`**：新内核（AES-CBC 套件）已解决 RC4 被禁问题，但 `-server` 仍传域名——`vpn.yibinu.edu.cn` 的 AAAA 记录优先，内核 `tlsConn` 为裸 TCP 直连（不走系统 Happy Eyeballs），隧道落入拒绝 legacy TLS1.1 的 IPv6 入口。`vpn_windows_core.dart` 启动前解析 A 记录把 host 钉为 IPv4（`InternetAddress.lookup(IPv4)`，失败兜底学校 VPN 已知 IPv4 字面量；Android 端由 fork `SetForceIPv4(true)` 等效故不受影响）。`dart analyze lib/vpn` 0 issue。
 

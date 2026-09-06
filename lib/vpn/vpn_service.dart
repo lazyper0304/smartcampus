@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show HttpClient, Platform;
 
 import 'package:flutter/foundation.dart'
     show kDebugMode, kIsWeb, ValueNotifier;
@@ -7,6 +7,10 @@ import 'package:flutter/services.dart';
 
 import '../core/local_storage.dart';
 import 'vpn_windows_core.dart';
+
+/// Windows 端 yibinu-connect 内核本地 HTTP 代理端口（与 SOCKS 1080 同源，
+/// 由 vpn_windows_core.dart 启动参数 -http-bind 固定）。
+const int kVpnHttpProxyPort = 1081;
 
 /// VPN 连接阶段
 enum VpnPhase {
@@ -67,6 +71,32 @@ class VpnService {
       !kIsWeb && (Platform.isAndroid || Platform.isWindows);
 
   static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
+  /// Windows 端 VPN 是否已连接（内核本地代理就绪）
+  static bool get _isWindowsVpnConnected =>
+      !kIsWeb && Platform.isWindows && phase.value == VpnPhase.connected;
+
+  /// 创建「VPN 感知」的 HttpClient。
+  ///
+  /// 背景：Windows 端内核为本地代理模式（无 TUN、不接管系统路由），
+  /// APP 自身的 Dart 请求默认直连、从不进隧道——表现为「VPN 已连接但
+  /// 办公网等纯内网站点不可达」（外网解析 off.yibinu.edu.cn 的 A 记录
+  /// 是 10.1.2.10 私网、AAAA 记录指向 VPN 入口本身，直连必然失败）。
+  ///
+  /// 本方法在 Windows + VPN 已连接时把请求经内核 HTTP 代理
+  /// （127.0.0.1:1081）送入隧道（ Sangfor 资源白名单含 off:80，实测
+  /// 经隧道 200）；其余平台/状态返回普通 HttpClient（Android 为真实
+  /// TUN，私网路由自动接管，无需代理）。
+  ///
+  /// 网络型模块（办公网等）的 HttpClient 统一经此工厂创建。
+  static HttpClient createVpnAwareHttpClient() {
+    final client = HttpClient()
+      ..badCertificateCallback = ((_, _, _) => true);
+    if (_isWindowsVpnConnected) {
+      client.findProxy = (uri) => 'PROXY 127.0.0.1:$kVpnHttpProxyPort';
+    }
+    return client;
+  }
 
   /// 注册原生事件回调（幂等）。仅 Android 走 MethodChannel。
   static void _ensureHandler() {

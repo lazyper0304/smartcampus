@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show HttpClientResponse;
 
 import 'package:gbk_codec/gbk_codec.dart';
 
 import '../core/data_cache.dart';
+import '../vpn/vpn_service.dart';
 import 'office_models.dart';
 
 /// 办公网栏目服务（ASP + GBK 编码，原生解析，不使用 WebView）
@@ -32,7 +33,7 @@ class OfficeService {
       if (cached != null) return cached;
     }
 
-    final client = HttpClient()..badCertificateCallback = ((_, _, _) => true);
+    final client = VpnService.createVpnAwareHttpClient();
     try {
       final req = await client.getUrl(Uri.parse(url));
       req.headers.set(
@@ -104,7 +105,7 @@ class OfficeService {
       if (cached != null) return cached;
     }
 
-    final client = HttpClient()..badCertificateCallback = ((_, _, _) => true);
+    final client = VpnService.createVpnAwareHttpClient();
     try {
       final req = await client.getUrl(Uri.parse(url));
       req.headers.set(
@@ -167,7 +168,7 @@ class OfficeService {
       if (cached != null) return cached;
     }
 
-    final client = HttpClient()..badCertificateCallback = ((_, _, _) => true);
+    final client = VpnService.createVpnAwareHttpClient();
     try {
       final req = await client.getUrl(Uri.parse(url));
       req.headers.set(

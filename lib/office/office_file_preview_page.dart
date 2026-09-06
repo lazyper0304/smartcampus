@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart' show FitPolicy;
@@ -11,6 +11,7 @@ import '../core/open_file.dart';
 import '../core/platform_pdf_view.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
+import '../vpn/vpn_service.dart';
 
 /// 办公网文件预览页
 ///
@@ -136,8 +137,7 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
       final file = File('${dir.path}/${_safeName(widget.name, ext)}');
 
       if (!await file.exists()) {
-        final client = HttpClient()
-          ..badCertificateCallback = (_, _, _) => true;
+        final client = VpnService.createVpnAwareHttpClient();
         try {
           final req = await client.getUrl(Uri.parse(widget.url));
           req.headers.set(
