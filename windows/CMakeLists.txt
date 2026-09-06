@@ -102,6 +102,13 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
+# 校园 VPN 内核（zju-connect，yibinu fork 构建的 windows-amd64 exe）。
+# 与 android/app/libs 的 AAR 同构：随仓库分发，不运行时下载。
+# vpn_windows_core.dart 通过 Platform.resolvedExecutable 同目录定位。
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/vpn_core/zju-connect.exe"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")

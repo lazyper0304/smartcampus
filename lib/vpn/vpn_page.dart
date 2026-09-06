@@ -7,6 +7,7 @@ import '../core/responsive.dart' show bottomBarSafePadding;
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart' show textSecondary, dividerColor;
 import 'vpn_service.dart';
+import 'vpn_windows_core.dart' show VpnWindowsCoreCaptchaBridge;
 
 /// 校园 VPN 页面 — 深信服 EasyConnect 接入（zju-connect 开源实现）。
 ///
@@ -41,6 +42,8 @@ class _VpnPageState extends State<VpnPage> with SingleTickerProviderStateMixin {
     super.initState();
     VpnService.phase.addListener(_onPhase);
     VpnService.captchaHandler = _showCaptchaDialog;
+    // Windows 内核子进程经 stdio 行协议请求验证码，复用同一弹窗
+    VpnWindowsCoreCaptchaBridge.handler = _showCaptchaDialog;
     _loadSavedConfig();
   }
 
@@ -133,6 +136,7 @@ class _VpnPageState extends State<VpnPage> with SingleTickerProviderStateMixin {
   void dispose() {
     VpnService.phase.removeListener(_onPhase);
     VpnService.captchaHandler = null;
+    VpnWindowsCoreCaptchaBridge.handler = null;
     _pulse.dispose();
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
