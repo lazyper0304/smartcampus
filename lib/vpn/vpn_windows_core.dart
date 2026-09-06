@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'vpn_service.dart';
+
 /// Windows 端 zju-connect 内核管理。
 ///
 /// 内核为 yibinu fork（分支 yibinu-captcha）本地构建的 windows-amd64 exe，
@@ -85,9 +87,11 @@ class VpnWindowsCore {
           '-http-bind', '127.0.0.1:1081',
           '-disable-zju-config',
           '-disable-multi-line',
-          // yibinu fork 补丁开关：图形验证码 stdio 协议 + 隧道锁定 IPv4
+          // yibinu fork 补丁开关：图形验证码 stdio 协议。
+          // ⚠️ 不传 -force-ipv4：Go 的 dial tcp4 原生 IPv4 拨号在本机网络栈
+          // 被 connectex 拒绝（实测复现），双栈 Happy Eyeballs 反而自动选通
+          // IPv4；fork 保留该 flag 仅供排查。
           '-captcha-stdio',
-          '-force-ipv4',
         ],
         workingDirectory: dir.path,
       );
@@ -108,7 +112,12 @@ class VpnWindowsCore {
             }, onProgress);
           } else if (line.contains('Login failed') ||
               line.toLowerCase().contains('auth failed') ||
-              line.contains('Invalid username or password')) {
+              line.contains('Invalid username or password') ||
+              line.contains('VPN client setup error') ||
+              line.contains('connectex') ||
+              line.contains('No connection could be made') ||
+              line.contains('i/o timeout') ||
+              line.contains('TLS handshake error')) {
             gotError = line;
           }
         },
@@ -128,11 +137,20 @@ class VpnWindowsCore {
       // 探测 SOCKS5 端口就绪（验证码交互可长达数分钟）
       for (var i = 0; i < 600; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
-        if (_process == null) return false; // 进程已退出
-        if (gotError.isNotEmpty) return false;
+        if (_process == null) {
+          // 进程已退出：把捕获到的具体错误抛给 UI（lastError 优先展示原因）
+          VpnService.lastError.value ??=
+              gotError.isEmpty ? null : _friendlyError(gotError);
+          return false;
+        }
+        if (gotError.isNotEmpty) {
+          VpnService.lastError.value ??= _friendlyError(gotError);
+          return false;
+        }
         if (inCaptcha) continue; // 等用户输入验证码，不计失败
         if (await _probePort(1080)) return true;
       }
+      VpnService.lastError.value ??= 'VPN 内核启动超时，请重试';
       return false;
     } finally {
       _starting = false;
@@ -174,6 +192,30 @@ class VpnWindowsCore {
         _stdin!.writeln('@CAPTCHA_ANSWER:$answer');
       }
     });
+  }
+
+  /// 把内核日志错误行映射为可读提示（去掉时间戳与日志噪音）
+  static String _friendlyError(String line) {
+    // 形如 "2026/09/06 18:13:47 VPN client setup error: Get \"https://...\": dial tcp4 ..."
+    final cleaned = line
+        .replaceFirst(RegExp(r'^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\s*'), '')
+        .replaceFirst('VPN client setup error: ', '');
+    if (cleaned.contains('Invalid username or password') ||
+        cleaned.contains('20004')) {
+      return '用户名或密码错误';
+    }
+    if (cleaned.contains('20023') || cleaned.contains('CAPTCHA')) {
+      return '验证码错误或已过期，请重试';
+    }
+    if (cleaned.contains('connectex') ||
+        cleaned.contains('No connection could be made') ||
+        cleaned.contains('refused')) {
+      return '无法连接 VPN 服务器（连接被拒绝），请检查网络';
+    }
+    if (cleaned.contains('i/o timeout') || cleaned.contains('timeout')) {
+      return '连接 VPN 服务器超时，请检查网络';
+    }
+    return cleaned.length > 120 ? '${cleaned.substring(0, 120)}…' : cleaned;
   }
 
   Future<bool> _probePort(int port) async {

@@ -2,9 +2,13 @@
 
 ## [1.2.9] - 2026-09-06
 
+### 🐛 Bug 修复
+
+- **修复 Windows 端 VPN「内核启动失败」**：根因是启动参数里的 `-force-ipv4`——Go 的 `dial tcp4` 原生 IPv4 拨号在部分 Windows 网络栈被 `connectex` 直接拒绝（实测复现：无该参数时 Happy Eyeballs 双栈选路正常走通认证与验证码全流程），导致内核认证阶段必然报错退出。移除该参数（fork 保留 flag 仅供排查）。同时补强错误反馈：内核 stdout 的连接类错误（`connectex`/超时/TLS 握手/`VPN client setup error`）现被捕获并映射为友好中文提示（「无法连接 VPN 服务器（连接被拒绝）」等）经 `VpnService.lastError` 展示，替代笼统的「VPN 内核启动失败」；探测超时（5 分钟）与进程退出路径也兜底写入错误。`dart analyze lib/vpn` 0 error。
+
 ### ✨ 新增
 
-- **校园 VPN Windows 端支持图形验证码 + 内核随包分发**：Windows 端内核改用 yibinu fork（分支 `yibinu-captcha`）本地构建的 exe（版本 `yibinu-v1.3.0`），**直接提交入库** `windows/vpn_core/zju-connect.exe` 随安装包分发，不再运行时从上游 `Mythologyli/zju-connect` Releases 下载。fork 相对上游补丁：① `-captcha-stdio`——学校 VPN 强制图形验证码（`RndImg=1`）时，内核经 stdin/stdout 行协议 `@CAPTCHA:<base64>` / `@CAPTCHA_ANSWER:<text>` 与宿主交互（上游 CLI 遇验证码直接登录失败，此前 Windows 端因此不可用）；`lib/vpn/vpn_windows_core.dart` 解析该行、经 `VpnWindowsCoreCaptchaBridge` 复用 VPN 页既有验证码弹窗，用户输入写回内核 stdin，探测窗口延长至 5 分钟覆盖输入耗时；② `-force-ipv4`——双栈解析下隧道 TLS 握手锁定 IPv4（本机 IPv6 直连被服务端拒绝，与 Android 端 `SetForceIPv4(true)` 行为对齐）。`vpn_windows_core.dart` 重写：删除下载/解压逻辑，exe 定位改为 `Platform.resolvedExecutable` 同目录（兜底应用支持目录）；`windows/CMakeLists.txt` install 与 `windows/installer/installer.iss` [Files] 增加该 exe。fork 源码改动见 `zju-connect-fork` 仓库（`configs/config.go` 新增 `CaptchaStdio`/`ForceIPv4`、`init.go` 新增 flag+TOML、`internal/captchastdio` 新增 stdio 协议实现、`main.go` easyconnect 分支接线 `SetRandCodeProvider`/`SetForceIPv4`）。已实测：真机构建 exe 对 `vpn.yibinu.edu.cn` 实跑，`RndImg=1` 场景正确输出 `@CAPTCHA:` 行并消费 stdin 应答；`dart analyze lib/vpn` 0 error。
+- **校园 VPN Windows 端支持图形验证码 + 内核随包分发**：Windows 端内核改用 yibinu fork（分支 `yibinu-captcha`）本地构建的 exe（版本 `yibinu-v1.3.0`），**直接提交入库** `windows/vpn_core/zju-connect.exe` 随安装包分发，不再运行时从上游 `Mythologyli/zju-connect` Releases 下载。fork 相对上游补丁：① `-captcha-stdio`——学校 VPN 强制图形验证码（`RndImg=1`）时，内核经 stdin/stdout 行协议 `@CAPTCHA:<base64>` / `@CAPTCHA_ANSWER:<text>` 与宿主交互（上游 CLI 遇验证码直接登录失败，此前 Windows 端因此不可用）；`lib/vpn/vpn_windows_core.dart` 解析该行、经 `VpnWindowsCoreCaptchaBridge` 复用 VPN 页既有验证码弹窗，用户输入写回内核 stdin，探测窗口延长至 5 分钟覆盖输入耗时；② `-force-ipv4` flag（fork 保留供排查，**APP 不启用**——Go 原生 IPv4 拨号在部分 Windows 网络栈被 connectex 拒绝，双栈 Happy Eyeballs 反而正常）。`vpn_windows_core.dart` 重写：删除下载/解压逻辑，exe 定位改为 `Platform.resolvedExecutable` 同目录（兜底应用支持目录）；`windows/CMakeLists.txt` install 与 `windows/installer/installer.iss` [Files] 增加该 exe。fork 源码改动见 `zju-connect-fork` 仓库（`configs/config.go` 新增 `CaptchaStdio`/`ForceIPv4`、`init.go` 新增 flag+TOML、`internal/captchastdio` 新增 stdio 协议实现、`main.go` easyconnect 分支接线 `SetRandCodeProvider`/`SetForceIPv4`）。已实测：真机构建 exe 对 `vpn.yibinu.edu.cn` 实跑，`RndImg=1` 场景正确输出 `@CAPTCHA:` 行并消费 stdin 应答；`dart analyze lib/vpn` 0 error。
 
 ### 🔧 重构
 
