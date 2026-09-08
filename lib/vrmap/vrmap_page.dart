@@ -20,9 +20,9 @@ class _CampusVr {
 }
 
 const _campuses = [
-  _CampusVr(name: 'A区', url: 'https://vr.douhuiai.com/v/3jb8i06blq9kd5-1779006271.html'),
+  _CampusVr(name: 'A区', url: 'https://vr.douhuiai.com/v/6a5a3d4_66c0y6-1785058108.html'),
   _CampusVr(name: 'B区', url: 'https://vr.douhuiai.com/v/ffbf5ea3eu05_1-1785058130.html'),
-  _CampusVr(name: '临港', url: 'https://vr.douhuiai.com/v/jc4w9o1e6b5449-1779864933.html'),
+  _CampusVr(name: '临港', url: 'https://vr.douhuiai.com/v/09851o5b9l6gra-1785068339.html'),
 ];
 
 class _VrmapPageState extends State<VrmapPage> {

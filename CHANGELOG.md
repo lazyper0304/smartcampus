@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.3.0] - 2026-09-08
 
 ### 🐛 Bug 修复
 
@@ -11,6 +11,8 @@
 - **修复 Windows/Android 端 VPN 隧道握手失败（`protocol version not supported` / `handshake failure`）**：学校 VPN 服务器（M7.6.8R2）已禁用 RC4，且域名 `vpn.yibinu.edu.cn` 的 AAAA（IPv6）记录优先导致隧道 TLS 直连落入拒绝 legacy TLS1.1 的 IPv6 入口。fork `protocol.go` 的隧道 ClientHello 密码套件由 `[RC4]` 改为 `[AES_128_CBC_SHA, AES_256_CBC_SHA, RC4]`（AES 优先、RC4 兜底老固件）；Windows 端 server 参数钉 IPv4 字面量。实测全链路打通：登录→验证码→token→隧道×3→分配内网 IP→KeepAlive OK→SOCKS5 代理可用（ehall/图书馆 200）。
 
 ### 🔧 重构
+
+- **VR 地图链接更新**：A区与临港校区全景链接已更换为新地址（B区沿用原链接）。`lib/vrmap/vrmap_page.dart` 的 `_campuses` 为全项目唯一来源，APP 内「VR地图」入口及校区切换菜单均读取此处。
 
 - **VPN 内核品牌更名 ZJU → Yibinu**：fork 运行时可见字符串（`-version` 输出、启动/关闭日志、错误前缀、**Windows TUN 网卡名**、Linux TUN 名）由 `ZJU Connect`/`ZJU-Connect` 统一改为 `Yibinu Connect`/`Yibinu-Connect`。Go module 路径与 `-disable-zju-config` 等 flag 名保持不变（语义指上游 ZJU 专属配置，且为既有调用方兼容）。内核产物随之改名：`windows/vpn_core/zju-connect.exe` → `yibinu-connect.exe`、`android/app/libs/zju-connect.aar` → `yibinu-connect.aar`（gomobile 重建，含密码套件修复），同步 `windows/CMakeLists.txt`、`windows/installer/installer.iss`、`android/app/build.gradle.kts`、`proguard-rules.pro` 及 lib/vpn、Kotlin 层注释引用。
 
