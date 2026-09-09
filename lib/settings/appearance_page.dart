@@ -60,23 +60,48 @@ class _AppearancePageState extends State<AppearancePage> {
     );
     if (picked == null || !mounted) return;
 
-    // 复制到应用持久目录，避免原图被删除后丢失
+    // 复制到应用持久目录，避免原图被删除后丢失。
+    // 文件名带毫秒时间戳保证路径唯一：FileImage 按路径缓存，旧版固定名
+    // （background.jpg）重选同格式图片时既命中缓存、notifier 值也不变，
+    // 导致背景一直停留在第一张。
     final dir = await getApplicationDocumentsDirectory();
-    final ext = picked.path.split('.').last;
-    final dest = '${dir.path}/background.$ext';
-    final file = File(picked.path);
-    await file.copy(dest);
+    final ext = picked.path.split('.').last.toLowerCase();
+    final dest =
+        '${dir.path}/background_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await File(picked.path).copy(dest);
 
     if (!mounted) return;
     setState(() => _previewBgPath = dest);
     final appState = SmartCampusApp.of(context);
     await appState?.setBackground(dest);
+    _cleanupOldBackgroundFiles(dir, keep: dest);
   }
 
   Future<void> _resetBackground() async {
     setState(() => _previewBgPath = null);
     final appState = SmartCampusApp.of(context);
     await appState?.setBackground(null);
+    final dir = await getApplicationDocumentsDirectory();
+    _cleanupOldBackgroundFiles(dir);
+  }
+
+  /// 清理本模块产生的历史背景文件（旧版固定名 background.* 与新版
+  /// background_<时间戳>.*），按文件名匹配、与 keep 比较基名以规避
+  /// 路径分隔符差异；删除失败静默，不影响主流程。
+  void _cleanupOldBackgroundFiles(Directory dir, {String? keep}) {
+    final keepName = keep?.split('/').last.split('\\').last;
+    final pattern = RegExp(
+        r'^background(?:_\d+)?\.(jpe?g|png|webp|gif|bmp)$',
+        caseSensitive: false);
+    for (final entity in dir.listSync()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last;
+      if (!pattern.hasMatch(name)) continue;
+      if (keepName != null && name == keepName) continue;
+      try {
+        entity.deleteSync();
+      } catch (_) {}
+    }
   }
 
   @override
