@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🐛 Bug 修复
+
+- **修复办公网附件下载保存为 `.asp` 扩展名**（`lib/office/office_file_preview_page.dart`，与 office-net 独立应用同步修复）：老 ASP 站附件经 `showdoc.asp`/`filedown` 类脚本动态输出二进制流，URL 以 `.asp` 结尾且响应无 `Content-Disposition` 文件名，按 URL 命名即落成 `.asp`（内容实为真 PDF，PDFView 不看扩展名照常渲染，但右上角「用其他应用打开」分享出去就是 `.asp`）。修复：下载改写 `.part` 临时文件 → 文件头魔数嗅探（`%PDF`→pdf；`PK`→docx/xlsx/pptx/zip 按 OLE 容器特征细分；`D0 CF 11 E0`→doc/xls/ppt；`Rar!`→rar；嗅探不出已知魔数时 showdoc 兜底 pdf、其余兜底 bin，任何情况不再落 `.asp`；头 1KB 任意位置扫描 `%PDF` 容忍服务器附加杂字节）→ 重命名纠正扩展名；`<` 开头判 HTML 报错页直接报错不落盘（txt 放行）；空文件拦截；请求统一携带 `Referer: http://off.yibinu.edu.cn/` 防老站防盗链；失败自动清理 `.part` 半成品。嗅探结果联动 UI：非 PDF 退回「系统打开」卡片模式、嗅探出 PDF 自动升级应用内渲染、下载完成后按钮切「用其他应用打开」防重复下载。`dart analyze lib/office` 0 issue。
+
 ## [1.3.0] - 2026-09-08
 
 ### 🐛 Bug 修复

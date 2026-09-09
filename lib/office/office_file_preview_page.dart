@@ -15,11 +15,12 @@ import '../vpn/vpn_service.dart';
 
 /// 办公网文件预览页
 ///
-/// 两类文件的不同处理策略：
+/// 老 ASP 站点的附件链接（showdoc.asp / filedown 类脚本）URL 以 .asp 结尾，
+/// 扩展名不可信：下载后按文件头魔数嗅探真实类型并纠正扩展名。
 ///  - PDF（含 showdoc.asp 直接返回的二进制流）：先下载到本地临时目录，
-///    再用 [PDFView] 在应用内渲染，支持翻页/缩放。
-///  - DOCX / XLSX / PPT / ZIP 等：移动端无可靠的应用内渲染器，
-///    故展示文件信息与「下载并用其他应用打开」兜底入口（如 WPS）。
+///    再用 [PlatformPdfView] 在应用内渲染，支持翻页/缩放。
+///  - DOCX / XLSX / PPT / ZIP 等：展示文件信息与「下载并用其他应用打开」
+///    兜底入口（如 WPS）；嗅探到 HTML 报错页（校外网络 / 链接失效）直接报错。
 ///
 /// 所有列表文件项（showdoc.asp）与详情页附件共用本页作为统一预览入口，
 /// 满足「所有文件都可以点击预览」的需求。
@@ -118,12 +119,6 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
     }
   }
 
-  /// 生成本地临时文件名：用 ASCII 时间戳，避免中文路径被原生 PDF 引擎拒绝。
-  /// 显示名仍用 [widget.name]，仅磁盘文件名取 ASCII。
-  String _safeName(String raw, String ext) {
-    return 'office_${DateTime.now().microsecondsSinceEpoch}.$ext';
-  }
-
   Future<void> _download({required bool inApp}) async {
     if (_downloading) return;
     setState(() {
@@ -131,74 +126,162 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
       _error = null;
       _progress = null;
     });
+    File? partFile;
     try {
       final dir = await getTemporaryDirectory();
-      final ext = _ext.isEmpty ? (_isPdf ? 'pdf' : 'bin') : _ext;
-      final file = File('${dir.path}/${_safeName(widget.name, ext)}');
+      final base = 'office_${DateTime.now().microsecondsSinceEpoch}';
+      partFile = File('${dir.path}/$base.part');
 
-      if (!await file.exists()) {
-        final client = VpnService.createVpnAwareHttpClient();
-        try {
-          final req = await client.getUrl(Uri.parse(widget.url));
-          req.headers.set(
-            'User-Agent',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          );
-          final resp =
-              await req.close().timeout(const Duration(seconds: 30));
-          if (resp.statusCode != 200) {
-            throw Exception('服务器返回状态 ${resp.statusCode}，'
-                '该文件可能需校内网络访问或链接已失效');
-          }
-          final total = resp.contentLength;
-          var received = 0;
-          final sink = file.openWrite();
-          await for (final chunk in resp) {
-            sink.add(chunk);
-            received += chunk.length;
-            if (total > 0 && mounted) {
-              setState(() => _progress = received / total);
-            }
-          }
-          await sink.flush();
-          await sink.close();
-
-          // PDF 有效性预检：避免把非 PDF / 空文件丢给 PDFView 引发原生崩溃
-          if (_isPdf) {
-            final head = await file.openRead(0, 4).first;
-            final validPdf = head.length >= 4 &&
-                head[0] == 0x25 && // %
-                head[1] == 0x50 && // P
-                head[2] == 0x44 && // D
-                head[3] == 0x46; // F
-            final size = await file.length();
-            if (!validPdf || size == 0) {
-              throw Exception('下载的内容不是有效的 PDF 文件'
-                  '（可能需校内网络访问权限，或链接已失效）');
-            }
-          }
-        } finally {
-          client.close(force: true);
+      final client = VpnService.createVpnAwareHttpClient();
+      try {
+        final req = await client.getUrl(Uri.parse(widget.url));
+        req.headers.set(
+          'User-Agent',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        );
+        // 老 ASP 站可能校验 Referer 防盗链，统一带上站内来源
+        req.headers.set('Referer', 'http://off.yibinu.edu.cn/');
+        final resp =
+            await req.close().timeout(const Duration(seconds: 30));
+        if (resp.statusCode != 200) {
+          throw Exception('服务器返回状态 ${resp.statusCode}，'
+              '该文件可能需校内网络访问或链接已失效');
         }
+        final total = resp.contentLength;
+        var received = 0;
+        final sink = partFile.openWrite();
+        await for (final chunk in resp) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total > 0 && mounted) {
+            setState(() => _progress = received / total);
+          }
+        }
+        await sink.flush();
+        await sink.close();
+      } finally {
+        client.close(force: true);
       }
+
+      final size = await partFile.length();
+      if (size == 0) {
+        throw Exception('下载的内容为空文件（链接可能已失效）');
+      }
+
+      // 魔数嗅探：附件链接以 .asp 结尾，URL 扩展名不可信，按内容头字节纠正
+      final head = <int>[];
+      await for (final chunk in partFile.openRead(0, 4096)) {
+        head.addAll(chunk);
+      }
+      final fallbackExt = _ext.isEmpty ? (_isPdf ? 'pdf' : '') : _ext;
+      final sniffed = _sniffExtension(head, fallback: fallbackExt);
+      if (sniffed == 'html') {
+        throw Exception('下载的内容是网页报错页'
+            '（可能需校内网络访问权限，或链接已失效）');
+      }
+      // .asp 脚本链接在嗅探不出已知魔数时也不允许落成 .asp：
+      // showdoc.asp 的文档化行为是直接返回 PDF 流 → 兜底 pdf；其余脚本兜底 bin
+      final resolvedFallback = fallbackExt == 'asp'
+          ? (widget.url.toLowerCase().contains('showdoc.asp') ? 'pdf' : 'bin')
+          : fallbackExt;
+      final finalExt = sniffed.isNotEmpty
+          ? sniffed
+          : (resolvedFallback.isEmpty ? 'bin' : resolvedFallback);
+
+      final file = File('${dir.path}/$base.$finalExt');
+      await partFile.rename(file.path);
+      partFile = null;
 
       if (!mounted) return;
       setState(() {
         _localPath = file.path;
         _downloading = false;
+        _ext = finalExt;
+        // 应用内渲染仅当内容确为 PDF；嗅探出其他类型时退回「系统打开」模式
+        _isPdf = finalExt == 'pdf';
+        _progress = null;
       });
 
       if (!inApp) {
         await _openFileWithSystem(file.path);
       }
     } catch (e) {
+      // 清理半成品，避免残留 .part 垃圾文件
+      try {
+        if (partFile != null && await partFile.exists()) {
+          await partFile.delete();
+        }
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _downloading = false;
         _error = e.toString().replaceFirst('Exception: ', '');
       });
     }
+  }
+
+  /// 魔数嗅探真实文件类型。
+  /// 返回小写扩展名；'html' 表示内容为网页报错页；'' 表示未知（维持 fallback）。
+  String _sniffExtension(List<int> head, {required String fallback}) {
+    // 跳过 UTF-8 BOM 与前置空白后取首个有效字节
+    var i = 0;
+    if (head.length >= 3 &&
+        head[0] == 0xEF &&
+        head[1] == 0xBB &&
+        head[2] == 0xBF) {
+      i = 3;
+    }
+    while (i < head.length &&
+        (head[i] == 0x20 ||
+            head[i] == 0x0D ||
+            head[i] == 0x0A ||
+            head[i] == 0x09)) {
+      i++;
+    }
+
+    bool startsWith(List<int> magic) {
+      if (head.length - i < magic.length) return false;
+      for (var k = 0; k < magic.length; k++) {
+        if (head[i + k] != magic[k]) return false;
+      }
+      return true;
+    }
+
+    // '<' 开头 → HTML 报错页（txt 本就是文本类型，放行）
+    if (i < head.length && head[i] == 0x3C) {
+      return fallback == 'txt' ? 'txt' : 'html';
+    }
+    if (startsWith([0x25, 0x50, 0x44, 0x46])) return 'pdf'; // %PDF
+    if (startsWith([0x50, 0x4B])) {
+      // PK → ZIP 容器：优先按附件名细分 docx/xlsx/pptx，否则按内容特征猜测
+      final nameExt = _extensionOf(widget.name);
+      if (nameExt == 'docx' ||
+          nameExt == 'xlsx' ||
+          nameExt == 'pptx' ||
+          nameExt == 'zip') {
+        return nameExt;
+      }
+      final s = String.fromCharCodes(head);
+      if (s.contains('word/')) return 'docx';
+      if (s.contains('xl/')) return 'xlsx';
+      if (s.contains('ppt/')) return 'pptx';
+      return 'zip';
+    }
+    if (startsWith([0xD0, 0xCF, 0x11, 0xE0])) {
+      // OLE2 复合文档（doc/xls/ppt）：按附件名细分，默认 doc
+      final nameExt = _extensionOf(widget.name);
+      if (nameExt == 'doc' || nameExt == 'xls' || nameExt == 'ppt') {
+        return nameExt;
+      }
+      return 'doc';
+    }
+    if (startsWith([0x52, 0x61, 0x72, 0x21])) return 'rar'; // Rar!
+    // 兜底：头 1KB 内任一位置出现 %PDF（服务器可能在 PDF 前附加了杂字节）
+    if (String.fromCharCodes(head.take(1024)).contains('%PDF')) {
+      return 'pdf';
+    }
+    return fallback;
   }
 
   /// 通过系统默认应用打开本地文件（平台分发见 core/open_file.dart：
@@ -377,11 +460,24 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.download_rounded),
-              label: Text(_downloading ? '正在下载…' : '下载并用其他应用打开'),
+                  : (_localPath != null
+                      ? const Icon(Icons.open_in_new_rounded)
+                      : const Icon(Icons.download_rounded)),
+              label: Text(_downloading
+                  ? '正在下载…'
+                  : _localPath != null
+                      ? '用其他应用打开'
+                      : '下载并用其他应用打开'),
               onPressed: _downloading
                   ? null
-                  : () => _download(inApp: false),
+                  : () {
+                      final path = _localPath;
+                      if (path != null) {
+                        _openFileWithSystem(path);
+                      } else {
+                        _download(inApp: false);
+                      }
+                    },
             ),
           ),
         ],
