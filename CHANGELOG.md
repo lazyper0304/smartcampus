@@ -2,7 +2,14 @@
 
 ## [Unreleased]
 
+### ✨ 新增
+
+- **课表获取新增过渡界面**（`lib/course/course_fetch_page.dart` 新建）：首次无快照进入课表、手动刷新、**切换学期**统一走过渡页串行执行两步获取并逐步提示成功与否——① 普通课表（学期解析 + 课表获取，当前周并行失败自动降级第 1 周不阻塞）→ ② 实验课表；每步实时显示 获取中/成功（含门数，如「32 门课程」「5 个实验」）/失败（含原因）/已跳过（scjx2 自动登录失败时）。普通课表失败即终止并显示重试按钮；实验课表失败不影响普通课表展示。完成后短暂停留（有跳过/失败 1.6s、全成功 0.7s）自动带结果返回课表页并写快照 + 桌面组件同步。切换学期模式（`xnxqdm` 参数 + `forceRefreshData` 强刷当前周/实验课表）定位到第 1 周，用户在过渡页返回则回滚学期选择保留原数据。配套：`CourseService` 新增 `fetchExperimentsWithStatus`（区分 成功/未登录/异常，原 `fetchExperiments` 改为其委托、行为不变）与 `resolveCurrentSemester`（学期解析逻辑从课表页下沉）；`core/navigation.dart` 新增 `pushPageForResult<T>`（Cupertino 转场带返回值）。
+- **实验课表预热自动登录**：过渡界面第 ② 步在 scjx2 teach（实验教学）模块未登录时不再直接跳过，改为走 race（学科竞赛）同款 `bootstrapLogin(moduleId: 'teach')` 预热——Headless WebView 注入 ehall cookie 完成自动 SSO（含 token 短路、刷新回环检测、互斥锁串行、autoRelogin 后重试），期间步骤行提示「scjx2 未登录，正在自动登录…」；自动登录成功则正常获取实验课表，失败才显示「已跳过」。`CourseService` 新增 `isTeachLoggedIn` / `ensureTeachLogin`（替代原 default-race 的 `bootstrapScjx2`），原 `fetchExperiments` 静默降级行为保持不变（切学期等场景不受影响）。
+
 ### 🐛 Bug 修复
+
+- **修复自定义背景重选图片后不刷新**（`lib/settings/appearance_page.dart`）：`_pickImage` 原先固定复制到 `background.<ext>`，重选同格式图片时路径不变——`FileImage` 按路径缓存命中旧图、`backgroundNotifier` 值也未变化，导致背景始终停留在第一张。修复：复制目标改为 `background_<毫秒时间戳>.<ext>` 保证路径唯一（notifier 触发重建 + FileImage 缓存失效）；新增历史背景文件清理（旧版固定名 `background.*` 与新版 `background_<时间戳>.*`，按基名比较规避路径分隔符差异，删除失败静默），选新图与恢复默认时都会清理，Documents 目录不再堆积旧图。
 
 - **修复办公网附件下载保存为 `.asp` 扩展名**（`lib/office/office_file_preview_page.dart`，与 office-net 独立应用同步修复）：老 ASP 站附件经 `showdoc.asp`/`filedown` 类脚本动态输出二进制流，URL 以 `.asp` 结尾且响应无 `Content-Disposition` 文件名，按 URL 命名即落成 `.asp`（内容实为真 PDF，PDFView 不看扩展名照常渲染，但右上角「用其他应用打开」分享出去就是 `.asp`）。修复：下载改写 `.part` 临时文件 → 文件头魔数嗅探（`%PDF`→pdf；`PK`→docx/xlsx/pptx/zip 按 OLE 容器特征细分；`D0 CF 11 E0`→doc/xls/ppt；`Rar!`→rar；嗅探不出已知魔数时 showdoc 兜底 pdf、其余兜底 bin，任何情况不再落 `.asp`；头 1KB 任意位置扫描 `%PDF` 容忍服务器附加杂字节）→ 重命名纠正扩展名；`<` 开头判 HTML 报错页直接报错不落盘（txt 放行）；空文件拦截；请求统一携带 `Referer: http://off.yibinu.edu.cn/` 防老站防盗链；失败自动清理 `.part` 半成品。嗅探结果联动 UI：非 PDF 退回「系统打开」卡片模式、嗅探出 PDF 自动升级应用内渲染、下载完成后按钮切「用其他应用打开」防重复下载。`dart analyze lib/office` 0 issue。
 

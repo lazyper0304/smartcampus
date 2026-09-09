@@ -10,6 +10,7 @@ import '../core/responsive.dart';
 import '../core/local_storage.dart';
 import 'course.dart';
 import 'course_service.dart';
+import 'course_fetch_page.dart';
 import 'course_grid.dart';
 import 'course_config.dart';
 import 'course_config_page.dart';
@@ -421,7 +422,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
         // 快照损坏则走网络重新获取
       }
     }
-    await _loadAll();
+    await _fetchViaTransition();
   }
 
   /// 把当前课表数据写入本地长期缓存。
@@ -440,10 +441,10 @@ class _CourseTablePageState extends State<CourseTablePage> {
     } catch (_) {}
   }
 
-  /// 手动刷新：清除内存缓存并强制重新获取（同时更新长期缓存与获取日期）。
+  /// 手动刷新：清除内存缓存并走过渡界面重新获取（同时更新长期缓存与获取日期）。
   void _manualRefresh() {
     DataCache().invalidateAll();
-    _loadAll();
+    _fetchViaTransition();
   }
 
   String _formatNow() {
@@ -453,90 +454,66 @@ class _CourseTablePageState extends State<CourseTablePage> {
     return '${n.month}月${n.day}日 $hh:$mm';
   }
 
-  Future<void> _loadAll() async {
+  /// 走过渡界面获取课表（首次无快照 / 手动刷新）：
+  /// 过渡界面串行执行「普通课表 → 实验课表」并逐步提示成功与否，
+  /// 完成后带 [CourseFetchResult] 返回；用户手动返回则为 null。
+  Future<void> _fetchViaTransition() async {
+    final result = await pushPageForResult<CourseFetchResult>(
+        context, CourseFetchPage(service: _service));
+    if (!mounted) return;
+    if (result == null) {
+      // 未取得数据（普通课表失败时手动返回 / 手势返回）
+      setState(() {
+        _isLoading = false;
+        if (_courses == null || _courses!.isEmpty) {
+          _error = '课表尚未获取，点击重试';
+        }
+      });
+      return;
+    }
+    await _applyFetchResult(result);
+  }
+
+  /// 应用过渡界面取回的数据：写状态 + 本地快照 + 桌面组件「今日课程」同步。
+  /// [startAtWeek1] 切换学期场景定位到第 1 周（非当前学期无“今天”概念）。
+  Future<void> _applyFetchResult(
+    CourseFetchResult result, {
+    bool startAtWeek1 = false,
+  }) async {
+    final allCourses = result.merged;
+
+    // 计算最大周次
+    int maxW = 1;
+    for (final c in allCourses) {
+      for (final w in c.weeks) {
+        if (w > maxW) maxW = w;
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      _courses = allCourses;
+      _currentWeek = startAtWeek1 ? 1 : result.weekInfo.week;
+      _todayWeek = result.weekInfo.week;
+      _firstMonday = result.weekInfo.firstMonday;
+      _maxWeek = maxW;
+      _semesters = result.semesters;
+      _selectedSemester = result.activeSemester;
+      _isLoading = false;
       _error = null;
+      _updatedAt = _formatNow();
     });
 
-    try {
-      // 先获取学期列表，得到当前学期代码
-      final semesters = await _service.fetchSemesters();
+    await _saveSnapshot();
 
-      // 确定当前学期（基于今天日期计算当前应处的学期代码）
-      String? activeSemester;
-      if (semesters.isNotEmpty) {
-        final now = DateTime.now();
-        final currentDm = now.month >= 2 && now.month <= 7
-            ? '${now.year - 1}-${now.year}-2'
-            : now.month >= 8
-                ? '${now.year}-${now.year + 1}-1'
-                : '${now.year - 1}-${now.year}-1';
-        // 优先匹配计算出的当前学期
-        final matched = semesters.where((s) => s.dm == currentDm).firstOrNull;
-        if (matched != null) {
-          activeSemester = matched.dm;
-        } else {
-          // 回退：isActive 标记，再回退到列表第一个
-          final active = semesters.where((s) => s.isActive).firstOrNull;
-          activeSemester = active?.dm ?? semesters.first.dm;
-        }
-      }
-
-      // 并行获取课表 + 当前周 + 实验教学（传入学期代码以获取准确日期）
-      final results = await Future.wait([
-        _service.fetchCourses(xnxqdm: activeSemester),
-        _service.fetchCurrentWeek(xnxqdm: activeSemester),
-        _service.fetchExperiments(xnxqdm: activeSemester),
-      ]);
-
-      if (!mounted) return;
-
-      final courses = results[0] as List<Course>;
-      final weekInfo = results[1] as CurrentWeekInfo;
-      final experiments = results[2] as List<Course>;
-      final currentWeek = weekInfo.week;
-
-      // 合并实验教学到课程表
-      final allCourses = [...courses, ...experiments];
-
-      // 计算最大周次
-      int maxW = 1;
-      for (final c in allCourses) {
-        for (final w in c.weeks) {
-          if (w > maxW) maxW = w;
-        }
-      }
-
-      setState(() {
-        _courses = allCourses;
-        _currentWeek = currentWeek;
-        _todayWeek = currentWeek;
-        _firstMonday = weekInfo.firstMonday;
-        _maxWeek = maxW;
-        _semesters = semesters;
-        _selectedSemester = activeSemester;
-        _isLoading = false;
-        _updatedAt = _formatNow();
-      });
-
-      await _saveSnapshot();
-
-      // 桌面组件：课表加载成功后同步「今日课程」快照（非阻塞）
-      WidgetService.saveCourseData(
-        WidgetService.buildCourseData(
-          courses: allCourses,
-          currentWeek: currentWeek,
-          firstMonday: weekInfo.firstMonday,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-        _isLoading = false;
-      });
-    }
+    // 桌面组件：课表加载成功后同步「今日课程」快照（非阻塞）
+    WidgetService.saveCourseData(
+      WidgetService.buildCourseData(
+        courses: allCourses,
+        currentWeek: result.weekInfo.week,
+        firstMonday: result.weekInfo.firstMonday,
+      ),
+    );
   }
 
   void _openChangesPage() {
@@ -551,50 +528,32 @@ class _CourseTablePageState extends State<CourseTablePage> {
     setState(() => _currentWeek = _todayWeek);
   }
 
-  /// 切换学期，重新加载课表
+  /// 切换学期：走过渡界面重新获取（普通课表 → 实验课表，含 scjx2 预热），
+  /// 强制刷新当前周与实验课表；用户在过渡页手动返回则回滚学期选择、
+  /// 保留当前课表数据。
   Future<void> _switchSemester(String xnxqdm) async {
+    final previous = _selectedSemester;
     setState(() {
       _selectedSemester = xnxqdm;
       _isLoadingSemester = true;
     });
 
-    try {
-      final results = await Future.wait([
-        _service.fetchCourses(xnxqdm: xnxqdm),
-        _service.fetchCurrentWeek(xnxqdm: xnxqdm, forceRefresh: true),
-        _service.fetchExperiments(xnxqdm: xnxqdm, forceRefresh: true),
-      ]);
-      if (!mounted) return;
-
-      final courses = results[0] as List<Course>;
-      final weekInfo = results[1] as CurrentWeekInfo;
-      final experiments = results[2] as List<Course>;
-      final allCourses = [...courses, ...experiments];
-
-      // 重新计算最大周次
-      int maxW = 1;
-      for (final c in allCourses) {
-        for (final w in c.weeks) {
-          if (w > maxW) maxW = w;
-        }
-      }
-
-      setState(() {
-        _courses = allCourses;
-        _maxWeek = maxW;
-        _currentWeek = 1;
-        _firstMonday = weekInfo.firstMonday;
-        _isLoadingSemester = false;
-        _updatedAt = _formatNow();
-      });
-      await _saveSnapshot();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoadingSemester = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载学期课表失败: ${e.toString().replaceFirst("Exception: ", "")}')),
-      );
+    final result = await pushPageForResult<CourseFetchResult>(
+      context,
+      CourseFetchPage(
+        service: _service,
+        xnxqdm: xnxqdm,
+        forceRefreshData: true,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _isLoadingSemester = false);
+    if (result == null) {
+      // 未取得数据（重试失败后返回 / 手势返回）：取消切换
+      setState(() => _selectedSemester = previous);
+      return;
     }
+    await _applyFetchResult(result, startAtWeek1: true);
   }
 
   // ==================== BUILD ====================

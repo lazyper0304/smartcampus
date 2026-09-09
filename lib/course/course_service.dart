@@ -415,16 +415,36 @@ class CourseService {
     String courseId = '',
     bool forceRefresh = false,
   }) async {
+    final outcome = await fetchExperimentsWithStatus(
+      xnxqdm: xnxqdm,
+      week: week,
+      courseId: courseId,
+      forceRefresh: forceRefresh,
+    );
+    return outcome.courses;
+  }
+
+  /// 过渡界面专用：获取实验教学并区分三种结果——
+  /// 成功（courses）/ 未登录 scjx2（loggedIn=false，跳过）/ 异常（error）。
+  Future<ExperimentFetchOutcome> fetchExperimentsWithStatus({
+    String? xnxqdm,
+    int? week,
+    String courseId = '',
+    bool forceRefresh = false,
+  }) async {
     xnxqdm ??= _calcXnxqdm();
     final cacheKey = 'course_experiments_${xnxqdm}_${week ?? "all"}_$courseId';
     if (!forceRefresh) {
       final cached = DataCache().get<List<Course>>(cacheKey);
-      if (cached != null) return cached;
+      if (cached != null) {
+        return ExperimentFetchOutcome(cached, loggedIn: true);
+      }
     }
 
-    // 未登录时不抛错，返回空列表（用户可能没登录 scjx2）
+    // 未登录时标记 loggedIn=false（过渡界面会先走 ensureTeachLogin 预热，
+    // 此处兜底：调用方未预热时也不视为异常）
     if (!await _scjx2.isLoggedIn(moduleId: _teachModuleId)) {
-      return [];
+      return ExperimentFetchOutcome(const [], loggedIn: false);
     }
 
     final body = <String, dynamic>{
@@ -444,7 +464,9 @@ class CourseService {
         moduleId: _teachModuleId,
       );
       final result = (json['result'] as Map<String, dynamic>?)?['list'] as List?;
-      if (result == null) return [];
+      if (result == null) {
+        return ExperimentFetchOutcome(const [], loggedIn: true);
+      }
 
       final courses = <Course>[];
       for (int i = 0; i < result.length; i++) {
@@ -454,15 +476,43 @@ class CourseService {
         ));
       }
       DataCache().set(cacheKey, courses);
-      return courses;
+      return ExperimentFetchOutcome(courses, loggedIn: true);
     } catch (e) {
       debugPrint('fetchExperiments error: $e');
-      return [];
+      return ExperimentFetchOutcome(const [], loggedIn: true, error: e.toString());
     }
   }
 
-  /// 引导登录 scjx2（实验教学需要）
-  Future<bool> bootstrapScjx2() => _scjx2.bootstrapLogin();
+  /// 获取学期列表并解析当前应处的学期代码。
+  /// 解析顺序：按今天日期计算 → isActive 标记 → 列表首个。
+  Future<({List<SemesterInfo> semesters, String? activeXnxqdm})>
+      resolveCurrentSemester({bool forceRefresh = false}) async {
+    final semesters = await fetchSemesters(forceRefresh: forceRefresh);
+    String? active;
+    if (semesters.isNotEmpty) {
+      final now = DateTime.now();
+      final currentDm = now.month >= 2 && now.month <= 7
+          ? '${now.year - 1}-${now.year}-2'
+          : now.month >= 8
+              ? '${now.year}-${now.year + 1}-1'
+              : '${now.year - 1}-${now.year}-1';
+      final matched = semesters.where((s) => s.dm == currentDm).firstOrNull;
+      active = matched?.dm ??
+          semesters.where((s) => s.isActive).firstOrNull?.dm ??
+          semesters.first.dm;
+    }
+    return (semesters: semesters, activeXnxqdm: active);
+  }
+
+  /// teach（实验教学）模块是否已登录 scjx2（仅查 token 存在性）
+  Future<bool> isTeachLoggedIn() =>
+      _scjx2.isLoggedIn(moduleId: _teachModuleId);
+
+  /// 预热/自动登录 scjx2 实验教学（teach）模块——race（学科竞赛）同款范式：
+  /// bootstrapLogin 内含 token 短路、WebView SSO（注入 ehall cookie）、
+  /// 刷新回环检测、互斥锁串行与 autoRelogin 后重试；失败返回 false。
+  Future<bool> ensureTeachLogin() =>
+      _scjx2.bootstrapLogin(moduleId: _teachModuleId);
 
   // ==================== 全校课表查询（kcbcx / bjkcb 模块） ====================
 
@@ -897,3 +947,18 @@ const List<int> courseColors = [
   0xFFC2C2FF,
   0xFFD6D6FF,
 ];
+
+/// 实验课表获取结果（供课表获取过渡界面区分 成功 / 未登录跳过 / 失败）
+class ExperimentFetchOutcome {
+  final List<Course> courses;
+
+  /// 是否已登录 scjx2（false = 未登录，跳过获取）
+  final bool loggedIn;
+
+  /// 非空 = 获取异常（错误描述）
+  final String? error;
+
+  const ExperimentFetchOutcome(this.courses, {required this.loggedIn, this.error});
+
+  bool get succeeded => loggedIn && error == null;
+}
