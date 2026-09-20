@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/local_storage.dart';
 import '../scjx2/scjx2_api_service.dart';
 import 'course.dart';
 
@@ -129,6 +130,107 @@ class CourseService {
     final result = _parseXskcbResponse(resp.body);
     DataCache().set(cacheKey, result);
     return result;
+  }
+
+  // ==================== 今日课程概览（首页卡片） ====================
+
+  /// 获取「今日课程」：理论课 + 实验课，已按节次排序，并附带当前教学周次。
+  ///
+  /// 数据来源与课表页保持一致，避免首页与课表页结果不一致：
+  /// ① 优先读课表页写入的本地长期快照 [kCourseSnapshotKey]——快照为已合并
+  ///    实验课的完整学期课表，零网络开销；快照缺失/损坏/非当前学期时跳过；
+  /// ② 无可用快照时实时获取：普通课表 + 实验课表（scjx2 未登录时实验课
+  ///    自动跳过，不影响普通课程展示）。
+  ///
+  /// 周次优先由快照的 firstMonday 按设备日期现算（与桌面组件同源，跨周不滞后），
+  /// 无法推算时回退快照记录的 currentWeek。
+  Future<TodayCourses> fetchTodayCourses() async {
+    final today = DateTime.now().weekday; // 1=Mon .. 7=Sun
+
+    final snap = await _loadCourseSnapshot();
+    if (snap != null) {
+      final computed =
+          snap.firstMonday == null ? 0 : _weekFromFirstMonday(snap.firstMonday!);
+      final week = computed > 0 ? computed : snap.currentWeek;
+      return TodayCourses(
+        courses: _pickToday(snap.courses, today, week),
+        week: week,
+      );
+    }
+
+    int week = 0;
+    try {
+      week = (await fetchCurrentWeek()).week;
+    } catch (_) {
+      week = 0;
+    }
+    final regular = await fetchCourses();
+    // 未登录 scjx2 → 内部兜底返回空列表，不阻塞首页加载
+    final experiments = await fetchExperiments();
+    return TodayCourses(
+      courses: _pickToday([...regular, ...experiments], today, week),
+      week: week,
+    );
+  }
+
+  /// 按「星期 + 当前教学周」过滤，并按上课时间先后排列
+  /// （起始节次 → 结束节次 → 课程名，保证同节次课程顺序稳定不抖动；
+  ///   周次未知 week<=0 时仅按星期过滤，与课表页降级策略一致）
+  List<Course> _pickToday(List<Course> courses, int weekday, int week) {
+    final result = courses.where((c) {
+      if (c.day != weekday) return false;
+      if (week <= 0) return true;
+      return c.weeks.contains(week);
+    }).toList();
+    result.sort((a, b) {
+      final byStart = _firstSection(a).compareTo(_firstSection(b));
+      if (byStart != 0) return byStart;
+      final byEnd = _lastSection(a).compareTo(_lastSection(b));
+      if (byEnd != 0) return byEnd;
+      return a.name.compareTo(b.name);
+    });
+    return result;
+  }
+
+  static int _firstSection(Course c) =>
+      c.sections.isEmpty ? 0 : c.sections.first;
+
+  static int _lastSection(Course c) =>
+      c.sections.isEmpty ? 0 : c.sections.last;
+
+  /// 由学期第一周周一推算当前教学周次（未开学/假期 → 0 表示未知）
+  static int _weekFromFirstMonday(DateTime firstMonday) {
+    final now = DateTime.now();
+    final fm = DateTime(firstMonday.year, firstMonday.month, firstMonday.day);
+    final today = DateTime(now.year, now.month, now.day);
+    if (fm.isAfter(today)) return 0;
+    return today.difference(fm).inDays ~/ 7 + 1;
+  }
+
+  /// 读取课表页写入的本地长期快照；不可用（缺失/损坏/非当前学期）返回 null
+  Future<_CourseSnapshot?> _loadCourseSnapshot() async {
+    try {
+      final raw = await LocalStorage.getString(kCourseSnapshotKey);
+      if (raw == null || raw.isEmpty) return null;
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+
+      // 用户在课表页切换到非当前学期时，该快照不可用于首页「今日课程」
+      final semester = json['selectedSemester']?.toString() ?? '';
+      if (semester.isNotEmpty && semester != _calcXnxqdm()) return null;
+
+      final courses = (json['courses'] as List? ?? const [])
+          .map((e) => Course.fromSnapshot(e as Map<String, dynamic>))
+          .toList();
+      if (courses.isEmpty) return null;
+
+      return _CourseSnapshot(
+        courses: courses,
+        currentWeek: (json['currentWeek'] as num?)?.toInt() ?? 0,
+        firstMonday: DateTime.tryParse(json['firstMonday']?.toString() ?? ''),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   // ==================== 获取当前周次 ====================
@@ -961,4 +1063,17 @@ class ExperimentFetchOutcome {
   const ExperimentFetchOutcome(this.courses, {required this.loggedIn, this.error});
 
   bool get succeeded => loggedIn && error == null;
+}
+
+/// 课表本地长期快照的解析结果（首页「今日课程」读取用）
+class _CourseSnapshot {
+  final List<Course> courses;
+  final int currentWeek;
+  final DateTime? firstMonday;
+
+  const _CourseSnapshot({
+    required this.courses,
+    required this.currentWeek,
+    required this.firstMonday,
+  });
 }

@@ -288,6 +288,19 @@ class _OfficeListPageState extends State<OfficeListPage> {
       final detail = await OfficeService().fetchDetail(item.url);
       if (!mounted) return;
       Navigator.of(context).pop();
+
+      // 公文类条目（正文为空、仅带一个 showdoc.asp「[阅读附件]」）直接进 PDF
+      // 预览：这类文章本质就是文件，站点也只在标题区放一个附件链接，
+      // 多一次「详情页 → 附件」点击纯属多余（2026-09-18 按预期调整）。
+      if (detail.paragraphs.isEmpty && detail.attachments.length == 1) {
+        final a = detail.attachments.first;
+        pushPage(
+          context,
+          OfficeFilePreviewPage(url: a.url, name: a.name),
+        );
+        return;
+      }
+
       pushPage(context, OfficeDetailPage(detail: detail, title: item.title));
     } catch (e) {
       if (!mounted) return;

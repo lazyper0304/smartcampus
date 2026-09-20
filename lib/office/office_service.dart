@@ -213,6 +213,35 @@ class OfficeService {
       // 正文：<td class="content" ...>...</td>
       final paragraphs = <String>[];
       final attachments = <OfficeAttachment>[];
+
+      // 附件：必须扫描**整页**链接，不能只看正文 td。
+      // 站点模板把「[阅读附件]」放在标题区 div 内：
+      //   <b class="big">标题</b><a href="showdoc.asp?id=N">[阅读附件]</a>
+      // 只在 content td 内扫描会把这些附件整批漏掉（2026-09-18 修复）。
+      // 导航链接（default.asp / list_b.asp / 相邻文章 detail.asp）不含附件
+      // 特征，被 _isAttachment 天然过滤。
+      final attachHrefs = <String, String>{};
+      for (final aM in RegExp(r'<A\s+[^>]*HREF="([^"]+)"[^>]*>(.*?)</A>',
+              dotAll: true, caseSensitive: false)
+          .allMatches(body)) {
+        final aHref = aM.group(1)!;
+        final aText = aM.group(2)!.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+        if (aText.isEmpty) continue;
+        if (_isAttachment(aHref) || _isAttachment(aText)) {
+          attachHrefs[aHref] = aText;
+        }
+      }
+      for (final e in attachHrefs.entries) {
+        // showdoc.asp 类附件的锚文本是站点模板占位文案（「[阅读附件]」），
+        // 不是文件名：改用文章标题命名，便于在附件列表与预览页标题栏识别
+        final isReadingPlaceholder =
+            e.key.toLowerCase().contains('showdoc.asp');
+        attachments.add(OfficeAttachment(
+          name: isReadingPlaceholder && title.isNotEmpty ? title : e.value,
+          url: _resolve(e.key),
+        ));
+      }
+
       final contentIdx = body.indexOf('class="content"');
       if (contentIdx >= 0) {
         final tagStart = body.indexOf('>', contentIdx);
@@ -220,31 +249,6 @@ class OfficeService {
           final contentEnd = body.indexOf('</td>', tagStart);
           final contentHtml = body.substring(
               tagStart + 1, contentEnd < 0 ? body.length : contentEnd);
-
-          // 附件链接可能直接位于 content td 内（不包在 <P> 中，
-          // 如 <td class="content"><A href="wordfile/.../关于…pdf">…</A></td>），
-          // 故先全量扫描整个 contentHtml，按 href 去重后加入附件列表。
-          final attachHrefs = <String, String>{};
-          for (final aM in RegExp(
-                  r'<A\s+[^>]*HREF="([^"]+)"[^>]*>(.*?)</A>',
-                  dotAll: true,
-                  caseSensitive: false)
-              .allMatches(contentHtml)) {
-            final aHref = aM.group(1)!;
-            final aText = aM.group(2)!
-                .replaceAll(RegExp(r'<[^>]+>'), '')
-                .trim();
-            if (aText.isEmpty) continue;
-            if (_isAttachment(aHref) || _isAttachment(aText)) {
-              attachHrefs[aHref] = aText;
-            }
-          }
-          for (final e in attachHrefs.entries) {
-            attachments.add(OfficeAttachment(
-              name: e.value,
-              url: _resolve(e.key),
-            ));
-          }
 
           for (final p in RegExp(r'<P[^>]*>(.*?)</P>',
                   dotAll: true, caseSensitive: false)
@@ -292,12 +296,17 @@ class OfficeService {
   }
 
   bool _isAttachment(String s) {
+    final low = s.toLowerCase();
     return RegExp(r'\.(pdf|doc|docx|xls|xlsx|zip|rar|ppt|pptx|txt)$',
             caseSensitive: false)
         .hasMatch(s) ||
-        s.contains('download') ||
-        s.contains('filedown') ||
-        s.contains('virtual_attach');
+        low.contains('download') ||
+        low.contains('filedown') ||
+        low.contains('virtual_attach') ||
+        // 「[阅读附件]」→ showdoc.asp?id=N：直接返回 PDF 字节流
+        // （绝大多数校内公文正文无段落、仅此一个附件，漏判会导致详情页
+        //   完全没有附件入口——2026-09-18 修复）
+        low.contains('showdoc.asp');
   }
 
   String _resolve(String href) {

@@ -1,3 +1,10 @@
+/// 课表本地长期快照 key
+///
+/// 课表页（CourseTablePage）获取课表后写入，内容为**已合并实验课**的完整
+/// 学期课表。首页「今日课程」等概览入口直接读取复用，既保证与课表页数据
+/// 一致，也免去重复网络请求与 scjx2 登录开销。
+const String kCourseSnapshotKey = 'course_table_snapshot';
+
 /// 节次时间对照（从 API jc.do 获取）
 const Map<int, List<String>> periodTimeRanges = {
   1: ['08:30', '09:15'],
@@ -117,6 +124,15 @@ class Course {
     );
   }
 
+  /// 清洗服务端文本中的制表符 / 换行 / 连续空格。
+  ///
+  /// scjx2 实验课的 room_name 形如 `306-\t 临港6号楼杏林6栋311`，直接显示会在
+  /// 首页/课表卡片上产生异常留白与无谓截断，故在模型层统一折叠空白。
+  static String _normalizeText(String s) => s
+      .replaceAll(RegExp(r'[\t\r\n\u3000]+'), ' ')
+      .replaceAll(RegExp(r' {2,}'), ' ')
+      .trim();
+
   /// 从 scjx2 实验教学 API row 创建 Course（单次实验记录）
   ///
   /// scjx2 返回的是「单次实验」记录（单周次 + 单节次范围），
@@ -136,15 +152,15 @@ class Course {
     final expName = json['exp_name']?.toString() ?? '';
 
     return Course(
-      name: courseName,
-      teacher: json['teacher_name']?.toString() ?? '',
-      position: json['room_name']?.toString() ?? '',
+      name: _normalizeText(courseName),
+      teacher: _normalizeText(json['teacher_name']?.toString() ?? ''),
+      position: _normalizeText(json['room_name']?.toString() ?? ''),
       day: int.tryParse(json['week_day']?.toString() ?? '0') ?? 0,
       weeks: week > 0 ? [week] : <int>[],
       sections: sections,
       colorIndex: colorIndex,
       tag: '实验',
-      remark: expName,
+      remark: _normalizeText(expName),
     );
   }
 
@@ -443,6 +459,16 @@ class SemesterInfo {
         xqdm: json['xqdm']?.toString() ?? '',
         isActive: json['isActive'] == true,
       );
+}
+
+/// 今日课程概览（首页「今日课程」卡片 / 其他概览入口）
+///
+/// [week] 为当前教学周次；0 表示无法确定（此时仅按星期过滤）。
+class TodayCourses {
+  final List<Course> courses;
+  final int week;
+
+  const TodayCourses({required this.courses, this.week = 0});
 }
 
 /// 当前周及学期起始日期信息

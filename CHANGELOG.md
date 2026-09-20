@@ -7,7 +7,21 @@
 - **课表获取新增过渡界面**（`lib/course/course_fetch_page.dart` 新建）：首次无快照进入课表、手动刷新、**切换学期**统一走过渡页串行执行两步获取并逐步提示成功与否——① 普通课表（学期解析 + 课表获取，当前周并行失败自动降级第 1 周不阻塞）→ ② 实验课表；每步实时显示 获取中/成功（含门数，如「32 门课程」「5 个实验」）/失败（含原因）/已跳过（scjx2 自动登录失败时）。普通课表失败即终止并显示重试按钮；实验课表失败不影响普通课表展示。完成后短暂停留（有跳过/失败 1.6s、全成功 0.7s）自动带结果返回课表页并写快照 + 桌面组件同步。切换学期模式（`xnxqdm` 参数 + `forceRefreshData` 强刷当前周/实验课表）定位到第 1 周，用户在过渡页返回则回滚学期选择保留原数据。配套：`CourseService` 新增 `fetchExperimentsWithStatus`（区分 成功/未登录/异常，原 `fetchExperiments` 改为其委托、行为不变）与 `resolveCurrentSemester`（学期解析逻辑从课表页下沉）；`core/navigation.dart` 新增 `pushPageForResult<T>`（Cupertino 转场带返回值）。
 - **实验课表预热自动登录**：过渡界面第 ② 步在 scjx2 teach（实验教学）模块未登录时不再直接跳过，改为走 race（学科竞赛）同款 `bootstrapLogin(moduleId: 'teach')` 预热——Headless WebView 注入 ehall cookie 完成自动 SSO（含 token 短路、刷新回环检测、互斥锁串行、autoRelogin 后重试），期间步骤行提示「scjx2 未登录，正在自动登录…」；自动登录成功则正常获取实验课表，失败才显示「已跳过」。`CourseService` 新增 `isTeachLoggedIn` / `ensureTeachLogin`（替代原 default-race 的 `bootstrapScjx2`），原 `fetchExperiments` 静默降级行为保持不变（切学期等场景不受影响）。
 
+### 🎯 优化
+
+- **首页「今日课程」精简时间显示并强化排序**（`lib/home/home_dashboard.dart`、`lib/course/course_service.dart`）：课程行原显示 `sectionRange`（形如「3-4节 (10:25 - 11:10)」），现改为只显示节次 `sectionRangesCompact`（「3-4节」，多段合并如「1-2节,5-6节」），去掉几点到几点的具体时刻。排序由「仅按起始节次」升级为「起始节次 → 结束节次 → 课程名」三级稳定排序，确保今日课程严格按上课时间先后排列且多次刷新不抖动。
+
+- **降低课表左右滑动切周的灵敏度**（`lib/course/course_grid.dart`，个人课表与班级课表共用）：原先仅比较抬手时的水平位移与固定阈值（`|dx| < 50` 即忽略），不看垂直位移——课表是可纵向滚动的密集内容，纵向滚动时手指只要带一点横向偏移就会被判为「翻周」，手感过于灵敏、容易误触。现改为双重判据：`|dx| ≥ 90px`（阈值 50 → 90）且 `|dx| > |dy| × 1.6`（水平位移必须明显占优），并新增 `onPointerCancel` 清理起点（手势被系统或父级滚动抢夺后不会用旧起点误判）。纵向滚动、斜向滑动不再触发切周，明确左右滑动仍可正常翻周。
+
 ### 🐛 Bug 修复
+
+- **修复办公网文章看不到 PDF 附件（搜索命中公文点进去无附件可点）**：`OfficeService.fetchDetail` 原先只在 `<td class="content">` 内部扫描附件链接，而站点模板把「[阅读附件]」放在**标题区 div**——`<b class="big">标题</b><a href="showdoc.asp?id=N">[<font color="#FF0000">阅读附件</font>]</a>`，导致这类附件整批漏掉（正文为空 → 详情页只剩「该文件仅包含附件，请点击下方附件查看」，下方却没有任何附件入口）。实测搜索命中文章中依赖该形态的比例很高：「决定」6/6、「安全」4/6、「公示」3/6。修复两处：① 附件扫描范围由 content td 扩大到**整页**（页面导航 default.asp / list_b.asp / 相邻文章 detail.asp 不含附件特征，被 `_isAttachment` 天然过滤）；② `_isAttachment` 增加 `showdoc.asp` 识别（此前只认 `.pdf/.doc/…` 后缀与 download / filedown / virtual_attach，故即使扫到也会丢弃）。另将附件显示名由站点占位文案「[阅读附件]」改为文章标题，便于在附件列表与预览页标题栏识别。实测 n_id=33804 / 35660 / 35730 / 35648 均能正确解析出附件，`showdoc.asp?id=N` 实测 HTTP 200 且响应体为 `%PDF`。`dart analyze lib/office` 0 issue。
+
+- **办公网公文类条目点击直达 PDF 预览**（`lib/office/office_list_page.dart`）：搜索结果与栏目列表中大量 `detail.asp` 条目本质是只有附件的公文（正文为空 + 单个 showdoc.asp 附件），原先必须先进入文章详情页再点一次附件才能看到 PDF。现按预期调整：`OfficeListPage._open` 解析后若判定「正文段落为空且仅 1 个附件」，直接进入 `OfficeFilePreviewPage` 应用内渲染 PDF，省去中间一步；有正文或有多个附件的文章仍进入详情页。
+
+- **修复首页「今日课程」不显示实验课**：首页原先只调 `CourseService.fetchCourses()`（`xskcb.do` 理论课），而实验课走独立通道 `scjx2` TEACH 模块（`fetchExperiments`），只有课表页把两者 `merged` 后才可见——导致课表页有实验课、首页却没有。修复：`CourseService` 新增 `fetchTodayCourses()` 统一入口并返回新增模型 `TodayCourses`（当日课程 + 当前教学周次），数据源与课表页对齐——① 优先读课表页写入的本地长期快照（`kCourseSnapshotKey`，快照已含实验课，零网络开销；快照缺失/损坏/非当前学期时跳过，学期一致性用 `selectedSemester` 比对）→ ② 无可用快照才实时获取「理论课 + 实验课」（scjx2 未登录时实验课自动跳过，不阻塞首页）。周次优先由快照 `firstMonday` 按设备日期现算（与桌面组件同源、跨周不滞后），失败回退快照记录的 `currentWeek`；结果按起始节次升序排列。首页课程行同步补齐课程标签（复用 `tagBadgeColor`，实验课显示橙色「实验」徽章）与实验项目名（`remark`），色条改 `IntrinsicHeight` 自适应行高。`dart analyze lib` 0 error。
+
+- **修复实验课教室名含制表符导致显示异常**（`lib/course/course.dart`）：scjx2 实验教学返回的 `room_name` 形如 `306-\t 临港6号楼杏林6栋311`（含制表符与多余空格），直接展示会在首页/课表卡片上产生异常留白与无谓截断（首页位置列被截成「306- 临…」）。修复：`Course.fromExperimentJson` 对课程名 / 教师 / 教室 / 实验项目名统一折叠制表符、换行、全角空格与连续空格（新增 `Course._normalizeText`）。课表重新获取后的快照即为清洗后数据。
 
 - **修复自定义背景重选图片后不刷新**（`lib/settings/appearance_page.dart`）：`_pickImage` 原先固定复制到 `background.<ext>`，重选同格式图片时路径不变——`FileImage` 按路径缓存命中旧图、`backgroundNotifier` 值也未变化，导致背景始终停留在第一张。修复：复制目标改为 `background_<毫秒时间戳>.<ext>` 保证路径唯一（notifier 触发重建 + FileImage 缓存失效）；新增历史背景文件清理（旧版固定名 `background.*` 与新版 `background_<时间戳>.*`，按基名比较规避路径分隔符差异，删除失败静默），选新图与恢复默认时都会清理，Documents 目录不再堆积旧图。
 

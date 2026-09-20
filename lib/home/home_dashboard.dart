@@ -7,6 +7,7 @@ import '../core/beginner_mode.dart';
 import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
 import '../course/course.dart';
+import '../course/course_grid.dart' show tagBadgeColor;
 import '../course/course_service.dart';
 import '../course/course_page.dart';
 import '../news/news.dart';
@@ -86,36 +87,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
       return;
     }
     try {
-      // 复用主 client 的 cookie
+      // 复用主 client 的 cookie。
+      // fetchTodayCourses 统一给出「理论课 + 实验课」的今日课程与当前教学周次：
+      // 优先读课表页快照（含实验课），无快照才实时获取并合并 scjx2 实验课表，
+      // 因此首页与课表页展示的今日课程保持一致。
       final service = CourseService(
         client: widget.client,
         userId: widget.userId,
       );
-      // 先获取真实当前教学周（来自 dqzc.do），用于按周次过滤。
-      // 注意：必须是「教学周次」而非「星期几」（DateTime.weekday 是 1-7）。
-      int currentWeek = 0;
-      try {
-        currentWeek = (await service.fetchCurrentWeek()).week;
-      } catch (_) {
-        currentWeek = 0;
-      }
-      final courses = await service.fetchCourses();
+      final today = await service.fetchTodayCourses();
       if (!mounted) return;
 
-      final today = DateTime.now().weekday; // 1=Mon, 7=Sun
-      final todayCourses = courses.where((c) {
-        // 先按星期几过滤
-        if (c.day != today) return false;
-        // 无法确定周次时回退为只按星期过滤（避免误显示空）；
-        // 否则必须命中当前教学周才显示。学期结束后的第 21 周不会命中，
-        // 从而正确显示「今天没有课程」。
-        if (currentWeek == 0) return true;
-        return c.weeks.contains(currentWeek);
-      }).toList();
-
       setState(() {
-        _todayCourses = todayCourses;
-        _currentWeek = currentWeek;
+        _todayCourses = today.courses;
+        _currentWeek = today.week;
         _isLoadingCourses = false;
       });
     } catch (_) {
@@ -408,45 +393,88 @@ class _HomeDashboardState extends State<HomeDashboard> {
         borderRadius: BorderRadius.circular(kIosTileRadius),
         border: Border.all(color: blue.withValues(alpha: 0.12)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 44,
-            decoration: BoxDecoration(
-              color: blue,
-              borderRadius: BorderRadius.circular(2),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: blue,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(course.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 13, color: textSecondary(context)),
-                    const SizedBox(width: 4),
-                    Text(course.sectionRange,
-                        style: TextStyle(fontSize: 12, color: textSecondary(context))),
-                    const SizedBox(width: 12),
-                    Icon(Icons.room, size: 13, color: textSecondary(context)),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(course.position,
-                          style: TextStyle(fontSize: 12, color: textSecondary(context)),
-                          overflow: TextOverflow.ellipsis),
-                    ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(course.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 14)),
+                      ),
+                      // 实验课等带 tag 的课程显示标签（与课表卡片配色一致）
+                      if (course.tag.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: tagBadgeColor(course.tag),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(course.tag,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  // 实验项目名等附加信息
+                  if (course.remark.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(course.remark,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12, color: textSecondary(context))),
                   ],
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time,
+                          size: 13, color: textSecondary(context)),
+                      const SizedBox(width: 4),
+                      // 只显示节次（如「3-4节」）；具体上下课时间（几点到几点）
+                      // 不在首页卡片展示（2026-09-18 按需求精简）
+                      Text(course.sectionRangesCompact,
+                          style: TextStyle(
+                              fontSize: 12, color: textSecondary(context))),
+                      const SizedBox(width: 12),
+                      Icon(Icons.room, size: 13, color: textSecondary(context)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(course.position,
+                            style: TextStyle(
+                                fontSize: 12, color: textSecondary(context)),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

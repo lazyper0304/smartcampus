@@ -166,21 +166,44 @@ class CourseScheduleGrid extends StatelessWidget {
     // 行数：合并模式每两小节一行（12 节 → 6 行）
     final rowCount = mergeSections ? (maxSection + 1) ~/ 2 : maxSection;
 
+    // ---- 左右滑动切周的手势识别 ----
+    // 只在「位移足够长」且「明显以水平方向为主」时才翻周：
+    // 课表是可纵向滚动的密集内容，原先只比较 dx 与固定阈值（50px），
+    // 纵向滚动时手指只要带一点横向偏移就会误翻周，手感"过于灵敏"。
+    // 现要求 |dx| ≥ 90px 且 |dx| > |dy| × 1.6（水平占优），
+    // 并把纵向位移限制与状态清理一并处理。
+    const double kSwipeMinDx = 90; // 触发翻周的最小水平位移
+    const double kSwipeHorizontalBias = 1.6; // 水平位移需超过垂直位移的倍数
     double? swipeStartX;
+    double? swipeStartY;
+
+    void resetSwipe() {
+      swipeStartX = null;
+      swipeStartY = null;
+    }
 
     return Listener(
-      onPointerDown: (event) => swipeStartX = event.position.dx,
+      onPointerDown: (event) {
+        swipeStartX = event.position.dx;
+        swipeStartY = event.position.dy;
+      },
       onPointerUp: (event) {
-        if (swipeStartX == null) return;
-        final dx = event.position.dx - swipeStartX!;
-        swipeStartX = null;
-        if (dx.abs() < 50) return;
+        final startX = swipeStartX;
+        final startY = swipeStartY;
+        resetSwipe();
+        if (startX == null || startY == null) return;
+        final dx = event.position.dx - startX;
+        final dy = event.position.dy - startY;
+        if (dx.abs() < kSwipeMinDx) return;
+        if (dx.abs() < dy.abs() * kSwipeHorizontalBias) return;
         if (dx < 0 && currentWeek < maxWeek) {
           onSwipe?.call(1);
         } else if (dx > 0 && currentWeek > 1) {
           onSwipe?.call(-1);
         }
       },
+      // 手势被系统/父级滚动抢夺时清理起点，避免下次抬手用旧起点误判
+      onPointerCancel: (_) => resetSwipe(),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         transitionBuilder: (child, animation) =>

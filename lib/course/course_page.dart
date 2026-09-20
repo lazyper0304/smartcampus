@@ -72,7 +72,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
   String? _updatedAt;
 
   /// 课表本地长期缓存 key（获取一次长期存储，仅手动刷新才重新获取）
-  static const _snapshotKey = 'course_table_snapshot';
+  /// 常量定义在 course.dart，首页「今日课程」等概览入口读取同一份快照
+  static const _snapshotKey = kCourseSnapshotKey;
 
   @override
   void initState() {
