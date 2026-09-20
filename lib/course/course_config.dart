@@ -10,7 +10,8 @@ String _colorToHex(Color c) {
 
 Color _hexToColor(String hex) {
   final h = hex.replaceFirst('#', '');
-  if (h.length != 6) return const Color(0xFF191999);
+  // 解析失败回退课程语义蓝（非主题色，2026-09-20 去品牌蓝 0xFF191999）
+  if (h.length != 6) return const Color(0xFF3B6BFF);
   return Color.fromARGB(
     255,
     int.parse(h.substring(0, 2), radix: 16),

@@ -99,37 +99,32 @@ class _LiquidBackgroundState extends State<LiquidBackground>
     }
   }
 
-  /// 主题渐变（浅色 accent 掺白系 / 深色暗黑系）
-  List<Color> _themeGradient() {
+  /// 背景基色（纯色，2026-09-20 去渐变）
+  ///
+  /// 浅色模式 = 纯白（白底主界面），深色模式 = 近黑。
+  Color _themeBase() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = accentColorNotifier.value;
-    return isDark
-        ? [
-            Color.lerp(accent, const Color(0xFF1A1A2E), 0.82)!,
-            Color.lerp(accent, const Color(0xFF000000), 0.88)!,
-          ]
-        : [
-            Color.lerp(accent, Colors.white, 0.88)!,
-            Color.lerp(accent, const Color(0xFFF2F5FF), 0.93)!,
-          ];
+    return isDark ? const Color(0xFF0B0B0D) : Colors.white;
   }
 
-  /// 主题气泡色（浅色清新 / 深色霓虹，4 色）
+  /// 气泡色（去彩色化：浅色=极浅灰，深色=深灰，4 色）
+  ///
+  /// 气泡只用于给「液态玻璃导航栏」提供可折射的内容（纯色背景模糊后仍是纯色，
+  /// 玻璃会显得平坦）；2026-09-20 按要求取消彩色渐变风格 → 全部改为中性灰。
   List<Color> _themeBubbles() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = accentColorNotifier.value;
     return isDark
-        ? [
-            accent,
-            const Color(0xFF5C5CFF),
-            const Color(0xFF9A4DFF),
-            const Color(0xFF2EC4B6),
+        ? const [
+            Color(0xFF2C2C33),
+            Color(0xFF23232A),
+            Color(0xFF33333B),
+            Color(0xFF26262C),
           ]
-        : [
-            accent,
-            const Color(0xFF7C8CFF),
-            const Color(0xFFFF9E5E),
-            const Color(0xFF4FC8C0),
+        : const [
+            Color(0xFFE9EDF3),
+            Color(0xFFEFF0F4),
+            Color(0xFFE6EBF1),
+            Color(0xFFF1F1F5),
           ];
   }
 
@@ -150,7 +145,7 @@ class _LiquidBackgroundState extends State<LiquidBackground>
   }
 
   Widget _buildDefault() {
-    final gradientColors = widget.colors ?? _themeGradient();
+    final baseColor = widget.colors?.first ?? _themeBase();
     final bubbleColors = widget.colors ?? _themeBubbles();
 
     // 后台/锁屏：暂停整个子树 ticker（含页面内容动画），前台恢复继续
@@ -161,16 +156,8 @@ class _LiquidBackgroundState extends State<LiquidBackground>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 渐变底色（保证任何模式下页面整体观感）
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: gradientColors,
-              ),
-            ),
-          ),
+          // 纯色底（2026-09-20 去渐变：白底主界面）
+          ColoredBox(color: baseColor),
           // 动态流体气泡层
           // ⚠️ 性能：velocity 28 / 形变周期 6s（持续动画是功耗主源）。
           // 全局垫底层被页面级背景覆盖时暂停气泡（TickerMode，不重建组件

@@ -50,15 +50,10 @@ class GlassActionButton extends StatelessWidget {
     final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final enabled = onPressed != null && !loading;
 
-    final bgColors = secondary
-        ? [
-            base.withValues(alpha: isDark ? 0.55 : 0.45),
-            base.withValues(alpha: isDark ? 0.48 : 0.38),
-          ]
-        : [
-            accent.withValues(alpha: enabled ? 0.30 : 0.16),
-            accent.withValues(alpha: enabled ? 0.22 : 0.12),
-          ];
+    // 纯色填充（2026-09-20 去渐变）：次要=中性浅底，主要=墨色浅底
+    final bgColor = secondary
+        ? base.withValues(alpha: isDark ? 0.52 : 0.42)
+        : accent.withValues(alpha: enabled ? 0.26 : 0.14);
     final fg = secondary
         ? (enabled ? textPrimary(context) : textHint(context))
         : (enabled ? accent : textHint(context));
@@ -79,12 +74,7 @@ class GlassActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: bgColors,
-              stops: const [0.0, 0.45],
-            ),
+            color: bgColor,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(color: borderColor),
           ),

@@ -7,54 +7,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-import 'auth/auth_service.dart';
-import 'auth/login_page.dart';
-import 'core/beginner_mode.dart';
-import 'core/guest_mode.dart';
+// ⚠️ 启动分流（CAS 重登 / 游客 / 新生 / 登录页跳转）已迁至
+// splash/startup_flow.dart，由 welcome/welcome_gate.dart 在欢迎首屏
+// 展示期间后台执行，故此处不再需要 auth / home / simple_page 等导入。
 import 'core/crash_log.dart';
+import 'core/glass_style.dart';
 import 'core/http_client.dart';
 import 'core/input_adaptation.dart';
 import 'core/liquid_background.dart';
 import 'core/local_storage.dart';
-import 'core/navigation.dart';
-import 'core/simple_page.dart';
 import 'core/theme_utils.dart';
-import 'home/main_screen.dart';
-import 'splash/fetch_info_page.dart';
-import 'xuegong/student_info_manager.dart';
+import 'welcome/welcome_gate.dart';
 
-/// 默认主题强调色（外观预设色板第 2 个「亮蓝」；
-/// 2026-08-14 用户要求由宜院蓝 25,25,153 改为默认）
-const Color _defaultAccent = Color.fromRGBO(33, 150, 243, 1);
+/// 界面「墨色」通知器（2026-09-20 白底重构：不再是可自定义的「主题色」）。
+///
+/// 语义变更：原为用户可选的主题强调色，现改为**中性墨色**——浅色模式取近黑
+/// [kInkLight]、深色模式取近白 [kInkDark]，由 [_SmartCampusAppState] 按当前
+/// 明暗模式自动同步（见 `_syncInkColor`）。全项目约 60 个文件仍读此值，
+/// 保留名称与 API 以免大范围改动；颜色表达改由模块图标自身承载
+/// （`home/app_data.dart` 的 `AppEntry.color`）。
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(kInkLight);
 
 /// 主题模式通知器，供设置页监听
 final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
 
 /// 自定义背景图片路径通知器（null 表示使用默认纯色背景）
 final ValueNotifier<String?> backgroundNotifier = ValueNotifier(null);
-
-/// 主题强调色通知器（默认亮蓝）
-final ValueNotifier<Color> accentColorNotifier = ValueNotifier(_defaultAccent);
-
-/// 将 Color 序列化为十六进制字符串
-String colorToHex(Color c) =>
-    '#${c.red.toRadixString(16).padLeft(2, '0')}'
-    '${c.green.toRadixString(16).padLeft(2, '0')}'
-    '${c.blue.toRadixString(16).padLeft(2, '0')}';
-
-/// 从十六进制字符串解析 Color，失败返回默认值
-Color hexToColor(String hex, [Color fallback = _defaultAccent]) {
-  try {
-    hex = hex.replaceFirst('#', '');
-    if (hex.length != 6) return fallback;
-    final r = int.parse(hex.substring(0, 2), radix: 16);
-    final g = int.parse(hex.substring(2, 4), radix: 16);
-    final b = int.parse(hex.substring(4, 6), radix: 16);
-    return Color.fromRGBO(r, g, b, 1);
-  } catch (_) {
-    return fallback;
-  }
-}
 
 void main() {
   // 全局异常捕获（含未捕获异步错误）→ 写入本地 crash.log，
@@ -67,7 +45,7 @@ void main() {
     // FragmentProgram.fromAsset 预编译多个玻璃 shader——在 Windows
     // Impeller(D3D12) 上首次编译耗时可达数分钟。若在 runApp 前 await，
     // 首帧永远不会渲染 → 窗口白屏数分钟（v1.2.4 修复窗口显示后暴露）。
-    // 改为 runApp 后异步预热：首帧立即渲染 SplashPage；玻璃组件自带
+    // 改为 runApp 后异步预热：首帧立即渲染欢迎首屏；玻璃组件自带
     // fallback 渲染，shader 就绪后自动切换到完整玻璃效果。
     final Future<void> glassInit = LiquidGlassWidgets.initialize();
 
@@ -84,11 +62,8 @@ void main() {
       backgroundNotifier.value = savedBg;
     }
 
-    // 加载保存的主题颜色
-    final savedColor = await LocalStorage.getString('accent_color');
-    if (savedColor != null && savedColor.isNotEmpty) {
-      accentColorNotifier.value = hexToColor(savedColor);
-    }
+    // 注：2026-09-20 起不再读取历史 `accent_color`（主题色已废弃，
+    // 界面强调色改为随明暗模式自动切换的中性墨色）。
 
     runApp(LiquidGlassWidgets.wrap(
       child: SmartCampusApp(
@@ -96,32 +71,11 @@ void main() {
       ),
       // 0.29.1 起 MaterialApp 用户必须提供：修复深色系统 + 浅色应用时玻璃阴影丢失
       brightnessResolver: Theme.maybeBrightnessOf,
-      theme: GlassThemeData(
-        // ⚠️ 质量必须用 standard：premium 在 ListView/CustomScrollView 内
-        // 于 Impeller 上可能渲染错误（整页白屏）。standard 是官方推荐默认，
-        // 滚动内容安全；导航栏/底部栏由 GlassScaffold 的 GlassIsolationScope
-        // 自动提升为 premium，无需担心观感下降。
-        light: GlassThemeVariant(
-          settings: GlassThemeSettings(thickness: 32, blur: 14),
-          quality: GlassQuality.standard,
-          glowColors: GlassGlowColors(
-            primary: Colors.white,
-            glowBlurRadius: 32,
-            glowSpreadRadius: 0.8,
-            glowOpacity: 0.6,
-          ),
-        ),
-        dark: GlassThemeVariant(
-          settings: GlassThemeSettings(thickness: 32, blur: 14),
-          quality: GlassQuality.standard,
-          glowColors: GlassGlowColors(
-            primary: Colors.white,
-            glowBlurRadius: 24,
-            glowSpreadRadius: 0.6,
-            glowOpacity: 0.4,
-          ),
-        ),
-      ),
+      // ⚠️ 2026-09-20 材质定案：界面玻璃整体置为「实色」（无模糊/折射/高光），
+      // 液态玻璃只保留在导航栏——底部 GlassTabBar.bottom 与宽屏侧栏均自带
+      // 显式液态参数，优先级高于本主题，故不受影响。
+      // 参数与理由见 core/glass_style.dart。
+      theme: kAppGlassTheme,
     ));
 
     // ⚠️ 首帧渲染完成后再预热 shader（addPostFrameCallback 保证 runApp
@@ -179,9 +133,34 @@ class _SmartCampusAppState extends State<SmartCampusApp>
     _themeMode = widget.initialThemeMode;
     _client = widget.initialClient;
     accentColorNotifier.addListener(_onAccentColorChanged);
+    // 首帧后同步墨色（不能同步调用：会触发 setState during build）
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncInkColor());
   }
 
   void _onAccentColorChanged() => setState(() {});
+
+  /// 当前生效的明暗模式（跟随系统时取平台亮度）
+  Brightness _effectiveBrightness() {
+    if (_themeMode == ThemeMode.dark) return Brightness.dark;
+    if (_themeMode == ThemeMode.light) return Brightness.light;
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness;
+  }
+
+  /// 依据明暗模式同步界面墨色：浅色近黑 / 深色近白。
+  /// 全部读取 `accentColorNotifier.value` 的页面/组件随之自动切换到中性色。
+  void _syncInkColor() {
+    final target =
+        _effectiveBrightness() == Brightness.dark ? kInkDark : kInkLight;
+    if (accentColorNotifier.value.toARGB32() != target.toARGB32()) {
+      accentColorNotifier.value = target; // 触发 _onAccentColorChanged → setState
+    }
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    super.didChangePlatformBrightness();
+    _syncInkColor();
+  }
 
   ThemeMode get themeMode => _themeMode;
   SharedHttpClient? get client => _client;
@@ -191,6 +170,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
   Future<void> setThemeMode(ThemeMode mode) async {
     setState(() => _themeMode = mode);
     themeModeNotifier.value = mode;
+    _syncInkColor(); // 明暗切换同时切换墨色（浅色近黑 / 深色近白）
     await LocalStorage.setString('theme_mode', mode.name);
   }
 
@@ -311,7 +291,9 @@ class _SmartCampusAppState extends State<SmartCampusApp>
         )
         );
       },
-      home: const SplashPage(),
+      // 启动入口：每次启动先展示欢迎首屏（WelcomeGate → 向上拉出/点开始使用
+      // 就地进入；会话分流在欢迎页展示期间后台完成，见 splash/startup_flow.dart）
+      home: const WelcomeGate(),
     );
   }
 
@@ -324,7 +306,8 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       seedColor: accent,
       brightness: brightness,
       primary: accent,
-      onPrimary: Colors.white,
+      // 白底重构：浅色模式墨色近黑 → onPrimary 用白；深色模式墨色近白 → 用黑
+      onPrimary: isDark ? const Color(0xFF111114) : Colors.white,
       surface: cardColor,
       onSurface: isDark ? Colors.white : const Color(0xFF1A1A2E),
     );
@@ -400,14 +383,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
         ),
       ),
 
-      // iOS 卡片：静态玻璃（与主界面 contentCardGlass 同款参数——
-      // 半透明白/深灰透出 LiquidBackground + 白色高光描边，无 BackdropFilter
-      // 滚动稳定）；所有二级页面 Material Card 统一玻璃化（自带 color 的
-      // 个别 Card 仍会覆盖，可单独处理）
+      // 卡片：实色（2026-09-20 取消界面毛玻璃）——白 / 深色近黑 + 极淡描边；
+      // 不再使用半透明填充与白色高光描边。
       cardTheme: CardThemeData(
-        color: isDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.48)
-            : Colors.white.withValues(alpha: 0.38),
+        color: cardColor,
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -415,8 +394,8 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.45),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.07),
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -425,8 +404,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: isDark ? const Color(0xFF3D3DF0) : accent,
-          foregroundColor: Colors.white,
+          // 白底重构：主按钮为墨色实心（浅色=近黑+白字 / 深色=近白+黑字）
+          backgroundColor: accent,
+          foregroundColor:
+              isDark ? const Color(0xFF111114) : Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -434,17 +415,17 @@ class _SmartCampusAppState extends State<SmartCampusApp>
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        // 静态玻璃填充（与卡片同款：半透明白/深灰透出背景，无 BackdropFilter）
-        fillColor: isDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.48)
-            : Colors.white.withValues(alpha: 0.38),
+        // 实色输入框底色（iOS 分组灰 / 深色 secondarySystemGroupedBackground），
+        // 2026-09-20 取消半透明玻璃填充
+        fillColor:
+            isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.45),
+                : const Color(0xFFE5E5EA),
           ),
         ),
         enabledBorder: OutlineInputBorder(
@@ -452,17 +433,14 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           borderSide: BorderSide(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.35),
+                : const Color(0xFFE5E5EA),
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          // 聚焦边框用中性白描边（不加主题色）：仅加亮加粗提供聚焦反馈，
-          // 颜色与主题色解耦，避免输入框聚焦时显示紫色等强调色边框。
+          // 聚焦边框用墨色（去主题色：浅色近黑 / 深色近白）
           borderSide: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.35)
-                : Colors.white.withValues(alpha: 0.65),
+            color: accent.withValues(alpha: isDark ? 0.5 : 0.55),
             width: 1.5,
           ),
         ),
@@ -473,7 +451,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
           fontFamily: isWindows ? kWindowsFontFamily : null,
         ),
         labelStyle: TextStyle(
-          color: isDark ? Colors.white70 : accent.withValues(alpha: 0.6),
+          color: isDark ? Colors.white70 : const Color(0xFF6E6E80),
           fontFamily: isWindows ? kWindowsFontFamily : null,
         ),
       ),
@@ -481,8 +459,10 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        selectedItemColor: isDark ? const Color(0xFF5C5CFF) : accent,
-        unselectedItemColor: isDark ? const Color(0xFF6E6E80) : Colors.grey.shade500,
+        // 选中色 = 墨色（浅色近黑 / 深色近白），未选中为中性灰
+        selectedItemColor: accent,
+        unselectedItemColor:
+            isDark ? const Color(0xFF6E6E80) : Colors.grey.shade500,
         type: BottomNavigationBarType.fixed,
       ),
 
@@ -524,149 +504,3 @@ class _SmartCampusAppState extends State<SmartCampusApp>
   }
 }
 
-/// 启动页：检查会话是否有效
-class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
-
-  @override
-  State<SplashPage> createState() => _SplashPageState();
-}
-
-class _SplashPageState extends State<SplashPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animCtrl;
-  late final Animation<double> _pulseAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
-    );
-    _animCtrl.repeat(reverse: true);
-    _checkSession();
-  }
-
-  @override
-  void dispose() {
-    _animCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _checkSession() async {
-    // 至少显示 800ms 过渡动画
-    await Future.delayed(const Duration(milliseconds: 800));
-    final client = SharedHttpClient();
-    await client.loadCookies();
-    await GuestMode.load();
-    await BeginnerMode.load();
-
-    // 游客模式：跳过会话校验，直接进入首页（仅可用免登录功能）
-    if (GuestMode.active) {
-      if (!mounted) return;
-      replacePage(context, MainScreen(client: client, userId: ''));
-      return;
-    }
-
-    // ⚠️ 每次进入应用都用本地保存的账号密码走**真实 CAS 登录**（全新 cookie），
-    // 不再复用可能已过期的本地 cookie（服务端 TTL 过期后本地是"死 cookie"，
-    // 注入 WebView 只会触发 CAS 刷新回环 → 学科竞赛等模块获取失败）。
-    // 登录成功后 Cookie 已全部刷新并落盘，会话永远新鲜，无需手动重新登录。
-    final autoAuth = AuthService(sharedClient: client);
-    if (await autoAuth.autoRelogin()) {
-      if (!mounted) return;
-      final savedUser = await LocalStorage.getString('saved_username') ?? '';
-
-      // 首次进入需先获取到个人信息（无缓存时走 FetchInfoPage 阻塞获取），
-      // 后续有缓存直接进主界面。
-      // 新生模式：已登录但个人信息暂未录入，跳过获取直接进主界面。
-      final cached = await StudentInfoManager.getCached();
-      if (!mounted) return;
-      if (cached == null && !BeginnerMode.active) {
-        replacePage(context, FetchInfoPage(client: client));
-        return;
-      }
-
-      if (!mounted) return;
-      replacePage(context, MainScreen(client: client, userId: savedUser));
-      return;
-    }
-
-    // 无本地凭据（首次使用 / 已退出登录 / 自动重登失败）→ 登录页；
-    // 登录成功后凭据会保存，下次启动即可自动重登。
-    if (!mounted) return;
-    replacePage(context, const LoginPage());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = accentColorNotifier.value;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    // 主界面同款液态玻璃背景 + 统一状态栏（SimplePage 基座），
-    // 登录后过渡界面与二级页观感一致
-    return SimplePage(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // 呼吸灯图标（主题色）
-              ListenableBuilder(
-                listenable: _animCtrl,
-                builder: (context, _) {
-                  final pulse = _pulseAnim.value;
-                  return Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.10 + pulse * 0.08),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.school_rounded,
-                      size: 44,
-                      color: accent.withValues(alpha: 0.75 + pulse * 0.25),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              Text(
-                '宜院宾果',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: onSurface,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '验证 Cookie 中…',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: onSurface.withValues(alpha: 0.5),
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

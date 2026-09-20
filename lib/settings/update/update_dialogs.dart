@@ -1,8 +1,8 @@
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/glass_style.dart';
 import '../../core/navigation.dart';
 import '../../core/version.dart';
 import '../../main.dart';
@@ -90,7 +90,6 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = accentColorNotifier.value;
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -98,34 +97,26 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
       clipBehavior: Clip.antiAlias,
       // 屏幕正中间 + 四周留白
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      // 磨砂玻璃：BackdropFilter 模糊 + 半透明渐变（弹窗固定不位移，采样稳定）
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  (isDark ? const Color(0xFF1C1C1E) : Colors.white)
-                      .withValues(alpha: isDark ? 0.55 : 0.45),
-                  (isDark ? const Color(0xFF1C1C1E) : Colors.white)
-                      .withValues(alpha: isDark ? 0.48 : 0.38),
-                ],
-                stops: const [0.0, 0.45],
-              ),
-              borderRadius: BorderRadius.circular(16),
+      // 2026-09-20：取消毛玻璃 → 实色弹窗面板（白 / 深色近黑）+ 投影
+      child: Container(
+        decoration: BoxDecoration(
+          color: solidSurface(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: solidHairline(context)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _buildContent(accent),
-              ),
-            ),
+          ],
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _buildContent(accent),
           ),
         ),
       ),

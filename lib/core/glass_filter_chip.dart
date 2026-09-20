@@ -42,20 +42,10 @@ class GlassFilterChip extends StatelessWidget {
         curve: Curves.easeOut,
         padding: padding,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: selected
-                ? [
-                    accent.withValues(alpha: 0.30),
-                    accent.withValues(alpha: 0.22),
-                  ]
-                : [
-                    base.withValues(alpha: isDark ? 0.55 : 0.45),
-                    base.withValues(alpha: isDark ? 0.48 : 0.38),
-                  ],
-            stops: const [0.0, 0.45],
-          ),
+          // 纯色填充（2026-09-20 去渐变）：选中=墨色浅底，未选中=中性浅底
+          color: selected
+              ? accent.withValues(alpha: 0.26)
+              : base.withValues(alpha: isDark ? 0.52 : 0.42),
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
             color: selected

@@ -208,14 +208,15 @@ class CampusNetworkDetailPage extends StatelessWidget {
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: const Color.fromRGBO(25, 25, 153, 1)
-                                        .withValues(alpha: 0.08),
+                                    // 彩色图标：下载=青（去硬编码品牌蓝）
+                                    color: const Color(0xFF14B8A6)
+                                        .withValues(alpha: 0.14),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
                                     Icons.download_rounded,
                                     size: 22,
-                                    color: Color.fromRGBO(25, 25, 153, 1),
+                                    color: Color(0xFF14B8A6),
                                   ),
                                 ),
                                 const SizedBox(width: 12),

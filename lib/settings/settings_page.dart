@@ -146,15 +146,21 @@ class _SettingsPageState extends State<SettingsPage> {
                                 children: [
                                   IosListTile(
                                     icon: Icons.palette_outlined,
+                                    iconColor: const Color(0xFF6C5CE7),
+                                    iconBackground: const Color(0xFF6C5CE7)
+                                        .withValues(alpha: 0.12),
                                     title: '外观',
-                                    // 外观页现已支持明暗模式 + 主题色 + 自定义背景
-                                    subtitle: '明暗模式 · 主题色 · 自定义背景',
+                                    // 2026-09-20 起主题色已废弃（界面白底 + 彩色图标）
+                                    subtitle: '明暗模式 · 自定义背景',
                                     scale: scale,
                                     onTap: () =>
                                         pushPage(context, const AppearancePage()),
                                   ),
                                   IosListTile(
                                     icon: Icons.grid_view_rounded,
+                                    iconColor: const Color(0xFF3B6BFF),
+                                    iconBackground: const Color(0xFF3B6BFF)
+                                        .withValues(alpha: 0.12),
                                     title: '常用功能',
                                     subtitle: '自定义首页快捷入口',
                                     scale: scale,
@@ -163,6 +169,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   IosListTile(
                                     icon: Icons.dashboard_customize_rounded,
+                                    iconColor: const Color(0xFFFF8A3D),
+                                    iconBackground: const Color(0xFFFF8A3D)
+                                        .withValues(alpha: 0.12),
                                     title: '首页卡片',
                                     subtitle: '增删与排序首页信息卡片',
                                     scale: scale,
@@ -171,6 +180,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   IosListTile(
                                     icon: Icons.timer_outlined,
+                                    iconColor: const Color(0xFFF2545B),
+                                    iconBackground: const Color(0xFFF2545B)
+                                        .withValues(alpha: 0.12),
                                     title: '倒计时',
                                     subtitle: '自定义倒计时目标 · 桌面组件数据源',
                                     scale: scale,
@@ -179,6 +191,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   IosListTile(
                                     icon: Icons.celebration_rounded,
+                                    iconColor: const Color(0xFFF5A623),
+                                    iconBackground: const Color(0xFFF5A623)
+                                        .withValues(alpha: 0.14),
                                     title: '摸鱼日历',
                                     subtitle: '节日倒计时 · 自定义目标',
                                     scale: scale,
@@ -205,13 +220,16 @@ class _SettingsPageState extends State<SettingsPage> {
                                 margin: EdgeInsets.zero,
                                 children: [
                                   if (GuestMode.active)
-                                    IosListTile(
-                                      icon: Icons.login_rounded,
-                                      title: '登录账号',
-                                      subtitle: '当前为游客模式，登录后可使用全部功能',
-                                      scale: scale,
-                                      onTap: () => _goLogin(context),
-                                    )
+                                  IosListTile(
+                                    icon: Icons.login_rounded,
+                                    iconColor: const Color(0xFF2FB344),
+                                    iconBackground: const Color(0xFF2FB344)
+                                        .withValues(alpha: 0.12),
+                                    title: '登录账号',
+                                    subtitle: '当前为游客模式，登录后可使用全部功能',
+                                    scale: scale,
+                                    onTap: () => _goLogin(context),
+                                  )
                                   else
                                     IosListTile(
                                       icon: Icons.logout_rounded,
@@ -255,6 +273,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   IosListTile(
                                     icon: Icons.update_rounded,
+                                    iconColor: const Color(0xFF14B8A6),
+                                    iconBackground: const Color(0xFF14B8A6)
+                                        .withValues(alpha: 0.12),
                                     title: '检查更新',
                                     subtitle: '当前版本 v$appVersion',
                                     scale: scale,

@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../home/app_data.dart';
 import '../main.dart';
+import 'glass_style.dart';
 import 'guest_guard.dart';
 import 'guest_mode.dart';
 import 'http_client.dart';
@@ -51,12 +51,15 @@ const double kIosPageHPadding = 16.0;
 /// - 不要给 GlassCard / GlassButton 传 per-widget settings（除非 useOwnLayer）。
 /// - quality 全局用 standard（premium 在 ListView 内 Impeller 渲染错误）。
 
-/// 内容卡片毛玻璃容器（BackdropFilter 实现，IosCard / IosListGroup 共用）：
-/// - ⚠️ 不用 GlassCard：其 shader 玻璃在无 Impeller/Vulkan（GLES）设备上
-///   `ImageFilter.isShaderFilterSupported == false` → 不渲染玻璃、直接透出
-///   背景（浅色 LiquidBackground 下看起来就是白色卡片）。
-/// - BackdropFilter 用 Flutter 内置 blur，全设备有效；
-///   半透明白（浅色）/ 半透明深灰（深色）+ 26 模糊 + 细描边 → iOS 毛玻璃。
+/// 内容卡片实色容器（IosCard / IosListGroup 共用）
+///
+/// 2026-09-20 材质定案：**界面取消毛玻璃**——不再使用半透明渐变 + 白色高光
+/// 描边（旧版「静态玻璃」观感），改为实色卡面：白（深色模式近黑）填充
+/// + 极淡描边 + 白底轻微投影。液态玻璃只保留在导航栏。
+///
+/// ⚠️ 依旧不用 GlassCard：其 shader 玻璃在无 Impeller/Vulkan（GLES）设备上
+/// `ImageFilter.isShaderFilterSupported == false` → 不渲染，且实色方案下
+/// 自绘更可控（圆角/描边/投影一次到位）。
 Widget contentCardGlass({
   required BuildContext context,
   required Widget child,
@@ -64,36 +67,17 @@ Widget contentCardGlass({
   EdgeInsetsGeometry padding = EdgeInsets.zero,
   EdgeInsetsGeometry? margin,
 }) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  // 静态玻璃（无 BackdropFilter）：半透明渐变填充 + 顶部高光 + 白色描边
-  // 模拟 iOS 液态玻璃。⚠️ 不用 BackdropFilter——其与 ListView overscroll
-  // （橡皮筋位移+裁剪）组合会导致采样破坏、卡片变透（平台级限制）。
-  final baseColor =
-      isDark ? const Color(0xFF1C1C1E) : Colors.white;
-  final card = ClipRRect(
-    borderRadius: borderRadius,
-    child: Container(
-      // 撑满父宽（loose 约束下不收缩，如设置页 Column(start)）
-      width: double.infinity,
-      decoration: BoxDecoration(
-        // 顶部略亮模拟玻璃反光，主体半透明透出背景渐变
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            baseColor.withValues(alpha: isDark ? 0.55 : 0.45),
-            baseColor.withValues(alpha: isDark ? 0.48 : 0.38),
-          ],
-          stops: const [0.0, 0.45],
-        ),
-        borderRadius: borderRadius,
-        // 玻璃边缘高光：白色细描边
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.10)
-              : Colors.white.withValues(alpha: 0.45),
-        ),
-      ),
+  final card = Container(
+    // 撑满父宽（loose 约束下不收缩，如设置页 Column(start)）
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: solidSurface(context),
+      borderRadius: borderRadius,
+      border: Border.all(color: solidHairline(context)),
+      boxShadow: solidShadow(context),
+    ),
+    child: ClipRRect(
+      borderRadius: borderRadius,
       child: Material(
         // 透明 Material：提供主题字体/DefaultTextStyle 继承
         type: MaterialType.transparency,
@@ -125,25 +109,37 @@ Widget appTileGlass({
   double iconScale = 0.56,
   double iconMin = 22,
   double iconMax = 36,
+  /// 彩色图标方案（2026-09-20）：传入模块专属色时改用**柔和淡彩方块**
+  /// —— 极浅的同色淡底（约 15% 不透明度）+ 同色系图形，清爽不厚重
+  /// （参考用户提供的校园 App 参考图：淡彩底 + 彩色线性图标）。
+  /// 传 null 时保持原玻璃观感（向后兼容）。
+  Color? fill,
 }) {
+  final iconSize = (size * iconScale).clamp(iconMin, iconMax);
+  if (fill != null) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 浅色：淡彩底 + 原色图形；深色：稍浓淡底 + 提亮图形（保证深底对比度）
+    final bg = fill.withValues(alpha: isDark ? 0.22 : 0.15);
+    final fg = isDark ? Color.lerp(fill, Colors.white, 0.30)! : fill;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Icon(icon, size: iconSize, color: fg),
+    );
+  }
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
   return Container(
     width: size,
     height: size,
     decoration: BoxDecoration(
-      // 圆角矩形
+      // 圆角矩形（纯色半透明基色，不用渐变）
+      color: base.withValues(alpha: isDark ? 0.52 : 0.42),
       borderRadius: BorderRadius.circular(radius),
-      // 顶部略亮模拟玻璃反光，主体半透明透出背景
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          base.withValues(alpha: isDark ? 0.55 : 0.45),
-          base.withValues(alpha: isDark ? 0.48 : 0.38),
-        ],
-        stops: const [0.0, 0.45],
-      ),
       // 玻璃边缘高光：白色细描边
       border: Border.all(
         color: isDark
@@ -151,54 +147,39 @@ Widget appTileGlass({
             : Colors.white.withValues(alpha: 0.45),
       ),
     ),
-    child: Icon(icon,
-        size: (size * iconScale).clamp(iconMin, iconMax), color: iconColor),
+    child: Icon(icon, size: iconSize, color: iconColor),
   );
 }
 
-/// 磨砂玻璃弹窗内容容器（Dialog 用透明底 + 此容器）：
-/// BackdropFilter 模糊 20 + 半透明渐变 + 白描边，所有弹窗统一。
+/// 弹窗内容容器（实色，Dialog 用透明底 + 此容器）：
+/// 2026-09-20 起取消毛玻璃——实色卡面 + 极淡描边 + 投影，所有弹窗统一。
 /// 用法：`Dialog(backgroundColor: Colors.transparent, child: glassDialog(context: ctx, child: ...))`
 Widget glassDialog({
   required BuildContext context,
   required Widget child,
   double radius = 20,
 }) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-  return ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-      child: Container(
-        decoration: BoxDecoration(
-          // 顶部略亮模拟玻璃反光，主体半透明透出模糊背景
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              base.withValues(alpha: isDark ? 0.55 : 0.45),
-              base.withValues(alpha: isDark ? 0.48 : 0.38),
-            ],
-            stops: const [0.0, 0.45],
-          ),
-          borderRadius: BorderRadius.circular(radius),
-          // 玻璃边缘高光：白色细描边
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.45),
-          ),
+  return Container(
+    decoration: BoxDecoration(
+      color: solidSurface(context),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: solidHairline(context)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.16),
+          blurRadius: 28,
+          offset: const Offset(0, 10),
         ),
-        child: child,
-      ),
+      ],
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: child,
     ),
   );
 }
 
-/// 磨砂玻璃加载弹窗（所有页面统一 loading 样式）：
-/// BackdropFilter 模糊 20 + 半透明渐变 + 转圈 + 文案；
-/// Dialog 固定不位移，采样稳定，无卡片 overscroll 变透问题。
+/// 加载弹窗（所有页面统一 loading 样式）：实色卡面 + 转圈 + 文案
 Future<void> showGlassLoadingDialog(
   BuildContext context, {
   String message = '正在加载…',
@@ -217,47 +198,25 @@ class _GlassLoadingDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     return Dialog(
       backgroundColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              // 顶部略亮模拟玻璃反光，主体半透明透出模糊背景
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  base.withValues(alpha: isDark ? 0.55 : 0.45),
-                  base.withValues(alpha: isDark ? 0.48 : 0.38),
-                ],
-                stops: const [0.0, 0.45],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              // 玻璃边缘高光：白色细描边
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : Colors.white.withValues(alpha: 0.45),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(strokeWidth: 2.5),
-                const SizedBox(height: 16),
-                Text(message, style: const TextStyle(fontSize: 14)),
-              ],
-            ),
-          ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: solidSurface(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: solidHairline(context)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(strokeWidth: 2.5),
+            const SizedBox(height: 16),
+            Text(message, style: const TextStyle(fontSize: 14)),
+          ],
         ),
       ),
     );
@@ -710,7 +669,8 @@ class _QuickAppTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = accentOf(context);
+    // 彩色图标：模块专属色（不再取主题色）
+    final color = entry.color;
     return Clickable(
       onTap: onTap,
       borderRadius: 14,
@@ -736,21 +696,23 @@ class _QuickAppTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(tileSize * 0.28),
                     boxShadow: active
                         ? [
+                            // 悬停/聚焦反馈用中性投影（不做彩色光晕，保持纯色块观感）
                             BoxShadow(
-                              color: color.withValues(
-                                  alpha: focused ? 0.55 : 0.32),
-                              blurRadius: tileSize * 0.34,
+                              color: Colors.black.withValues(
+                                  alpha: focused ? 0.22 : 0.13),
+                              blurRadius: tileSize * 0.30,
                               spreadRadius: 1,
                             ),
                           ]
                         : const [],
                   ),
-                  // 静态玻璃方块（同应用网格；不用 GlassButton——shader 组件
-                  // GLES 不渲染且格子多时掉帧/耗电）
+                  // 彩色实心方块（模块专属色 + 白色图形；不用 GlassButton——
+                  // shader 组件 GLES 不渲染且格子多时掉帧/耗电）
                   child: appTileGlass(
                     context: context,
                     icon: entry.icon,
-                    iconColor: color,
+                    iconColor: Colors.white,
+                    fill: color,
                     size: tileSize,
                   ),
                 ),
@@ -832,42 +794,19 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final height = MediaQuery.of(context).size.height * 0.72;
-    // 磨砂玻璃底部弹窗：BackdropFilter 模糊 + 半透明渐变（弹窗是固定容器，
-    // 内部 ListView 滚动不位移弹窗，采样稳定——不会出现卡片在列表
-    // overscroll 时的变透问题）
-    // ⚠️ 顶部 40 留白必须放在最外层 Padding——若放 Container margin，
-    // BackdropFilter 会覆盖整片（含留白区），弹窗上方出现多余模糊带
-    final sheetIsDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBase =
-        sheetIsDark ? const Color(0xFF1C1C1E) : Colors.white;
+    // 2026-09-20：底部弹窗改为实色面板（取消毛玻璃），保留顶部圆角与把手；
+    // 顶部 40 留白仍放最外层 Padding（统一与其它 sheet 的顶部间距一致）
     return Padding(
       padding: const EdgeInsets.only(top: 40),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            height: height,
-            decoration: BoxDecoration(
-            // 顶部略亮模拟玻璃反光，主体半透明透出模糊背景
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                sheetBase.withValues(alpha: sheetIsDark ? 0.55 : 0.45),
-                sheetBase.withValues(alpha: sheetIsDark ? 0.48 : 0.38),
-              ],
-              stops: const [0.0, 0.45],
-            ),
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: solidSurface(context),
             borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(22)),
-            border: Border(
-              top: BorderSide(
-                color: sheetIsDark
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : Colors.white.withValues(alpha: 0.45),
-              ),
-            ),
+            border: Border(top: BorderSide(color: solidHairline(context))),
           ),
           child: Column(
             children: [
@@ -957,11 +896,11 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: accentOf(context).withValues(alpha: 0.1),
+                            color: entry.color.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Icon(entry.icon,
-                              color: accentOf(context), size: 18),
+                              color: entry.color, size: 18),
                         ),
                         title: Text(entry.name,
                             style: TextStyle(
@@ -981,7 +920,6 @@ class _QuickAppPickerSheetState extends State<_QuickAppPickerSheet> {
             ],
           ),
         ),
-      ),
       ),
     );
   }

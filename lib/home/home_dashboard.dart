@@ -293,7 +293,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
           children: [
             Row(
               children: [
-                _cardHeaderIcon(Icons.calendar_month_rounded),
+                _cardHeaderIcon(Icons.calendar_month_rounded,
+                    color: homeCardColorOf('today_courses')),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text('今日课程',
@@ -371,27 +372,43 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  Widget _cardHeaderIcon(IconData icon) {
+  /// 卡片头部图标：彩色圆角方块（2026-09-20 彩色图标方案）
+  ///
+  /// [color] 为该卡片专属色（取自 `home_cards.dart` 的卡片注册表，
+  /// 与设置页对应行同色）；不传时回退界面墨色（中性）。
+  Widget _cardHeaderIcon(IconData icon, {Color? color}) {
+    final c = color ?? accentColorNotifier.value;
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: accentColorNotifier.value.withValues(alpha: 0.1),
+        color: c.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Icon(icon, color: accentColorNotifier.value, size: 21),
+      child: Icon(icon, color: c, size: 21),
     );
   }
 
   Widget _buildCourseRow(Course course) {
-    final blue = accentColorNotifier.value;
+    // 课程行左侧色条沿用课程语义色（实验课=橙，见 course_grid.tagBadgeColor）；
+    // 行底色/描边改为中性（白底界面不再用主题色着色）
+    final isDarkRow = Theme.of(context).brightness == Brightness.dark;
+    final barColor = course.tag.isNotEmpty
+        ? tagBadgeColor(course.tag)
+        : const Color(0xFF3B6BFF);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: blue.withValues(alpha: 0.05),
+        color: isDarkRow
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(kIosTileRadius),
-        border: Border.all(color: blue.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: isDarkRow
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
       ),
       child: IntrinsicHeight(
         child: Row(
@@ -400,7 +417,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
             Container(
               width: 4,
               decoration: BoxDecoration(
-                color: blue,
+                color: barColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -487,7 +504,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
           children: [
             Row(
               children: [
-                _cardHeaderIcon(Icons.newspaper_rounded),
+                _cardHeaderIcon(Icons.newspaper_rounded,
+                    color: homeCardColorOf('news')),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text('校园新闻',
@@ -536,15 +554,22 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Widget _buildFirstNews(BuildContext context) {
     final news = _newsItems!.first;
+    final isDarkNews = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => _openNewsDetail(news),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: accentColorNotifier.value.withValues(alpha: 0.05),
+          // 白底界面：新闻摘要块改中性浅底（原为主题色 5% 着色）
+          color: isDarkNews
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(kIosTileRadius),
           border: Border.all(
-              color: accentColorNotifier.value.withValues(alpha: 0.12)),
+            color: isDarkNews
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

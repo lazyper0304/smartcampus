@@ -6,8 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../core/local_storage.dart';
 import '../core/theme_utils.dart';
+import '../core/glass_style.dart';
 import '../core/ios_kit.dart';
 import '../main.dart';
 
@@ -21,34 +21,11 @@ class AppearancePage extends StatefulWidget {
 class _AppearancePageState extends State<AppearancePage> {
   final ImagePicker _picker = ImagePicker();
   String? _previewBgPath;
-  Color _selectedColor = accentColorNotifier.value;
-
-  // 预设主题色板
-  static const List<Color> _presetColors = [
-    Color.fromRGBO(25, 25, 153, 1),   // 宜院蓝（默认）
-    Color.fromRGBO(33, 150, 243, 1),  // 亮蓝
-    Color.fromRGBO(52, 152, 219, 1),  // 天蓝
-    Color.fromRGBO(26, 188, 156, 1),  // 青绿
-    Color.fromRGBO(46, 204, 113, 1),  // 翠绿
-    Color.fromRGBO(255, 235, 59, 1),  // 明黄
-    Color.fromRGBO(243, 156, 18, 1),  // 橙黄
-    Color.fromRGBO(230, 126, 34, 1),  // 琥珀
-    Color.fromRGBO(231, 76, 60, 1),   // 朱红
-    Color.fromRGBO(192, 57, 43, 1),   // 中国红
-    Color.fromRGBO(233, 30, 99, 1),   // 樱花粉
-    Color.fromRGBO(156, 39, 176, 1),  // 紫罗兰
-  ];
 
   @override
   void initState() {
     super.initState();
     _previewBgPath = backgroundNotifier.value;
-  }
-
-  Future<void> _setAccentColor(Color color) async {
-    setState(() => _selectedColor = color);
-    accentColorNotifier.value = color;
-    await LocalStorage.setString('accent_color', colorToHex(color));
   }
 
   Future<void> _pickImage() async {
@@ -127,8 +104,7 @@ class _AppearancePageState extends State<AppearancePage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: const Color.fromRGBO(25, 25, 153, 1)
-                          .withValues(alpha: 0.08),
+                      color: solidHairline(context),
                     ),
                   ),
                   child: Padding(
@@ -174,10 +150,6 @@ class _AppearancePageState extends State<AppearancePage> {
                   child: _buildCurrentModeHint(currentMode),
                 ),
                 const SizedBox(height: 28),
-                _buildSection('主题颜色'),
-                const SizedBox(height: 8),
-                _buildColorSection(),
-                const SizedBox(height: 28),
                 _buildSection('自定义背景'),
                 const SizedBox(height: 8),
                 _buildBackgroundSection(hasBg),
@@ -189,106 +161,13 @@ class _AppearancePageState extends State<AppearancePage> {
     );
   }
 
-  Widget _buildColorSection() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                alignment: WrapAlignment.center,
-              children: _presetColors.map((color) {
-                final selected = color.value == _selectedColor.value;
-                return GestureDetector(
-                  onTap: () => _setAccentColor(color),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeInOut,
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selected ? Colors.white : Colors.transparent,
-                        width: 3,
-                      ),
-                      boxShadow: selected
-                          ? [BoxShadow(
-                              color: color.withValues(alpha: 0.5),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            )]
-                          : null,
-                    ),
-                    child: selected
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
-                  ),
-                );
-              }).toList(),
-            ),
-            ),
-            const SizedBox(height: 12),
-            // 自定义颜色按钮
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _showColorPicker(context),
-                icon: Icon(Icons.colorize_rounded,
-                    color: accentColorNotifier.value),
-                label: Text(
-                  '自定义颜色',
-                  style: TextStyle(color: accentColorNotifier.value),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: accentColorNotifier.value.withValues(alpha: 0.3)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '当前主题色将应用到应用主色、按钮、导航栏等',
-              style: TextStyle(fontSize: 12, color: textHint(context)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showColorPicker(BuildContext context) async {
-    final initial = _selectedColor;
-    final result = await showDialog<Color>(
-      context: context,
-      builder: (ctx) => _ColorPickerDialog(initialColor: initial),
-    );
-    if (result != null && mounted) {
-      _setAccentColor(result);
-    }
-  }
-
   Widget _buildBackgroundSection(bool hasBg) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: const Color.fromRGBO(25, 25, 153, 1).withValues(alpha: 0.08),
+          color: solidHairline(context),
         ),
       ),
       child: Padding(
@@ -478,116 +357,5 @@ class _AppearancePageState extends State<AppearancePage> {
 
   Widget _buildSection(String title) {
     return IosSectionHeader(title, padding: const EdgeInsets.fromLTRB(4, 4, 4, 8));
-  }
-}
-
-/// HSV 调色盘对话框
-class _ColorPickerDialog extends StatefulWidget {
-  final Color initialColor;
-  const _ColorPickerDialog({required this.initialColor});
-
-  @override
-  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
-}
-
-class _ColorPickerDialogState extends State<_ColorPickerDialog> {
-  late double _hue;
-  late double _saturation;
-  late double _value;
-
-  @override
-  void initState() {
-    super.initState();
-    final hsv = HSVColor.fromColor(widget.initialColor);
-    _hue = hsv.hue;
-    _saturation = hsv.saturation;
-    _value = hsv.value;
-  }
-
-  Color get _currentColor =>
-      HSVColor.fromAHSV(1, _hue, _saturation, _value).toColor();
-
-  String _hex(Color c) =>
-      '#${c.red.toRadixString(16).padLeft(2, '0')}'
-      '${c.green.toRadixString(16).padLeft(2, '0')}'
-      '${c.blue.toRadixString(16).padLeft(2, '0')}';
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _currentColor;
-    return AlertDialog(
-      title: const Text('自定义颜色'),
-      content: SizedBox(
-        width: 300,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 颜色预览
-            Container(
-              height: 80,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 色值显示
-            Text(
-              _hex(color),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: color.computeLuminance() > 0.5
-                    ? Colors.black87
-                    : Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            // 色相滑块
-            _buildSlider('色相', _hue, 0, 360, (v) => setState(() => _hue = v)),
-            const SizedBox(height: 8),
-            // 饱和度滑块
-            _buildSlider('饱和度', _saturation, 0, 1, (v) => setState(() => _saturation = v)),
-            const SizedBox(height: 8),
-            // 明度滑块
-            _buildSlider('明度', _value, 0, 1, (v) => setState(() => _value = v)),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(color),
-          child: const Text('确定'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSlider(
-    String label,
-    double value,
-    double min,
-    double max,
-    ValueChanged<double> onChanged,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          onChanged: onChanged,
-          activeColor: _currentColor,
-        ),
-      ],
-    );
   }
 }

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../core/ios_kit.dart';
 import '../core/live_countdown.dart';
 import '../core/theme_utils.dart';
+import '../home/home_cards.dart' show homeCardColorOf;
 import '../main.dart' show accentColorNotifier;
 import '../widget/widget_service.dart';
 import 'countdown_service.dart';
@@ -80,15 +81,17 @@ class _MoyuCalendarCardState extends State<MoyuCalendarCard> {
   }
 
   Widget _headerIcon(BuildContext context) {
+    // 彩色图标（2026-09-20）：配色取自首页卡片注册表（摸鱼日历=金，
+    // 与设置页「摸鱼日历」行一致）
+    final color = homeCardColorOf('moyu');
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: accentColorNotifier.value.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Icon(Icons.celebration_rounded,
-          color: accentColorNotifier.value, size: 21),
+      child: Icon(Icons.celebration_rounded, color: color, size: 21),
     );
   }
 

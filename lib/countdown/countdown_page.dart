@@ -2,13 +2,13 @@
 library;
 
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart'
     show GlassStatusBarStyle;
 
+import '../core/glass_style.dart';
 import '../core/ios_kit.dart';
 import '../core/responsive.dart';
 import '../core/simple_page.dart';
@@ -245,19 +245,15 @@ class _EditorSheetState extends State<EditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            color: base.withValues(alpha: isDark ? 0.6 : 0.5),
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        child: Container(
+          color: solidSurface(context),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -310,7 +306,6 @@ class _EditorSheetState extends State<EditorSheet> {
             ),
           ),
         ),
-      ),
     );
   }
 }

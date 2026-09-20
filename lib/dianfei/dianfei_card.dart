@@ -15,6 +15,7 @@ import '../core/ios_kit.dart';
 import '../core/local_storage.dart';
 import '../core/navigation.dart';
 import '../core/theme_utils.dart';
+import '../home/home_cards.dart' show homeCardColorOf;
 import '../main.dart' show accentColorNotifier;
 import 'dianfei_models.dart';
 import 'dianfei_page.dart';
@@ -208,15 +209,17 @@ class _DianfeiCardState extends State<DianfeiCard> {
   }
 
   Widget _headerIcon(BuildContext context) {
+    // 彩色图标（2026-09-20）：配色取自首页卡片注册表（电费=琥珀，
+    // 与「临港电费」模块色一致）——与其余首页卡片统一为彩色
+    final color = homeCardColorOf('dianfei');
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: accentColorNotifier.value.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Icon(Icons.bolt_rounded,
-          color: accentColorNotifier.value, size: 21),
+      child: Icon(Icons.bolt_rounded, color: color, size: 21),
     );
   }
 

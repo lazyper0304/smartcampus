@@ -170,15 +170,8 @@ class _ZhszPageState extends State<ZhszPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: 0.30),
-            color.withValues(alpha: 0.22),
-          ],
-          stops: const [0.0, 0.45],
-        ),
+        // 纯色浅底 + 描边（2026-09-20 去渐变）
+        color: color.withValues(alpha: 0.26),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.6)),
       ),

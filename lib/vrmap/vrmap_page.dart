@@ -82,7 +82,7 @@ class _VrmapPageState extends State<VrmapPage> {
                       Icons.check,
                       size: 18,
                       color: i == _selectedIndex
-                          ? theme.colorScheme.primary
+                          ? theme.colorScheme.onSurface
                           : Colors.transparent,
                     ),
                     const SizedBox(width: 8),

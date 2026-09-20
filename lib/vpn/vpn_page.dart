@@ -194,7 +194,7 @@ class _VpnPageState extends State<VpnPage> with SingleTickerProviderStateMixin {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.vpn_lock_rounded,
-                          size: 42, color: theme.colorScheme.primary),
+                          size: 42, color: theme.colorScheme.onSurface),
                       const SizedBox(height: 12),
                       Text('当前平台暂不支持',
                           style: theme.textTheme.titleMedium),

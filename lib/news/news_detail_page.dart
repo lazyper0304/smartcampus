@@ -127,14 +127,15 @@ class NewsDetailPage extends StatelessWidget {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: const Color.fromRGBO(25, 25, 153, 1)
-                                    .withValues(alpha: 0.08),
+                                // 彩色图标：附件=紫（去硬编码品牌蓝）
+                                color: const Color(0xFF6C5CE7)
+                                    .withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(
                                 Icons.attach_file_rounded,
                                 size: 22,
-                                color: Color.fromRGBO(25, 25, 153, 1),
+                                color: Color(0xFF6C5CE7),
                               ),
                             ),
                             const SizedBox(width: 12),

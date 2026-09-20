@@ -65,8 +65,9 @@ class _ClickableState extends State<Clickable> {
   @override
   Widget build(BuildContext context) {
     final interactive = widget.onTap != null;
+    // 聚焦高亮：中性墨色（onSurface，浅色近黑/深色近白），不用主题色
     final focusColor =
-        widget.focusColor ?? Theme.of(context).colorScheme.primary;
+        widget.focusColor ?? Theme.of(context).colorScheme.onSurface;
     // 自定义 builder 时由调用方负责渲染高亮/光效，不再叠默认整卡高亮
     final hasCustomBuilder = widget.builder != null;
     final content = hasCustomBuilder

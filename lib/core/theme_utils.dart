@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
 
-/// 品牌色
-const Color yibinBlue = Color(0xFF191999);
+/// ============================================================================
+/// 白底界面（2026-09-20 重构）：全项目不再使用「主题色」——主界面为白色，
+/// 强调/选中/按钮等交互层统一用中性「墨色」（浅色近黑 / 深色近白），
+/// 颜色只由各模块图标自身承载（见 home/app_data.dart 的 AppEntry.color）。
+/// ============================================================================
 
-/// 是否为深色模式
+/// 墨色（浅色模式）：按钮、选中态、强调文字的中性前景色
+const Color kInkLight = Color(0xFF111114);
+
+/// 墨色（深色模式）：深色下反向为近白
+const Color kInkDark = Color(0xFFF5F4F2);
+
+/// 主界面纯白底（浅色模式；卡片/导航玻璃均以白色为基）
+const Color kSurfaceWhite = Color(0xFFFFFFFF);
+
+/// 浅色模式页面底色（白色之上的极浅灰，用于分组背景）
+const Color kGroupedLight = Color(0xFFF5F5F7);
+
+/// 浅色模式毛玻璃基色（半透明白，用于卡片/宫格方块）
+const Color kGlassBaseLight = Color(0xFFFFFFFF);
+
+/// 是否深色模式
 bool isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 

@@ -140,12 +140,15 @@ class _CalendarPageState extends State<CalendarPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 左侧学年标识
+              // 左侧学年标识（中性墨色底/字，2026-09-20 去主题色）
               Container(
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
@@ -156,7 +159,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -342,8 +345,11 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer
-                  .withValues(alpha: 0.3),
+              // 中性墨色极浅底（2026-09-20 去主题色）
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.06),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,20 +1,67 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:smartcampus/auth/login_page.dart';
+import 'package:smartcampus/core/http_client.dart';
 import 'package:smartcampus/main.dart';
+import 'package:smartcampus/splash/startup_flow.dart';
+import 'package:smartcampus/welcome/welcome_gate.dart';
+import 'package:smartcampus/welcome/welcome_page.dart';
+
+/// 结算欢迎页入场动画（_exitAnim 420ms）+ 交接后的若干帧
+Future<void> _settleEntry(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 600));
+  await tester.pump(const Duration(milliseconds: 600));
+}
 
 void main() {
-  testWidgets('App boot smoke test', (WidgetTester tester) async {
+  testWidgets('启动进入欢迎首屏（轮播 + 图文 + 向上拉取入场）',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const SmartCampusApp());
 
-    // SplashPage 启动过渡：品牌名 + 会话校验提示（登录页文案已更新为
-    // '宜院宾果'，旧断言 '宜宾学院'/'智慧校园登录' 已过时）。
-    expect(find.text('宜院宾果'), findsOneWidget);
-    expect(find.text('验证 Cookie 中…'), findsOneWidget);
+    // 2026-09-20：入口为 WelcomeGate，**每次启动都先展示欢迎首屏**
+    expect(find.byType(WelcomeGate), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(WelcomePage), findsOneWidget);
 
-    // 推进时间结算 SplashPage 的 800ms 延迟 + 页面过渡动画：测试环境
-    // 无本地凭据 → autoRelogin 立即返回 false → 进入登录页，
-    // 避免测试结束时残留 pending Timer（flutter_test 强制校验）。
+    // 第 1 页文案 + 主按钮 + 分页容器
+    expect(find.text('百川归海\n一处相逢'), findsOneWidget);
+    expect(find.text('开始使用'), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget);
+
+    // 左右手动滑动不异常（自动滚动为 4s 周期，此处仅验证手势路径）
+    await tester.drag(find.byType(PageView), const Offset(-360, 0));
     await tester.pump(const Duration(milliseconds: 900));
-    await tester.pump(const Duration(milliseconds: 400));
+
+    // 向上拉取入场：欢迎页整屏上滑出屏后**就地交接**（无页面跳转），
+    // 且不出现旧的「验证 Cookie 中…」过渡页。
+    await tester.drag(find.byType(WelcomePage), const Offset(0, -400));
+    await _settleEntry(tester);
+    expect(find.byType(WelcomePage), findsNothing);
+    expect(find.text('验证 Cookie 中…'), findsNothing);
+  });
+
+  testWidgets('点击开始使用就地进入目标页（无独立过渡/登录中间屏）',
+      (WidgetTester tester) async {
+    // 注入立即返回的假分流：测试环境本地文件 IO 在 fake-async 下不会完成，
+    // 无法等出真实分流结果（真实分流见 lib/splash/startup_flow.dart）。
+    await tester.pumpWidget(MaterialApp(
+      home: WelcomeGate(
+        resolver: () async => StartupTarget(
+          page: const LoginPage(),
+          client: SharedHttpClient(),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(WelcomePage), findsOneWidget);
+
+    await tester.tap(find.text('开始使用'));
+    await _settleEntry(tester);
+
+    expect(find.byType(WelcomePage), findsNothing);
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(find.text('验证 Cookie 中…'), findsNothing);
   });
 }

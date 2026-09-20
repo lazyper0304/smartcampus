@@ -59,6 +59,10 @@ class AppEntry {
     this.badge,
     this.requiresLogin = false,
   });
+
+  /// 模块专属色（彩色图标方案）：按名称查 [kModuleColors]，
+  /// 未登记的条目回退中性灰（见 app_data.dart 末尾色表）。
+  Color get color => kModuleColors[name] ?? _kModuleFallbackColor;
 }
 
 /// 所有应用列表
@@ -187,3 +191,59 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.videocam_rounded, name: '融媒广角', category: AppCategory.news,
     pageBuilder: (ctx, c, uid) => const ColumnListPage(title: '融媒广角', columnId: 'rmgj', firstPageUrl: 'https://www.yibinu.edu.cn/rmgj.htm')),
 ];
+
+/// ---------------------------------------------------------------------------
+/// 模块专属色表（彩色图标）：一个模块一个色相，色相只用于该模块图标自身，
+/// 不再作为界面主题色使用（界面主色统一为中性的「墨色」，见 theme_utils.dart）。
+///
+/// 取值参考 iOS 系统色系：饱和度适中、明度高，白底与深色底上均清晰；
+/// 同类模块（教务/服务/资讯）内部刻意错开色相，便于宫格中快速定位。
+/// ---------------------------------------------------------------------------
+const Color _kModuleFallbackColor = Color(0xFF78849E);
+
+const Map<String, Color> kModuleColors = {
+  // ── 教务 ──
+  '我的课表': Color(0xFF3B6BFF), // 蓝：课表主入口
+  '全校课表': Color(0xFF6C5CE7), // 靛紫
+  '成绩查询': Color(0xFFFF8A3D), // 橙：成绩
+  '考试安排': Color(0xFFF2545B), // 红：考试
+  '学业完成': Color(0xFF9B59F6), // 紫：学业进度
+  '校历服务': Color(0xFF22B8E6), // 亮蓝
+  '综合素质': Color(0xFFE056A0), // 品红
+  '已购教材': Color(0xFF7CB342), // 草绿：书本
+  '教学单位': Color(0xFF78849E), // 石板灰：组织
+  '职能部门': Color(0xFF8D6E63), // 棕：行政
+  '学科竞赛': Color(0xFFF5A623), // 金：奖杯
+  '创新创业': Color(0xFF14B8A6), // 青绿：火箭
+  '第二课堂': Color(0xFFC05CF0), // 洋紫
+  '空闲教室': Color(0xFF2D9CDB), // 天蓝：教室
+  '玻尔科研': Color(0xFF00A6A6), // 科研青
+  '课程查询': Color(0xFF5C6BC0), // 灰蓝
+  '全校方案': Color(0xFFAB47BC), // 紫罗兰
+  '网上评教': Color(0xFFFF7043), // 朱橙：评教
+
+  // ── 服务 ──
+  '临港电费': Color(0xFFFFB020), // 琥珀：电
+  '校车时间': Color(0xFF3B6BFF), // 蓝：班车
+  '就业信息': Color(0xFF6C5CE7), // 靛紫：就业
+  '网络服务': Color(0xFF22B8E6), // 亮蓝：网络
+  '校园VPN': Color(0xFF2FB344), // 绿：隧道
+  '校园安全': Color(0xFFF2545B), // 红：安全
+  'VR地图': Color(0xFF14B8A6), // 青绿：地图
+  '办公网': Color(0xFF8D6E63), // 棕：办公
+  '邮件系统': Color(0xFF2D9CDB), // 天蓝：邮件
+  '领导信箱': Color(0xFFE056A0), // 品红：信箱
+  'QQ频道': Color(0xFF4C8DFF), // QQ 蓝
+  'CARSI': Color(0xFF9B59F6), // 紫：联盟资源
+
+  // ── 资讯 ──
+  '校园新闻': Color(0xFF3B6BFF),
+  '师生风采': Color(0xFFFF8A3D),
+  '科研动态': Color(0xFF00A6A6),
+  '通知公告': Color(0xFFF2545B),
+  '学校要闻': Color(0xFF6C5CE7),
+  '宜院大讲堂': Color(0xFFE056A0),
+  '学术看板': Color(0xFF22B8E6),
+  '媒体关注': Color(0xFF7CB342),
+  '融媒广角': Color(0xFFF5A623),
+};

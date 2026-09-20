@@ -1,7 +1,6 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
+import '../core/glass_style.dart';
 import '../core/theme_utils.dart';
 import '../main.dart';
 import 'course.dart';
@@ -9,6 +8,26 @@ import 'course_config.dart';
 
 /// 星期标签（周→文字）
 const List<String> kDayLabels = ['一', '二', '三', '四', '五', '六', '日'];
+
+// ---------------------------------------------------------------------------
+// 「当天」高亮：统一用中性墨色（2026-09-20 去主题色）
+//
+// 原先用 `colorScheme.primary / primaryContainer`（主题色派的派生色），
+// 在白色主界面下仍是带色调的强调块；现改为与界面同一套墨色：
+// 浅色=近黑、深色=近白，只靠不透明度区分层次，不再有任何色相。
+// ---------------------------------------------------------------------------
+
+/// 当天高亮填充（列头 / 格子）
+Color _todayFill(BuildContext context) => accentColorNotifier.value
+    .withValues(alpha: isDark(context) ? 0.18 : 0.10);
+
+/// 当天高亮描边
+Color _todayBorder(BuildContext context) => accentColorNotifier.value
+    .withValues(alpha: isDark(context) ? 0.55 : 0.38);
+
+/// 当天强调文字（周X / 日期 / 胶囊按钮文字）：直接用墨色本身
+/// （浅色=近黑、深色=近白，两种模式下都满足对比度）
+Color _todayInk(BuildContext context) => accentColorNotifier.value;
 
 /// 从当前主题色生成 12 级课程卡片色阶，若配置了自定义颜色则优先使用
 List<Color> generateCourseColors(CourseTableConfig? config) {
@@ -381,12 +400,12 @@ class _WeekHeader extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: isToday
-                      ? Theme.of(context).colorScheme.primaryContainer
+                      ? _todayFill(context)
                       : accentColorNotifier.value.withValues(alpha: 0.06),
                   border: showGrid
                       ? Border.all(
                           color: isToday
-                              ? Theme.of(context).colorScheme.primary
+                              ? _todayBorder(context)
                               : isDark(context)
                                   ? const Color(0xFF4A4A5E)
                                   : Colors.grey.shade300,
@@ -402,7 +421,7 @@ class _WeekHeader extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         fontSize: 13 * textScale,
                         color: isToday
-                            ? Theme.of(context).colorScheme.primary
+                            ? _todayInk(context)
                             : isWeekend
                                 ? textHint(context)
                                 : textPrimary(context),
@@ -416,7 +435,7 @@ class _WeekHeader extends StatelessWidget {
                           fontSize: 10 * textScale,
                           fontWeight: FontWeight.w500,
                           color: isToday
-                              ? Theme.of(context).colorScheme.primary
+                              ? _todayInk(context)
                               // ⚠️ 原 Colors.black87 深色模式下黑字不可见
                               // → 跟随主题（textSecondary 深色浅灰）
                               : textSecondary(context),
@@ -503,12 +522,7 @@ class _GridRow extends StatelessWidget {
               child: Container(
                 height: cellH,
                 decoration: BoxDecoration(
-                  color: isToday
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.35)
-                      : null,
+                  color: isToday ? _todayFill(context) : null,
                   border: showGrid
                       ? Border.all(
                           color: isDark(context)
@@ -640,12 +654,11 @@ class _CourseCard extends StatelessWidget {
     );
 
     if (radius > 0) {
+      // 2026-09-20：课程卡片取消毛玻璃（原先用 BackdropFilter 模糊卡片底色），
+      // 只保留圆角裁剪——卡片沿用自身语义底色，界面整体实色化。
       cardBody = ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: cardBody,
-        ),
+        child: cardBody,
       );
     }
 
@@ -696,44 +709,22 @@ void showCourseDetailSheet(BuildContext context, Course course) {
         );
       }
 
-      // ⚠️ 磨砂玻璃容器（与 showQuickAppPicker 同款）：主背景
+      // 2026-09-20：弹窗改为实色面板（取消毛玻璃）。主背景
       // scaffoldBackgroundColor 全局为透明（main.dart），不能用它做弹窗底色，
       // 否则内容直接透出底下页面（2026-08-09 修复课程详情弹窗背景透明）。
-      // 顶部 40 留白放最外层 Padding——若放 Container margin，
-      // BackdropFilter 会覆盖整片（含留白区），弹窗上方出现多余模糊带。
-      final sheetIsDark = Theme.of(ctx).brightness == Brightness.dark;
-      final sheetBase =
-          sheetIsDark ? const Color(0xFF1C1C1E) : Colors.white;
       return Padding(
         padding: const EdgeInsets.only(top: 40),
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              decoration: BoxDecoration(
-                // 顶部略亮模拟玻璃反光，主体半透明透出模糊背景
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    sheetBase.withValues(alpha: sheetIsDark ? 0.55 : 0.45),
-                    sheetBase.withValues(alpha: sheetIsDark ? 0.48 : 0.38),
-                  ],
-                  stops: const [0.0, 0.45],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(22)),
-                border: Border(
-                  top: BorderSide(
-                    color: sheetIsDark
-                        ? Colors.white.withValues(alpha: 0.10)
-                        : Colors.white.withValues(alpha: 0.45),
-                  ),
-                ),
-              ),
-              child: Column(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            decoration: BoxDecoration(
+              color: solidSurface(ctx),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22)),
+              border: Border(top: BorderSide(color: solidHairline(ctx))),
+            ),
+            child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -795,7 +786,6 @@ void showCourseDetailSheet(BuildContext context, Course course) {
               ),
             ),
           ),
-        ),
       );
     },
   );
@@ -843,13 +833,13 @@ class CourseWeekBar extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  // 「回到本周」胶囊：中性墨色浅底 + 墨色文字（去主题色）
+                  color: _todayFill(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text('回到本周',
                     style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.primary)),
+                        fontSize: 11, color: _todayInk(context))),
               ),
             ),
           const Spacer(),

@@ -9,6 +9,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/responsive.dart';
 import '../core/input_adaptation.dart';
 import '../core/theme_utils.dart';
+import '../core/glass_style.dart';
 import '../core/liquid_background.dart';
 import '../core/http_client.dart';
 import '../core/local_storage.dart';
@@ -29,8 +30,9 @@ import 'app_data.dart';
 import '../core/navigation.dart';
 import '../main.dart';
 
-/// 当前生效的主题色（跟随外观设置动态变化）
-Color get _accentBlue => accentColorNotifier.value;
+/// 界面墨色（去主题色后的中性强调色：浅色近黑 / 深色近白，
+/// 随明暗模式自动切换，见 main.dart 的 accentColorNotifier 同步）
+Color get _ink => accentColorNotifier.value;
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
@@ -108,17 +110,11 @@ class _MainScreenState extends State<MainScreen> {
     final isWide = isWideScreen(context);
 
     return GlassScaffold(
-      // 页面玻璃参数统一在此层设置（grouped 子 widget 继承，避免
-      // per-widget settings 被忽略的警告）；quality 全局 standard。
-      // 与底部导航栏参数一致（用户要求应用按钮同款）。
-      settings: const LiquidGlassSettings(
-        thickness: 30,
-        blur: 5,
-        glowIntensity: 1.2,
-        refractiveIndex: 2.6,
-        specularSharpness: GlassSpecularSharpness.sharp,
-        standardOpacityMultiplier: 0.8,
-      ),
+      // 2026-09-20 材质定案：页面层改为「实色」——取消界面毛玻璃。
+      // 液态玻璃只保留在导航栏：底部 GlassTabBar.bottom 与宽屏侧栏
+      //（_buildSideRail 手写 BackdropFilter）各自显式设置参数，
+      // 优先级高于本处，故导航栏观感不受影响。见 core/glass_style.dart。
+      settings: _isDark(context) ? kFlatPageSettingsDark : kFlatPageSettings,
       // 背景：页面级液态玻璃背景（与登录页 / 二级页一致）。
       // ⚠️ 此前用 SizedBox.shrink() 完全透明透出全局背景，导致
       // CupertinoPageRoute 转场期间新路由（本页）透明 → 滑入时直接透出
@@ -209,8 +205,8 @@ class _MainScreenState extends State<MainScreen> {
           // 丢失 Windows 统一雅黑 fontFamily（GlassTabBar label 回退默认字体）。
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.fromSeed(
-              seedColor: _accentBlue,
-              primary: _accentBlue,
+              seedColor: _ink,
+              primary: _ink,
             ),
           ),
           child: GlassTabBar.bottom(
@@ -246,25 +242,25 @@ class _MainScreenState extends State<MainScreen> {
             tabs: [
               GlassTab(
                 icon: const Icon(CupertinoIcons.house),
-                activeIcon: Icon(CupertinoIcons.house_fill, color: _accentBlue),
+                activeIcon: Icon(CupertinoIcons.house_fill, color: _ink),
                 label: '首页',
               ),
               GlassTab(
                 icon: const Icon(CupertinoIcons.calendar),
                 activeIcon:
-                    Icon(CupertinoIcons.calendar, color: _accentBlue),
+                    Icon(CupertinoIcons.calendar, color: _ink),
                 label: '课表',
               ),
               GlassTab(
                 icon: const Icon(CupertinoIcons.square_grid_2x2),
                 activeIcon:
-                    Icon(CupertinoIcons.square_grid_2x2_fill, color: _accentBlue),
+                    Icon(CupertinoIcons.square_grid_2x2_fill, color: _ink),
                 label: '应用',
               ),
               GlassTab(
                 icon: const Icon(CupertinoIcons.settings),
                 activeIcon:
-                    Icon(CupertinoIcons.settings, color: _accentBlue),
+                    Icon(CupertinoIcons.settings, color: _ink),
                 label: '设置',
               ),
             ],
@@ -298,21 +294,12 @@ class _MainScreenState extends State<MainScreen> {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               decoration: BoxDecoration(
-                // 液态玻璃渐变：顶部高光（反光）+ 主体半透明，模拟折射层次
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    (isDark ? Colors.white : Colors.white)
-                        .withValues(alpha: isDark ? 0.14 : 0.55),
-                    (isDark ? const Color(0xFF1A1A2E) : Colors.white)
-                        .withValues(alpha: isDark ? 0.42 : 0.30),
-                  ],
-                  stops: const [0.0, 0.38],
-                ),
+                // 侧栏玻璃：纯色半透明（2026-09-20 去渐变，只保留 BackdropFilter 模糊）
+                color: (isDark ? const Color(0xFF1A1A2E) : Colors.white)
+                    .withValues(alpha: isDark ? 0.42 : 0.32),
                 border: Border(
                   right: BorderSide(
-                    color: (isDark ? Colors.white : _accentBlue)
+                    color: (isDark ? Colors.white : _ink)
                         .withValues(alpha: 0.14),
                   ),
                 ),
@@ -344,14 +331,8 @@ class _MainScreenState extends State<MainScreen> {
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _accentBlue.withValues(alpha: isDark ? 0.75 : 0.90),
-            _accentBlue.withValues(alpha: isDark ? 0.55 : 0.70),
-          ],
-        ),
+        // 纯色墨色方块（去渐变）
+        color: _ink.withValues(alpha: isDark ? 0.70 : 0.88),
         borderRadius: BorderRadius.circular(13),
         // 高光描边模拟玻璃边缘
         border: Border.all(
@@ -359,7 +340,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: _accentBlue.withValues(alpha: isDark ? 0.35 : 0.22),
+            color: _ink.withValues(alpha: isDark ? 0.35 : 0.22),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -383,8 +364,8 @@ class _MainScreenState extends State<MainScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           // 桌面悬停反馈（平板触屏无 hover 不干扰）
-          hoverColor: _accentBlue.withValues(alpha: isDark ? 0.14 : 0.08),
-          splashColor: _accentBlue.withValues(alpha: 0.10),
+          hoverColor: _ink.withValues(alpha: isDark ? 0.14 : 0.08),
+          splashColor: _ink.withValues(alpha: 0.10),
           // 桌面鼠标手型光标（键盘 Tab 聚焦 + Enter 激活由 InkWell 内置）
           mouseCursor: SystemMouseCursors.click,
           onTap: () => setState(() => _currentIndex = i),
@@ -398,16 +379,9 @@ class _MainScreenState extends State<MainScreen> {
             ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              // 选中：玻璃胶囊（accent 渐变 + 白色高光描边，静态玻璃无 shader）
-              gradient: selected
-                  ? LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        _accentBlue.withValues(alpha: isDark ? 0.30 : 0.20),
-                        _accentBlue.withValues(alpha: isDark ? 0.18 : 0.12),
-                      ],
-                    )
+              // 选中：纯色墨色胶囊（去渐变，保留白色高光描边）
+              color: selected
+                  ? _ink.withValues(alpha: isDark ? 0.24 : 0.15)
                   : null,
               border: selected
                   ? Border.all(
@@ -431,7 +405,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Icon(def.icon,
                           size: 22,
                           color:
-                              selected ? _accentBlue : textSecondary(context)),
+                              selected ? _ink : textSecondary(context)),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -440,7 +414,7 @@ class _MainScreenState extends State<MainScreen> {
                         fontSize: selected ? 12 : 11,
                         fontWeight:
                             selected ? FontWeight.w600 : FontWeight.normal,
-                        color: selected ? _accentBlue : textSecondary(context),
+                        color: selected ? _ink : textSecondary(context),
                       ),
                     ),
                   ],
@@ -456,7 +430,7 @@ class _MainScreenState extends State<MainScreen> {
                         width: 3,
                         height: 22,
                         decoration: BoxDecoration(
-                          color: _accentBlue,
+                          color: _ink,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -697,31 +671,21 @@ class _AppsPageState extends State<_AppsPage> {
     );
   }
 
-  /// 搜索栏：静态玻璃样式（与内容卡片同款——半透明渐变 + 白色高光描边，
-  /// 无 BackdropFilter/shader 依赖，滚动与 overscroll 稳定）
+  /// 搜索栏：实色样式（2026-09-20 去渐变）——纯色浅底 + 极淡描边
   Widget _buildSearchBar() {
     final isDark = _isDark(context);
-    final baseColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final baseColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
     return ClipRRect(
       borderRadius: BorderRadius.circular(kIosTileRadius),
       child: Container(
         height: 42,
         decoration: BoxDecoration(
-          // 顶部略亮模拟玻璃反光，主体半透明透出背景
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              baseColor.withValues(alpha: isDark ? 0.55 : 0.45),
-              baseColor.withValues(alpha: isDark ? 0.48 : 0.38),
-            ],
-            stops: const [0.0, 0.45],
-          ),
+          color: baseColor,
           borderRadius: BorderRadius.circular(kIosTileRadius),
           border: Border.all(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.10)
-                : Colors.white.withValues(alpha: 0.45),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06),
           ),
         ),
         child: Material(
@@ -774,7 +738,8 @@ class _AppsPageState extends State<_AppsPage> {
 
   Widget _buildAppCard(AppEntry entry) {
     final guestLocked = GuestMode.active && entry.requiresLogin;
-    final accent = _accentBlue;
+    // 彩色图标：模块专属色（游客锁定的条目降级为中性灰）
+    final tileColor = guestLocked ? const Color(0xFF9E9EB0) : entry.color;
     return Clickable(
       onTap: () {
         if (guestLocked) {
@@ -811,22 +776,23 @@ class _AppsPageState extends State<_AppsPage> {
                         borderRadius: BorderRadius.circular(tileSize * 0.28),
                         boxShadow: active
                             ? [
+                                // 中性投影（不做彩色光晕，保持纯色块观感）
                                 BoxShadow(
-                                  color: (guestLocked ? Colors.grey : accent)
-                                      .withValues(
-                                          alpha: focused ? 0.55 : 0.32),
-                                  blurRadius: tileSize * 0.34,
+                                  color: Colors.black.withValues(
+                                      alpha: focused ? 0.22 : 0.13),
+                                  blurRadius: tileSize * 0.30,
                                   spreadRadius: 1,
                                 ),
                               ]
                             : const [],
                       ),
-                      // 静态玻璃方块（与内容卡片同款；不用 GlassButton——
+                      // 彩色实心方块（模块专属色 + 白色图形；不用 GlassButton——
                       // shader 组件 GLES 不渲染且网格 30+ 个同时渲染掉帧/耗电）
                       child: appTileGlass(
                         context: context,
                         icon: entry.icon,
-                        iconColor: guestLocked ? Colors.grey : accent,
+                        iconColor: Colors.white,
+                        fill: tileColor,
                         size: tileSize,
                       ),
                     ),

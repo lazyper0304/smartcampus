@@ -58,14 +58,8 @@ class SafetyPage extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            colors: [
-              _redAccent.withValues(alpha: 0.06),
-              _redAccent.withValues(alpha: 0.02),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          // 纯色浅底（2026-09-20 去渐变）
+          color: _redAccent.withValues(alpha: 0.05),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -103,15 +97,8 @@ class SafetyPage extends StatelessWidget {
         width: 88,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              _redAccent.withValues(alpha: 0.30),
-              _redAccent.withValues(alpha: 0.22),
-            ],
-            stops: const [0.0, 0.45],
-          ),
+          // 纯色浅底 + 描边（2026-09-20 去渐变）
+          color: _redAccent.withValues(alpha: 0.26),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _redAccent.withValues(alpha: 0.6)),
         ),
