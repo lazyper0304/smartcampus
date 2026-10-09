@@ -19,6 +19,7 @@ import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
 import '../ecard/ecard_page.dart';
+import '../order_qrcode/order_qrcode_page.dart';
 import '../units/units_page.dart';
 import '../departments/departments_page.dart';
 import '../employ/employ_page.dart';
@@ -130,6 +131,13 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.credit_card_rounded, name: '校园一卡通', category: AppCategory.service,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => const EcardPage()),
+  // 点餐码：共享校内商家的点单二维码 + 评价，经 Bingo 后端代理 /order-qrcode/*。
+  // 参考实现 E:/project/YibinApp/Flutter/lib/features/apps/order_qrcode/，
+  // 已按本项目范式改写：无 Riverpod（改 ListenableBuilder + ChangeNotifier）、
+  // 无 dio（走 BingoClient）、无 easy_localization。
+  AppEntry(icon: Icons.qr_code_rounded, name: '点餐码', category: AppCategory.service,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => const OrderQrcodePage()),
   AppEntry(icon: Icons.directions_bus_rounded, name: '校车时间', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const ShuttlePage()),
   AppEntry(icon: Icons.work_rounded, name: '就业信息', category: AppCategory.service,
@@ -228,6 +236,8 @@ const Map<String, Color> kModuleColors = {
   '网上评教': Color(0xFFFF7043), // 朱橙：评教
 
   // ── 服务 ──
+  '校园一卡通': Color(0xFF2D9CDB), // 天蓝：卡片
+  '点餐码': Color(0xFFFF9F43), // 餐饮橙：扫码点餐
   '临港电费': Color(0xFFFFB020), // 琥珀：电
   '校车时间': Color(0xFF3B6BFF), // 蓝：班车
   '就业信息': Color(0xFF6C5CE7), // 靛紫：就业

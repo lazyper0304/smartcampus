@@ -5,6 +5,11 @@
     <!-- 校园 VPN 前台服务（API 34+ 要求类型对应权限） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 点餐码：扫商家二维码（mobile_scanner 需要相机权限） -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 相机非必需：无相机设备（如部分平板）仍可手动输入二维码内容 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <application
         android:label="宜院宾果"
         android:name="${applicationName}"
