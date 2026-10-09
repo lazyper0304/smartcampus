@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/responsive.dart';
+
 /// 欢迎首屏轮播（2026-09-20 新增，同日多轮迭代）
 ///
 /// 版式参考用户提供的设计稿：满屏校园实景图 → 上方两行大标题 + 一行副标题
@@ -189,7 +191,7 @@ class _WelcomePageState extends State<WelcomePage>
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bottomInset = systemBottomInset(context);
     final h = MediaQuery.of(context).size.height;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(

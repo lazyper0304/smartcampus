@@ -6,6 +6,7 @@ import '../core/http_client.dart';
 import '../core/input_adaptation.dart';
 import '../core/ios_kit.dart';
 import '../core/glass_action_button.dart';
+import '../core/responsive.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import '../main.dart';
@@ -1162,7 +1163,7 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
         16,
         12,
         16,
-        12 + MediaQuery.of(context).padding.bottom * 0.5,
+        12 + systemBottomInset(context) * 0.5,
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,

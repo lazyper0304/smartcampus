@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../core/responsive.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -310,7 +312,7 @@ class _BohriumPageState extends State<BohriumPage> {
         left: 8,
         right: 8,
         top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 4,
+        bottom: systemBottomInset(context) + 4,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,

@@ -48,7 +48,10 @@ class _SimplePageState extends State<SimplePage> {
   void initState() {
     super.initState();
     if (widget.edgeToEdge) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      // ⚠️ 不能设为 `SystemUiMode.edgeToEdge` —— 那会让状态栏重新可见，
+      // 破坏 main.dart 设置的**全局沉浸式**（immersiveSticky）。
+      // 这里只重申同一模式（内容延伸到系统栏下方）而不显示系统栏。
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
   }
 

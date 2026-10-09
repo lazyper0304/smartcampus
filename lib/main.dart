@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart' show CupertinoThemeData, CupertinoTextThemeData;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -41,6 +42,16 @@ void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await CrashLog.init();
+
+    // 全局沉浸式：状态栏与导航栏全隐藏，内容占满整屏。
+    // `immersiveSticky` 而非 `immersive`：下拉屏幕可临时唤出系统栏（再自动隐藏），
+    // 用户仍能看时间/电量，也能用返回手势。
+    //
+    // ⚠️ 必须放在 runApp 之前：路由切换时系统栏若可见会出现短暂闪烁。
+    // ⚠️ 隐藏后 `MediaQuery.padding` 顶部为 0，各页面**不能再用 padding.top
+    // 做顶部留白**（会失效导致内容顶到屏幕边缘）。SimplePage.edgeToEdge
+    // 与各页面的 SafeArea 均按此前提设计。
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     // 双下放登录：预热 Bingo 侧 access_token（课表/成绩/评教/办公网/第二课堂
     // 共用该凭证），使冷启动后首个业务请求即可携带 Bearer，不必等登录页。
@@ -231,6 +242,26 @@ class _SmartCampusAppState extends State<SmartCampusApp>
       darkTheme: _buildTheme(Brightness.dark),
       themeMode: _themeMode,
       builder: (context, child) {
+        // ⚠️ 全局沉浸式的顶部避让兜底。
+        //
+        // 系统栏已隐藏时 `MediaQuery.padding.top/bottom` 恒为 0，导致
+        // 全项目 70+ 处 `AppBar(primary: true)` 的顶部留白**全部失效**
+        // （标题顶到屏幕物理边缘、被刘海/挖孔遮挡）。
+        //
+        // 这里把 `padding` 还原为 `viewPadding`（物理遮挡值，不受系统栏
+        // 可见性影响），一次性让所有 AppBar / SafeArea 恢复正常留白，
+        // 无需逐页修改。
+        //
+        // ⚠️ **只还原 top，不动 bottom**：底部栏已由
+        // `GlassScaffold.bottomBar` + `SafeArea`（Android 分支直读真实
+        // 手势区，见 core/responsive.dart）处理，若此处再补 bottom 会双份留白。
+        final mq = MediaQuery.of(context);
+        final childWithPadding = MediaQuery(
+          data: mq.copyWith(
+            padding: mq.padding.copyWith(top: mq.viewPadding.top),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
         // ⚠️ 全局输入适配：Esc 返回 + 动态组件密度（触控宽松/桌面紧凑）。
         // AppShortcuts 位于 Navigator 之上，Esc 经 navigatorKey 触达路由栈。
         return AppShortcuts(
@@ -275,7 +306,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
                   fit: StackFit.expand,
                   children: [
                     bg,
-                    child!,
+                    childWithPadding,
                   ],
                 );
               },
@@ -287,7 +318,7 @@ class _SmartCampusAppState extends State<SmartCampusApp>
                   return Theme(
                     data: _buildTheme(brightness)
                         .copyWith(visualDensity: adaptiveVisualDensity(width)),
-                    child: child!,
+                    child: childWithPadding,
                   );
                 },
               ),

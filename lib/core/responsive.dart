@@ -73,6 +73,21 @@ double denseBottomBarPadding(BuildContext context) {
   return kGlassBottomBarHeight + systemBottom + 8;
 }
 
+/// 沉浸式模式下读取**真实**的系统手势区 / 导航区高度。
+///
+/// ⚠️ 全局启用 `SystemUiMode.immersiveSticky` 后系统栏隐藏，
+/// `MediaQuery.paddingOf(context).bottom` **恒为 0**，直接用它会让
+/// 底部悬浮按钮紧贴屏幕边缘、甚至被手势条/虚拟按键遮挡。
+/// `viewPadding` 记录的仍是物理遮挡值，故从 FlutterView 直读最可靠
+/// （与 [denseBottomBarPadding] 同一规避思路）。
+///
+/// 普通机型返回 0；手势导航机型返回手势区高度；��键导航返回按键区高度。
+double systemBottomInset(BuildContext context) {
+  final view = View.maybeOf(context);
+  if (view == null) return 0.0;
+  return MediaQueryData.fromView(view).viewPadding.bottom;
+}
+
 /// 根据「可用宽度」计算应用网格列数，自适应横屏与桌面宽屏。
 /// 档位与首页「常用功能」宫格对齐（3 → 4 → 6 → 8），
 /// 调用方须传入**实际渲染宽度**（LayoutBuilder 约束），而非屏幕总宽，

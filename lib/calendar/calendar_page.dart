@@ -2,6 +2,8 @@ import 'dart:io';
 import '../core/liquid_background.dart';
 
 import 'package:flutter/material.dart';
+
+import '../core/responsive.dart';
 import 'package:flutter/services.dart';
 
 import 'calendar.dart';
@@ -482,11 +484,13 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
 
   /// 底部操作栏：下载PDF
   Widget _buildBottomBar() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
+    // ⚠️ 不用 SafeArea：全局沉浸式下 `MediaQuery.padding.bottom` 恒为 0，
+    // 直读 FlutterView 的物理手势区（见 responsive.systemBottomInset）
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          12, 12, 12, 12 + systemBottomInset(context)),
+      child: Row(
+        children: [
             // 复制链接
             Expanded(
               child: OutlinedButton.icon(
@@ -506,7 +510,6 @@ class _CalendarDetailPageState extends State<CalendarDetailPage> {
               ),
             ),
           ],
-        ),
       ),
     );
   }

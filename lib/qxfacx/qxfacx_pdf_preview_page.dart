@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../core/responsive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 
@@ -106,10 +108,12 @@ class _QxFacxPdfPreviewPageState extends State<QxFacxPdfPreviewPage> {
               child: PlatformPdfView(filePath: widget.filePath),
             ),
             // 导出操作条
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            // ⚠️ 不用 SafeArea：全局沉浸式下 `MediaQuery.padding.bottom` 恒 0，
+            // 直读 FlutterView 物理手势区（见 responsive.systemBottomInset）
+            Builder(
+              builder: (ctx) => Container(
+                padding: EdgeInsets.fromLTRB(
+                    16, 10, 16, 12 + systemBottomInset(ctx)),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(

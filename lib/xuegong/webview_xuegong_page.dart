@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
+
+import '../core/responsive.dart';
 
 import '../core/http_client.dart';
 import '../main.dart';
@@ -300,7 +303,7 @@ class _WebViewXuegongPageState extends State<WebViewXuegongPage> {
         left: 8,
         right: 8,
         top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 4,
+        bottom: systemBottomInset(context) + 4,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
