@@ -513,16 +513,33 @@ class WspjPaper {
   });
 
   /// 按 `ZBDM` 归并后的题目（保持 `ZBPX` 排序）
+  /// 题目列表：**按「题目 × 教师」展开**，每项是一个可独立作答的条目
+  ///
+  /// ⚠️ Bingo 一份问卷可含**多位被评教师**（实测 25 题 × 6 教师 = 150 条），
+  /// 同一 `ZBDM` 下有多个不同 `BPR` 的行。若按 `ZBDM` 去重会折叠成 25 项，
+  /// 导致其余 5 位教师**无法作答**且提交时缺答案 —— 故此处**不做去重**，
+  /// 让 UI 按题目分组渲染、组内每位教师一个作答块（对齐 BingoApp `_TeacherAnswerBlock`）。
   List<WspjQuestion> get questions {
-    final seen = <String>{};
-    final out = <WspjQuestion>[];
-    for (final r in rows) {
-      if (r.zbdm.isEmpty) continue;
-      if (seen.add(r.zbdm)) out.add(r);
-    }
-    out.sort((a, b) => (int.tryParse(a.zbpx) ?? 0)
-        .compareTo(int.tryParse(b.zbpx) ?? 0));
+    final out = rows.where((r) => r.zbdm.isNotEmpty).toList();
+    out.sort((a, b) {
+      final c = (int.tryParse(a.zbpx) ?? 0).compareTo(int.tryParse(b.zbpx) ?? 0);
+      if (c != 0) return c;
+      // 同题内按教师工号排序，保证渲染顺序与服务器返回无关
+      return a.bpr.compareTo(b.bpr);
+    });
     return out;
+  }
+
+  /// 按 `ZBDM` 把 [questions] 分组（每组 = 一道题 + 它的全部教师行）
+  ///
+  /// 组内按 `ZBDM` 归并，供答题页「题下挂教师」渲染；选择题的档位行
+  /// 已由 mapper 合成为同一 `ZBDM` 的多行，故归并后仍能正确取到选项。
+  Map<String, List<WspjQuestion>> groupByQuestion() {
+    final map = <String, List<WspjQuestion>>{};
+    for (final r in questions) {
+      map.putIfAbsent(r.zbdm, () => <WspjQuestion>[]).add(r);
+    }
+    return map;
   }
 
   /// 取某题的选项行（同一 `ZBDM` 的其他行）

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../core/input_adaptation.dart';
 import '../core/ios_kit.dart';
+import '../core/glass_style.dart';
 import '../core/glass_action_button.dart';
 import '../core/responsive.dart';
 import '../core/simple_page.dart';
@@ -56,8 +57,8 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
   String? _error;
   bool _submitting = false;
 
-  /// 一键填充分值比例（0.90 / 0.95 / 1.00）
-  double _fillRatio = WspjAnswerSheet.kDefaultFillRatio;
+  /// 一键填充分值比例：**固定 95%，不提供档位切换**（见 [_buildAutoFillRow]）
+  static const double _fillRatio = WspjAnswerSheet.kDefaultFillRatio;
 
   @override
   void initState() {
@@ -260,15 +261,14 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
     if (missing.isNotEmpty) {
       await _alert(
         title: '还有题目未作答',
-        message: '以下 ${missing.length} 道必答题未完成：\n\n'
+        message: '以下 ${missing.length} 个评教项未完成：\n\n'
             '${missing.take(5).map((e) => '· $e').join('\n')}'
             '${missing.length > 5 ? '\n…等共 ${missing.length} 题' : ''}',        confirmText: '去作答',
         onConfirm: () {
-          // 滚动到第一道未答题
-          final target = sheet.firstUnansweredIndex(paper);
+          // 滚动到第一道未答题（按 `ZBDM` 定位到题卡）
+          final target = sheet.firstUnansweredKey(paper);
           if (target != null) {
-            final key = _cardKeys[target];
-            final ctx = key.currentContext;
+            final ctx = _cardKeys[target]?.currentContext;
             if (ctx != null) {
               Scrollable.ensureVisible(
                 ctx,
@@ -415,7 +415,8 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
 
   // ==================== BUILD ====================
 
-  final List<GlobalKey> _cardKeys = [];
+  /// 题卡 GlobalKey：`ZBDM` → key（题卡按 `ZBDM` 分组，一个 key 对应一张卡）
+  final Map<String, GlobalKey> _cardKeys = {};
 
   @override
   void dispose() {
@@ -425,10 +426,10 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 卡片 GlobalKey 按题目数量对齐（列表长度变化时补齐）
-    final total = _paper?.total ?? 0;
-    while (_cardKeys.length < total) {
-      _cardKeys.add(GlobalKey());
+    // 补齐题卡 key（题卡数量 = 不同 `ZBDM` 数，非条目数）
+    final groups = _paper?.groupByQuestion() ?? const {};
+    for (final zbdm in groups.keys) {
+      _cardKeys.putIfAbsent(zbdm, GlobalKey.new);
     }
 
     return SimplePage(
@@ -495,15 +496,20 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
           _buildPrefillNote(),
         ],
         const SizedBox(height: 18),
-        for (int i = 0; i < paper.total; i++) ...[
-          _buildQuestionCard(paper, paper.questions[i], i),
-          const SizedBox(height: 10),
+        // 题卡：一张卡 = 一道题，卡内按教师分块作答（BingoApp 同构）
+        for (final group in _groupsOf(paper)) ...[
+          _buildQuestionCard(paper, group.key, group.value),
+          const SizedBox(height: 12),
         ],
         const SizedBox(height: 8),
         _buildFooterNote(paper),
       ],
     );
   }
+
+  /// 题卡分组（`ZBDM` → 该题的全部教师行）
+  List<MapEntry<String, List<WspjQuestion>>> _groupsOf(WspjPaper paper) =>
+      paper.groupByQuestion().entries.toList();
 
   // ==================== 顶部信息卡 ====================
 
@@ -627,9 +633,13 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
 
   Widget _buildProgressCard(WspjPaper paper) {
     final sheet = _sheet!;
+    // ⚠️ 一份问卷含多位被评教师，`paper.total` 是「题目 × 教师」的条目数
+    // （实测 25 题 × 6 教师 = 150），不是题数。故文案统一用「项」，
+    // 避免出现「缺 150 题」这种与题数不符的表述。
     final answered = sheet.answeredCount(paper);
     final missing = sheet.unansweredRequired(paper).length;
     final ratio = paper.total == 0 ? 0.0 : answered / paper.total;
+    final groups = paper.groupByQuestion().length;
     final accent = accentColorNotifier.value;
     return IosCard(
       padding: const EdgeInsets.all(14),
@@ -666,8 +676,8 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
           const SizedBox(height: 8),
           Text(
             missing == 0
-                ? '必答题已全部完成，可以提交'
-                : '还有 $missing 道必答题未作答',
+                ? '全部 $groups 道题（${paper.total} 个评教项）已完成，可以提交'
+                : '还有 $missing 个评教项未作答（共 $groups 道题）',
             style: TextStyle(
                 fontSize: 12,
                 color: missing == 0 ? accent : const Color(0xFFC2410C)),
@@ -685,6 +695,7 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
   /// 全取满分易被判异常；0.95 落在问卷说明「优秀 = 标准分 × 90~100%」内。
   Widget _buildAutoFillRow(WspjAnswerSheet sheet) {
     final preview = sheet.previewAutoFill(ratio: _fillRatio);
+    final pct = (_fillRatio * 100).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -703,60 +714,26 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
           ],
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            for (final r in WspjAnswerSheet.kFillRatioPresets)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _ratioChip(r, _fillRatio == r, () {
-                  setState(() => _fillRatio = r);
-                }),
-              ),
-            const Spacer(),
-            SizedBox(
-              height: 32,
-              child: GlassActionButton(
-                label: '一键填写',
-                icon: Icons.bolt_rounded,
-                onPressed: _autoFill,
-                secondary: true,
-              ),
-            ),
-          ],
+        //⚠️ 比例**固定 $pct% 不可切换**（用户要求）：
+        // 服务端对评教分数有上限/分布校验，全取满分（100%）易被判为异常评分，
+        // $pct% 落在问卷说明「优秀 = 标准分 × 90~100%」区间内，故不提供档位切换，
+        // 避免用户误选 100%。
+        SizedBox(
+          height: 32,
+          width: double.infinity,
+          child: GlassActionButton(
+            label: '一键填写（分值按 $pct% 折算）',
+            icon: Icons.bolt_rounded,
+            onPressed: _autoFill,
+            secondary: true,
+          ),
         ),
         const SizedBox(height: 6),
-        Text('分值题按上述比例取高分，单选取最高档，主观题填默认好评文本；'
+        Text('分值题按标准分 $pct% 取分（不取满分，避免被判异常），'
+            '单选取最高档，主观题填默认好评文本；'
             '填写后可逐题修改，提交需再确认。',
             style: TextStyle(fontSize: 11, height: 1.5, color: textHint(context))),
-        if (preview.scoreQuestions > 0 && _fillRatio == 1.0)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text('提示：全卷取满分可能被服务端判为异常评分。',
-                style: TextStyle(fontSize: 11, color: const Color(0xFFC2410C))),
-          ),
       ],
-    );
-  }
-
-  Widget _ratioChip(double ratio, bool selected, VoidCallback onTap) {
-    final accent = accentColorNotifier.value;
-    return Clickable(
-      onTap: onTap,
-      borderRadius: 8,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? accent.withValues(alpha: 0.12)
-              : textHint(context).withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text('${(ratio * 100).round()}%',
-            style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: selected ? accent : textSecondary(context))),
-      ),
     );
   }
 
@@ -786,63 +763,133 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
 
   // ==================== 题目卡 ====================
 
-  Widget _buildQuestionCard(WspjPaper paper, WspjQuestion q, int index) {
+  /// 题卡：一道题干 + 其下每位被评教师一个作答块
+  ///
+  /// 结构与 BingoApp `evaluation_detail_page.dart` 的
+  /// `_QuestionCard` + `_TeacherAnswerBlock` **完全同构**（一并排教师）。
+  /// Bingo 一份问卷含多位被评教师（实测 25 题 × 6 教师 = 150 项）。
+  ///
+  /// 刻意用裸 `Container`（而非 `IosCard`）：`IosCard` 内部 `Clickable`
+  /// 用 `Stack(fit: loose)`，在 `ListView` 松散约束下会让卡片收缩、
+  /// 布局断言失败（`RenderBox was not laid out`），题卡整片不显示。
+  Widget _buildQuestionCard(
+      WspjPaper paper, String zbdm, List<WspjQuestion> rows) {
     final sheet = _sheet!;
-    final answered =
-        q.isSubjective ? sheet.isSubjectiveSatisfied(q) : sheet.isAnswered(q);
+    final head = rows.first;
+    // 本题全部教师都已作答才算完成
+    final allDone = rows.every((r) =>
+        r.isSubjective ? sheet.isSubjectiveSatisfied(r) : sheet.isAnswered(r));
+    final sortNo = int.tryParse(head.zbpx) ?? 0;
     final acc = accentColorNotifier.value;
-    return IosCard(
-      key: _cardKeys[index],
-      padding: const EdgeInsets.all(14),
+    final multiTeacher = rows.length > 1;
+    final surface = isDark(context) ? const Color(0xFF1C1C1E) : Colors.white;
+
+    return Container(
+      key: _cardKeys[zbdm],
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: solidHairline(context)),
+        boxShadow: solidShadow(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // 题干行：题号徽章 + 题干 + 指标分类
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 22,
-                height: 22,
+                width: 28,
+                height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: (answered ? acc : textHint(context))
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+                  color: allDone ? acc : textHint(context).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '${index + 1}',
+                  sortNo > 0 ? '$sortNo' : '${_cardKeys.length}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: answered ? acc : textHint(context),
+                    color: allDone ? Colors.white : textHint(context),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(q.zbsm.isEmpty ? '第 ${index + 1} 题' : q.zbsm,
-                        style: const TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
-                            height: 1.45)),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        _miniTag(q.zbflDisplay.isEmpty ? q.txLabel : q.zbflDisplay),
-                        _miniTag(q.txLabel),
-                        if (q.isScore && q.maxScore != null)
-                          _miniTag('满分 ${q.fz}'),
-                      ],
-                    ),
-                  ],
+                child: Text(
+                  head.zbsm.isEmpty ? '第 ${sortNo + 1} 题' : head.zbsm,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                    color: textPrimary(context),
+                  ),
                 ),
               ),
+              if (head.zbflDisplay.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  multiTeacher
+                      ? '${head.zbflDisplay} · ${rows.length} 位教师'
+                      : head.zbflDisplay,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: acc),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          // 每位被评教师一个作答块
+          for (final r in rows) _buildTeacherBlock(paper, r),
+        ],
+      ),
+    );
+  }
+
+  /// 教师作答块：`教师姓名 · 课程名` + 该教师本题的作答区
+  ///
+  /// 教师与课程信息**只在问卷内部展示**（列表页不显示）。
+  Widget _buildTeacherBlock(WspjPaper paper, WspjQuestion q) {
+    final teacher = q.bprxm.isEmpty ? '教师 ${q.bpr}' : q.bprxm;
+    final course = q.pgnr.isEmpty ? q.kcm : q.pgnr;
+    final title = course.isEmpty ? teacher : '$teacher · $course';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person_outline_rounded,
+                  size: 14, color: textHint(context)),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textPrimary(context)),
+                ),
+              ),
+              if (q.isScore && q.maxScore != null)
+                Text('满分 ${q.fz}',
+                    style:
+                        TextStyle(fontSize: 11, color: textHint(context))),
+            ],
+          ),
+          const SizedBox(height: 10),
           _buildAnswerArea(paper, q),
         ],
       ),
@@ -1128,16 +1175,6 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
     );
   }
 
-  Widget _miniTag(String text) {
-    if (text.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 11, color: textHint(context), fontWeight: FontWeight.w500)),
-    );
-  }
-
   Widget _buildFooterNote(WspjPaper paper) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1182,7 +1219,7 @@ class _WspjAnswerPageState extends State<WspjAnswerPage> {
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: textPrimary(context))),
-              Text(missing == 0 ? '已完成' : '缺 $missing 题',
+              Text(missing == 0 ? '已完成' : '缺 $missing 项',
                   style: TextStyle(
                       fontSize: 11,
                       color: missing == 0

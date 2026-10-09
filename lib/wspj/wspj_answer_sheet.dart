@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 
 import 'wspj.dart';
+import 'wspj_bingo_mapper.dart';
 
 /// 答卷状态容器（按指标代码 `ZBDM` 存储作答）
 ///
@@ -23,12 +24,21 @@ class WspjAnswerSheet {
 
   WspjAnswerSheet(this._paper);
 
+  // ==================== 答案键 ====================
+
+  /// **三维答案键**：`题目_教师_教学班`
+  ///
+  /// ⚠️ 不可只用 `ZBDM` 作键：Bingo 一份问卷可含**多位被评教师**
+  /// （实测 25 题 × 6 教师 = 150 条），同一 `ZBDM` 下有 6 行不同教师，
+  /// 用 `ZBDM` 作键会互相覆盖 —— 表现为「只填得上一位教师，其余教师无法作答」。
+  static String keyOf(WspjQuestion q) => composeRowKey(q.zbdm, q.bpr, q.jxbid);
+
   // ==================== 读写 ====================
 
-  String? answerOf(WspjQuestion q) => _answers[q.zbdm];
+  String? answerOf(WspjQuestion q) => _answers[keyOf(q)];
 
   bool isAnswered(WspjQuestion q) {
-    final v = _answers[q.zbdm];
+    final v = _answers[keyOf(q)];
     if (v == null || v.isEmpty) return false;
     if (q.isScore) {
       final n = int.tryParse(v);
@@ -41,7 +51,7 @@ class WspjAnswerSheet {
   bool isSubjectiveSatisfied(WspjQuestion q) {
     final min = q.minWords;
     if (min == null) return isAnswered(q);
-    final text = _answers[q.zbdm] ?? '';
+    final text = _answers[keyOf(q)] ?? '';
     return text.trim().characters.length >= min;
   }
 
@@ -50,38 +60,38 @@ class WspjAnswerSheet {
   /// 答案取该选项的 `DADM`（答案代码）；`DADM` 为空时退化用 `DAPX`（档位），
   /// 保证任何情况下都有值可提交。
   void selectOption(WspjQuestion q, WspjQuestion option) {
-    _answers[q.zbdm] = option.dadm.isNotEmpty ? option.dadm : option.dapx;
+    _answers[keyOf(q)] = option.dadm.isNotEmpty ? option.dadm : option.dapx;
   }
 
   void setSubjective(WspjQuestion q, String text) {
     if (text.trim().isEmpty) {
-      _answers.remove(q.zbdm);
+      _answers.remove(keyOf(q));
     } else {
-      _answers[q.zbdm] = text;
+      _answers[keyOf(q)] = text;
     }
   }
 
   void setScore(WspjQuestion q, int? score) {
     if (score == null) {
-      _answers.remove(q.zbdm);
+      _answers.remove(keyOf(q));
     } else {
-      _answers[q.zbdm] = '$score';
+      _answers[keyOf(q)] = '$score';
     }
   }
 
   /// 直接写入原始答案值（用于从 `cxpgjg.do` 回填历史答案）
   void setRaw(WspjQuestion q, String value) {
     if (value.isEmpty) {
-      _answers.remove(q.zbdm);
+      _answers.remove(keyOf(q));
     } else {
-      _answers[q.zbdm] = value;
+      _answers[keyOf(q)] = value;
     }
   }
 
   /// 取得（并惰性创建）题目的文本控制器
-  TextEditingController controllerFor(WspjQuestion q) =>
-      _controllers.putIfAbsent(
-          q.zbdm, () => TextEditingController(text: _answers[q.zbdm] ?? ''));
+  TextEditingController controllerFor(WspjQuestion q) => _controllers
+      .putIfAbsent(keyOf(q),
+          () => TextEditingController(text: _answers[keyOf(q)] ?? ''));
 
   /// 释放全部控制器（页面 dispose 时调用）
   void dispose() {
@@ -114,7 +124,6 @@ class WspjAnswerSheet {
   static const double kDefaultFillRatio = 0.95;
 
   /// 可选比例档位（供 UI 做快捷选择）
-  static const List<double> kFillRatioPresets = [0.90, 0.95, 1.00];
 
   /// 一键填充预览（不修改任何作答状态），供 UI 展示「将得到多少分」
   WspjAutoFillPreview previewAutoFill({double ratio = kDefaultFillRatio}) {
@@ -207,11 +216,17 @@ class WspjAnswerSheet {
       .toList();
 
   /// 第一道未作答的题目下标，全作答则 null
-  int? firstUnansweredIndex(WspjPaper paper) {
-    for (int i = 0; i < paper.questions.length; i++) {
-      final q = paper.questions[i];
-      final ok = q.isSubjective ? isSubjectiveSatisfied(q) : isAnswered(q);
-      if (!ok) return i;
+  /// 第一道**未全部作答**的题目的 `ZBDM`；全部完成则 null
+  ///
+  /// 题卡按 `ZBDM` 分组渲染，故返回 `ZBDM` 而非条目下标 —— 同题内
+  /// 只要有一位教师未作答，就定位到该题卡。
+  String? firstUnansweredKey(WspjPaper paper) {
+    final groups = paper.groupByQuestion();
+    for (final entry in groups.entries) {
+      final allDone = entry.value.every((q) => q.isSubjective
+          ? isSubjectiveSatisfied(q)
+          : isAnswered(q));
+      if (!allDone) return entry.key;
     }
     return null;
   }
