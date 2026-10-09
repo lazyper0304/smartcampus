@@ -181,10 +181,18 @@ class CourseLayout {
   /// 网格总像素高度
   final double totalHeight;
 
+  /// 本次布局覆盖的单元数（= 需渲染的行数）。
+  ///
+  /// ⚠️ **渲染行数必须取自这里**，不可另行硬编码：
+  /// 左侧节次标签是 `Column`，其高度 = Σ(cellH × splitOf[u])，
+  /// 必须与 [totalHeight] 严格相等，否则 RenderFlex 溢出。
+  final int unitCount;
+
   const CourseLayout({
     required this.slots,
     required this.splitOf,
     required this.totalHeight,
+    required this.unitCount,
   });
 
   /// 是否有冲突（任一单元被切成多份）
@@ -268,11 +276,15 @@ CourseLayout computeConflictRows(
   // ── 阶段 3：容量确定后计算像素坐标 ──
   final unitTopPixel = <int, double>{};
   var pixel = 0.0;
-  // 至少覆盖到最大单元（有冲突时留 6 单元，避免行线过短）
-  final maxUnit = [
-    if (splitOf.isEmpty) 1 else 6,
-    ...byDay.values.expand((cs) => cs.map(endOf)),
-  ].reduce((a, b) => a > b ? a : b);
+  // ⚠️ 单元数必须与渲染时的行数**严格一致**，否则左侧 Column（Σ cellH×行数）
+  // 会与 Stack 高度（totalHeight）对不上，导致 RenderFlex 溢出。
+  //
+  // 恒定为「整个课表高度」= 6 单元（12 节 / 6 个双节单元）。
+  // 无冲突时各单元都是 1 份，总高 6×cellH —— 与改动前的行为完全一致，
+  // 既保证一周课表铺满可滑动区域（周课表是固定 12 节，不该按当周实际
+  // 最高节次收缩，否则某周只有上午课时内容不足一屏、无法上下滑动），
+  // 也保证行数与总高同源。
+  final maxUnit = mergeSections ? 6 : 12;
   for (var u = 1; u <= maxUnit; u++) {
     unitTopPixel[u] = pixel;
     pixel += cellH * splitOfUnit(u);
@@ -302,6 +314,7 @@ CourseLayout computeConflictRows(
     slots: slots,
     splitOf: splitOf,
     totalHeight: totalHeight,
+    unitCount: maxUnit,
   );
 }
 
@@ -396,8 +409,11 @@ class CourseScheduleGrid extends StatelessWidget {
       cellH: cellH,
     );
 
-    // 行数：合并模式每两小节一行（12 节 → 6 行）
-    final rowCount = mergeSections ? 6 : 12;
+    // ⚠️ 行数**必须**取自 layout（与 totalHeight 同源），不可硬编码：
+    // 左侧节次标签是 Column（高度 = Σ cellH×splitOf），与 Stack 高度必须
+    // 严格相等，否则出现「RenderFlex overflowed」。此前硬编码
+    // `mergeSections ? 6 : 12` 而 layout 只到实际最大单元，导致溢出 160px。
+    final rowCount = layout.unitCount;
     // 网格总高：含冲突撑高的行，与左侧节次标签同步
     final gridTotalHeight = layout.totalHeight;
 
