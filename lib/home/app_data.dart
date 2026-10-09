@@ -18,6 +18,7 @@ import '../news/webview_page.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
 import '../shuttle/shuttle_page.dart';
+import '../ecard/ecard_page.dart';
 import '../units/units_page.dart';
 import '../departments/departments_page.dart';
 import '../employ/employ_page.dart';
@@ -122,6 +123,13 @@ final List<AppEntry> allApps = [
   // ── 服务 ──
   AppEntry(icon: Icons.electrical_services_rounded, name: '临港电费', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const DianfeiPage()),
+  // 校园一卡通（智能卡）：余额 / 消费流水 / 卡面管理，经 Bingo 后端代理 /ecard/*。
+  // 参考实现 E:/project/YibinApp/Flutter/lib/features/apps/ecard/，
+  // 已按本项目范式改写：无 Riverpod（改 ListenableBuilder + ChangeNotifier）、
+  // 无 dio（走 BingoClient）、无 hive（走 LocalStorage）、无 easy_localization。
+  AppEntry(icon: Icons.credit_card_rounded, name: '校园一卡通', category: AppCategory.service,
+    requiresLogin: true,
+    pageBuilder: (ctx, c, uid) => const EcardPage()),
   AppEntry(icon: Icons.directions_bus_rounded, name: '校车时间', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const ShuttlePage()),
   AppEntry(icon: Icons.work_rounded, name: '就业信息', category: AppCategory.service,
