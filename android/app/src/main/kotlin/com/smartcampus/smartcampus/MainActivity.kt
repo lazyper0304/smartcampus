@@ -268,7 +268,17 @@ class MainActivity : FlutterActivity() {
             result.success(true)
         } catch (e: ActivityNotFoundException) {
             result.error("NO_APP", "未找到可打开该文件的应用", null)
+        } catch (e: IllegalArgumentException) {
+            // FileProvider 配置问题：文件所在目录未被 res/xml/office_file_paths.xml
+            // 的任何 <*-path> 覆盖。单独归类，便于与「文件不存在」区分定位。
+            Log.w(TAG, "openFile: FileProvider root not configured for $path", e)
+            result.error(
+                "NO_PROVIDER_ROOT",
+                "文件目录未在 office_file_paths.xml 中声明: $path",
+                null,
+            )
         } catch (e: Exception) {
+            Log.w(TAG, "openFile failed for $path", e)
             result.error("OPEN_FAIL", e.message ?: "unknown error", null)
         }
     }

@@ -9,15 +9,24 @@
         name="office_ext_cache"
         path="." />
 
-    <!-- ⚠️ 办公网附件落盘目录是 getApplicationDocumentsDirectory()/office_attachments，
-         Android 上即内部存储 app_flutter/office_attachments（**不是**缓存目录）。
-         缺这条声明会让 FileProvider.getUriForFile() 抛
-         IllegalArgumentException("Failed to find configured root")，
-         被 MainActivity.openFile catch 成 OPEN_FAIL → 界面提示「无法打开文件」。 -->
+    <!-- ⚠️ 办公网附件落盘目录是 getApplicationSupportDirectory()/office_attachments，
+         Android 上即 context.getFilesDir() = /data/data/<pkg>/files/office_attachments。
+         由 BingoOfficeService.getAttachmentDirectory() 保证。 -->
     <files-path
         name="office_files"
         path="." />
     <external-files-path
         name="office_ext_files"
         path="." />
+
+    <!-- 兜底：getApplicationDocumentsDirectory() 走的是 context.getDir("flutter",
+         MODE_PRIVATE)，落在 /data/data/<pkg>/app_flutter/ —— 它与 files/、cache/ 是
+         **兄弟**目录，上面任何标签都覆盖不到。这里用 root-path（根为 Environment
+         .getDataDirectory() = /data）显式放行，避免其他模块（如 qxfacx 桌面端导出）
+         走该目录时再次抛 "Failed to find configured root"。
+         注意 xml 里无法使用 ${applicationId} 占位符（那只在 manifest 生效），
+         故用相对 /data 的 "data/" 前缀而非写死包名。 -->
+    <root-path
+        name="office_data_root"
+        path="data/" />
 </paths>

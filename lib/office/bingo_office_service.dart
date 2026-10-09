@@ -144,17 +144,60 @@ class BingoOfficeService {
   }
 
   /// 附件存放目录
+  ///
+  /// ⚠️ **必须用 `getApplicationSupportDirectory()`，不能用 `getApplicationDocumentsDirectory()`**。
+  ///
+  /// Android 上两者落点完全不同：
+  /// - `getApplicationSupportDirectory()` → `context.getFilesDir()` → `/data/data/<pkg>/files/`
+  /// - `getApplicationDocumentsDirectory()` → `context.getDir("flutter", MODE_PRIVATE)`
+  ///   → `/data/data/<pkg>/app_flutter/`
+  ///
+  /// 关键在于**这两个目录是兄弟关系，不是父子**。而 `androidx.core.content.FileProvider`
+  /// 的 `SimplePathStrategy` 只认 `getFilesDir`/`getCacheDir`/`getExternalFilesDir`/
+  /// `getExternalCacheDir`/`getExternalStorageDirectory`/`getDataDirectory` 六类根，
+  /// **没有任何标签能覆盖 `getDir()` 产生的目录**。因此文件落在 `app_flutter/` 下时，
+  /// `FileProvider.getUriForFile()` 必然抛
+  /// `IllegalArgumentException("Failed to find configured root that contains ...")`，
+  /// 被 `MainActivity.openFile` catch 成 `OPEN_FAIL` → 界面提示「无法打开文件」。
+  ///
+  /// 曾误用 `<files-path>` 试图覆盖 `app_flutter/`，属方向性错误（兄弟目录无法被
+  /// 兄弟根覆盖），详见 `office_file_paths.xml` 注释。
   Future<String> getAttachmentDirectory() async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
+      final dir = await getApplicationSupportDirectory();
       final officeDir = Directory('${dir.path}/office_attachments');
       if (!await officeDir.exists()) {
         await officeDir.create(recursive: true);
       }
+      await _migrateLegacyAttachments(officeDir);
       return officeDir.path;
     } catch (e) {
       debugPrint('[Office] 附件目录创建失败，回退系统临时目录: $e');
       return Directory.systemTemp.path;
+    }
+  }
+
+  /// 把旧版落在 `app_flutter/office_attachments` 的已下载附件搬到新目录，
+  /// 避免用户升级后重复下载（下载走预签名 OSS，流量不可省）。
+  ///
+  /// 失败静默：新目录本身可正常下载，只是浪费一次流量，不该因此阻断打开。
+  Future<void> _migrateLegacyAttachments(Directory target) async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final legacyDir = Directory('${docs.path}/office_attachments');
+      if (!await legacyDir.exists()) return;
+      await for (final entity in legacyDir.list()) {
+        if (entity is! File) continue;
+        final name = entity.uri.pathSegments.last;
+        if (name.startsWith('.office-dl-')) continue;
+        final dest = File('${target.path}/$name');
+        if (await dest.exists()) continue;
+        await entity.copy(dest.path);
+        await entity.delete();
+      }
+      if (await legacyDir.list().isEmpty) await legacyDir.delete();
+    } catch (e) {
+      debugPrint('[Office] 旧附件目录迁移失败（可忽略）: $e');
     }
   }
 }
