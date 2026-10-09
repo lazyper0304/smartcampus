@@ -226,21 +226,15 @@ class _GradeRankingPageState extends State<GradeRankingPage> {
             const SizedBox(height: 12),
             _buildWarning(ranking.warning),
           ],
-          // 课程类别均分对比
-          if (ranking.categories.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildCategoryCard(ranking.categories),
-          ],
           // 课程级排名
           if (courseRanks.isNotEmpty) ...[
             const SizedBox(height: 12),
             _buildCourseRankCard(courseRanks, dark),
           ],
-          // 三档与分类全空
+          // 三档与课程级排名全空
           if (!isRankValid(ranking.classRank) &&
               !isRankValid(ranking.majorRank) &&
               !isRankValid(ranking.collegeRank) &&
-              ranking.categories.isEmpty &&
               courseRanks.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 48),
@@ -476,104 +470,6 @@ class _GradeRankingPageState extends State<GradeRankingPage> {
             child: Text(warning,
                 style: TextStyle(
                     fontSize: 12, height: 1.4, color: textSecondary(context))),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard(List<BingoCategoryScore> categories) {
-    final accent = accentColorNotifier.value;
-    return IosCard(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('课程类别均分对比',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: textPrimary(context))),
-          const SizedBox(height: 4),
-          Text('与同类课程平均绩点的差值',
-              style: TextStyle(fontSize: 12, color: textHint(context))),
-          const SizedBox(height: 14),
-          for (int i = 0; i < categories.length; i++) ...[
-            _buildCategoryRow(categories[i], accent),
-            if (i != categories.length - 1) const SizedBox(height: 14),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryRow(BingoCategoryScore c, Color accent) {
-    final diff = c.avgGpa - c.peerAvg;
-    final above = diff > 0;
-    final near = diff.abs() < 0.005;
-    final diffColor = near
-        ? textSecondary(context)
-        : (above
-            ? (isDark(context) ? const Color(0xFF5AD87F) : const Color(0xFF34C759))
-            : const Color(0xFFC2410C));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(c.category.isEmpty ? '未分类' : c.category,
-                  style: TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w600,
-                      color: textPrimary(context)),
-                  overflow: TextOverflow.ellipsis),
-            ),
-            if (c.count > 0)
-              Text('${c.count} 门',
-                  style: TextStyle(fontSize: 11, color: textHint(context))),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // 双条对比：本人（实色）vs 同类均分（淡底）
-        _bar(c.avgGpa, accent, 1),
-        const SizedBox(height: 5),
-        _bar(c.peerAvg, textHint(context).withValues(alpha: 0.5), 1),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Text('本人 ${_fmtGpa(c.avgGpa)}',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: textSecondary(context))),
-            const SizedBox(width: 10),
-            Text('同类均分 ${_fmtGpa(c.peerAvg)}',
-                style: TextStyle(fontSize: 11, color: textHint(context))),
-            const Spacer(),
-            if (!near)
-              Text(
-                '${above ? '+' : ''}${diff.toStringAsFixed(2)}',
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: diffColor),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// 绩点条：按 0~5.0 映射宽度
-  Widget _bar(double gpa, Color color, double max) {
-    final ratio = (gpa / (5.0 * max)).clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(3),
-      child: Stack(
-        children: [
-          Container(height: 6, color: color.withValues(alpha: 0.12)),
-          FractionallySizedBox(
-            widthFactor: ratio,
-            child: Container(height: 6, color: color),
           ),
         ],
       ),

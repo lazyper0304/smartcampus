@@ -2,6 +2,78 @@
 
 ## [Unreleased]
 
+### ✨ 课表支持冲突课程显示（同一时刻多门课）
+
+- **原症状**：一周内在同一时刻修读多门课（重修 / 跨专业选修 / 调课撞车）时，课表网格用 `Stack` + `Positioned` 渲染，各卡片的 `left/top/width/height` 完全相同 —— **后绘制的直接盖住先绘制的，只能看到最后一门**。
+- **布局方案（按用户要求调整过两次，最终形态）**：
+  - 卡片**保持日列完整宽度不变**（不因冲突而横向压缩），冲突课程**向下依次排开**；
+  - 网格**行数按冲突实际占用高度自动扩张**（`rowCount = max(基础行数, 冲突后最大底行)`），冲突课程不会被裁剪；
+  - 左侧节次标签**仍只按真实节次绘制**（用 `baseRowCount`），不会多出「13-14节」这类不存在的行。
+- **新增** `course_grid.dart: computeConflictRows()` —— **线性排程**算法：按 `(起始单元, 课程名)` 升序遍历，每门课落到「不与已排课程重叠、且不早于原位置」的最靠上单元。
+  - 结果与服务器返回顺序无关；
+  - **不推移后续正常课**：如「1-2节×3 门 + 7-8 节×1 门」，三门冲突课依次占单元 1/2/3，7-8 节那门仍落单元 4（原位置）；
+  - 无冲突时排布结果与改动前完全一致。
+- **实现踩坑（已修）**：初版用「分层贪心 + `top = max(s, cursor)`」，在 `s == cursor` 时会退回原位置造成**重叠**，且会把后续课程**压住**（验证脚本断言「任意两门课不重叠」直接失败）。改为 `top = s > limit ? s : limit + 1` 后全场景通过。
+- **验证**：独立脚本覆盖 5 个场景 + 无重叠断言全部通过 —— 三门冲突、冲突+后续正常课、span 不一的冲突（单节 vs 双节）、无冲突对照、4 门密集冲突 + 长跨度课；不变量「无冲突时位置不变 / 三门冲突占 1/2/3 / 换序一致」均成立。
+- **卡片恢复原尺寸**：上一版为窄栏新增的 `compact` 参数（缩字号/内边距/行数）已**全部撤销**，卡片排版与改动前一致。
+
+### 🐛 课表整表同色 → 同一课程固定一色
+
+- **根因**：Bingo 后端下发的课表不带颜色信息，而 `BingoCourseItem.toCourse()` 的**两个分支都漏传 `colorIndex`**，全部落到 `Course` 构造默认值 `0` → 所有课程取 `colors[0]` → 整张课表渲染成一个颜色。旧的 ehall 直连虽传了下标 `i`，但下标会随课程增删/排序整体错位，同一门课在不同页面可能变色。
+- **修复（分层兜底，四处同时收口）**：
+  1. `course.dart` 新增 `colorIndexOf()` —— 按课程名派生稳定索引（FNV-1a + 长度扰动），并新增 `kCourseColorCount = 12` 与色板容量对齐；
+  2. `Course` 构造函数 `colorIndex` 默认值 `0` → **`-1`，未显式指定时自动按课程名推导** —— 这样**任何漏传的入口都不会再退化成单色**，从根上消除该类 bug；
+  3. `fromJson` / `fromExperimentJson` 默认值同步为 `-1`；`course_service.dart` 三处 `colorIndex: i`（列表下标）改为不传，走自动推导；
+  4. 新增 `course_grid.dart: assignCourseColors()` —— **按课程名排序后轮转分配**，在 `CourseScheduleGrid` 内于 `mergeSameSlotTeachers()` 之后统一生效。
+- **为什么不用纯哈希**：12 档色板对一学期 7~12 门课，纯哈希必然撞色（实测 22 门真实课名最坏一档撞 6 门；换 djb2 / murmur3 雪崩 / 长度扰动均无改善）。轮转分配实测**8 门零撞色、12 门满容量零撞色、15 门超容量时最多撞 2 门**，且因先按课程名排序，**与服务器返回顺序无关**（跨入口、跨学期稳定）。
+- **旧快照自动纠正**：新增 `coursesFromSnapshot()` —— 判定「所有课程颜色索引相同」即视为退化快照，按课程名整体重算。已替换 `course_service.dart` 与 `course_page.dart` 两处读取点，用户升级后**无需清缓存**即可看到彩色课表。
+- 单卡片入口 `SemesterCourseCard`（全校课表等）改用 `colorIndexOf(course.name)` 兜底，与网格保持「同课同色」一致。
+
+### 🎯 成绩排名页删除「课程类别均分对比」
+
+- **移除**排名页「课程类别均分对比」整块内容（本人均分 vs 同类均分双进度条 + 差值着色），排名页聚焦**班级 / 专业 / 学院三档排名 + 课程级排名**。
+- 连带清理三处死代码：`_buildCategoryCard()`、`_buildCategoryRow()`、**`_bar()` 绩点条**（`_bar` 唯一调用点在被删的 `_buildCategoryRow` 内，属连带死代码，不留残骸）。
+- 空状态判断条件同步收窄：原 `三档全空 && categories.isEmpty && courseRanks.isEmpty` 去掉 `categories.isEmpty` 一项。
+- 服务层模型 `BingoCategoryScore`、`BingoGradeRanking.categories` 与 `/grade/ranking` 的 `categories` 字段**保留不动**（仅 UI 不再展示，后端数据契约不变）。
+
+### 🔧 依赖全量更新（用户要求）+ 🔧 办公网附件打开修复（第二轮）
+
+#### ⚠️ `liquid_glass_widgets` 1.2.3 → 1.11.0（跨 9 个版本，全项目视觉体系地基）
+
+- **零破坏验证**：`dart analyze lib` **0 error + 45 项既有基线**（未超基线）；Android debug 构建通过。逐项比对 1.11.0 包源码确认签名兼容：
+  - `LiquidGlassWidgets.wrap(child:, brightnessResolver:)` — `brightnessResolver` 仍存在（`lib/main.dart` 用它修「深色系统 + 浅色应用时玻璃阴影丢失」）；
+  - `GlassStatusBarStyle.auto`（全项目 59 处引用）、`LiquidGlassSettings(...)`（`lib/core/glass_style.dart` 的 `kFlatPageSettings`）、`GlassScaffold` / `GlassListTile` / `GlassTabBar.bottom` — 签名与调用一致，**代码零改动**。
+  - 1.11.0 需 Flutter ≥ 3.41.0（本机 3.47.2，满足）。
+- **⚠️ 运行时风险待真机验证**：1.11.0 新增 `GlassMenu` / `GlassVerticalBar` / `GlassAppBar.pinned` 与 **GPU progressive blur**（`ImageFilter.shader`）。shader 是运行时加载，**编译通过 ≠ 渲染正常**；历史上 0.29.8 的 FragmentProgram shader 加载曾在 Windows Impeller(D3D12) 白屏。升级后须 **Android 真机 + Windows 双端**各验证一次导航栏液态玻璃与 `LiquidBackground` 气泡。
+- `pubspec.yaml` 注释已更新（记录跨版本结论与待验证项），保持精确锁定（无 `^`）防自动浮动。
+
+#### `jni` 1.0.3 → 1.1.0（`dependency_overrides`）
+
+- 之前记录的「1.0.1 报 `Could not find method kotlin()`（Kotlin Gradle Plugin 不兼容）」在 1.1.0 **未复现**，Android debug 构建通过。连带 `jni_flutter` 升至 1.0.4+1。
+- ⚠️ `jni` 是 `liquid_glass_widgets` 带入的**传递依赖**，`flutter pub upgrade --major-versions` 拒绝处理，只能靠 `dependency_overrides` 提升。
+
+#### `cupertino_icons` 1.x → 2.0.0
+
+- 跨大版本，但项目引用的图标在 2.0.0 中全部保留，**零代码改动**。
+
+#### 主版本内安全更新 26 个
+
+- `archive` 4.3.0、`cached_network_image` 4.0.4（+ platform_interface 5.0.3 / web 2.0.3）、`cupertino_ui` 1.1.2、`flutter_cache_manager` 3.4.5、`image` 4.10.1、`image_picker` 1.2.4（+ android/ios/platform_interface）、`material_ui` 1.6.0、`objective_c` 9.6.2、`octo_image` 2.1.2、`pdf` 3.13.1、`petitparser` 7.1.0、`platform` 3.2.0、`printing` 5.15.1、`sqflite` 2.4.4+1（+ android/common/darwin/platform_interface）、`synchronized` 3.4.2、`url_launcher` 6.3.3、`vector_math` 2.4.3 等。
+
+#### 依赖图死锁（无法升级，非配置遗漏）
+
+- `pointycastle` 3.9.1 → 4.0.0：项目**零直接引用**，由 `encrypt` 5.0.3 带入，而 `encrypt` 已是最新无新版 → 被其 `^3.x` 约束钉死。
+- `qr` 3.0.2 → 4.0.0：同上（`printing` 带入）。
+- `cli_util` 0.4.2、`cross_file` 0.3.5+5、`xml` 7.0.1、`test_api` 0.7.12：均为 dev 工具链**传递依赖**，版本由上游 `flutter_tools` / `test` 钉死，`--major-versions` 不接受（只处理直接依赖）。
+
+#### 🐛 办公网附件「用其他应用打开」修复（第二轮，根因修正）
+
+上一轮诊断为「XML 漏了 `files-path`」——**方向性错误**。设备实测（`adb run-as`）显示 `/data/data/<pkg>/` 下 `app_flutter/`、`files/`、`cache/` **互为兄弟而非父子**，而 `FileProvider.SimplePathStrategy` 只认六类根，**没有任何标签能覆盖 `getDir()` 产生的目录**。
+
+- **修复**：`getApplicationDocumentsDirectory()` → **`getApplicationSupportDirectory()`**（= `getFilesDir()`，已被既有 `<files-path>` 覆盖），而非补 XML；新增 `_migrateLegacyAttachments()` 把旧目录已下载文件搬过来，避免用户重下预签名 OSS 流量。
+- **XML 兜底**：追加 `<root-path path="data/" />` 覆盖 `qxfacx` 等仍走 documents 目录的路径；重写原注释（原注释错误宣称 `files-path` 可覆盖 `app_flutter`）。
+- **诊断可见度**：`MainActivity.openFile` 拆分 `catch`，`IllegalArgumentException` 归类为新错误码 `NO_PROVIDER_ROOT` + logcat，与「文件不存在」明确区分。
+
 ### 🔧 接口层重构：五大模块切换至 Bingo 后端代理 + 双下放登录
 
 > 目标：课表 / 成绩 / 评教 / 办公网 / 第二课堂由直连学校各站点（ehall / jwwspj / off.yibinu / erke）改为经 Bingo 后端（`https://new.bingo.yaooa.cn/api/v1`）代理，登录改为**双下放**（一次登录同时下发 Bingo Bearer token 与 CAS 凭证），实现「一次登录，全部接口可用」。其余模块与 UI 一律不变。
@@ -45,10 +117,13 @@
 - **🎨 移除「第二课堂」「办公网」的校园网标识**：两模块已改由 Bingo 后端代理（后端读库/转发），App 侧不再受内网可达性限制，入口卡右上角的「校园网」角标已属过时信息，予以移除。
   - `lib/home/app_data.dart`：「第二课堂」「办公网」两条 `AppEntry` 删除 `badge: OfficeCampusCornerBadge()`。
   - **删除 `lib/office/office_widgets.dart` 整个文件**（85 行）：`OfficeCampusCornerBadge` 与 `OfficeCampusBadge` 两个组件移除引用后**零引用**，一并清理，不留死代码。页面内无其他「需连接校园内网」类提示文案。
-- **🐛 办公网附件「用其他应用打开」报无法打开文件**：Android 侧 `FileProvider.getUriForFile()` 抛 `IllegalArgumentException("Failed to find configured root")`，被 `MainActivity.openFile` catch 成 `OPEN_FAIL`，界面显示「无法打开文件」。
-  - **根因**：`BingoOfficeService.getAttachmentDirectory()` 用的是 `getApplicationDocumentsDirectory()`（Android 上为内部存储 `app_flutter/`），而 `res/xml/office_file_paths.xml` **只声明了 `cache-path` / `external-cache-path`，漏了 `files-path`** —— 落盘根目录未声明，`FileProvider` 必然抛异常。
-  - **修复**：`office_file_paths.xml` 补 `<files-path>` 与 `<external-files-path>`（均 `path="."`），覆盖办公网附件与 `qxfacx` PDF 预览两个落盘位置。
-  - **顺带提升诊断可见度**：`lib/core/open_file.dart` 对 `OPEN_FAIL` 改为用户可读提示「请重试或改用其他应用打开」，原始 `code`/`message` 走 `debugPrint` —— 原先直接抛 `Failed to find configured root...` 给用户毫无意义，且掩盖了真实原因。
+- **🐛 办公网附件「用其他应用打开」报无法打开文件**：Android 侧 `FileProvider.getUriForFile()` 抛 `IllegalArgumentException("Failed to find configured root that contains /data/data/<pkg>/app_flutter/office_attachments/xxx.pdf")`，被 `MainActivity.openFile` catch 成 `OPEN_FAIL`，界面显示「无法打开文件」。
+  - **根因（经设备实测 + androidx 字节码核验后修正）**：`BingoOfficeService.getAttachmentDirectory()` 用了 `getApplicationDocumentsDirectory()`，其 Android 实现是 `context.getDir("flutter", MODE_PRIVATE)`，落点为 `/data/data/<pkg>/app_flutter/`。而该目录与 `/data/data/<pkg>/files/`（`getFilesDir()`）、`cache/` 是**兄弟关系而非父子**；`androidx.core.content.FileProvider` 的 `SimplePathStrategy` 只认 `getFilesDir` / `getCacheDir` / `getExternalFilesDir` / `getExternalCacheDir` / `getExternalStorageDirectory` / `getDataDirectory` 六类根，**没有任何标签能覆盖 `getDir()` 产生的目录**。故文件无论怎么配都打不开。
+  - **⚠️ 上一轮「补 `<files-path>`」是方向性错误**：兄弟目录无法被兄弟根覆盖，补了也不生效（用户重装后依旧失败）。真正修复是**换落盘目录**而非补 XML —— `getApplicationDocumentsDirectory()` 改为 `getApplicationSupportDirectory()`（= `context.getFilesDir()`，已被既有 `<files-path>` 覆盖），语义上也更贴合「附件是应用内部文件」而非「用户文档」。
+  - **旧附件不丢**：新增 `_migrateLegacyAttachments()`，首次进入时把 `app_flutter/office_attachments` 下已下载文件搬到新目录（跳过 `.part` 临时文件、目标已存在则跳过、迁空后删旧目录），避免用户重新下载预签名 OSS 流量。迁移失败静默（新目录可正常下载，不该因此阻断打开）。
+  - **XML 兜底 + 注释纠偏**：`office_file_paths.xml` 追加 `<root-path name="office_data_root" path="data/" />`（根为 `Environment.getDataDirectory()` = `/data`），覆盖 `qxfacx` 桌面端导出等其他走 `getApplicationDocumentsDirectory()` 的路径；因 xml 中 `${applicationId}` 占位符不生效（那只在 manifest 生效），故用相对 `/data` 的 `data/` 前缀而非写死包名。同时重写原注释（原注释错误宣称 `files-path` 可覆盖 `app_flutter`）。
+  - **顺带提升诊断可见度**：`MainActivity.openFile` 拆分 `catch`，把 `IllegalArgumentException` 单独归类为错误码 **`NO_PROVIDER_ROOT`** 并写入 logcat，与「文件不存在」明确区分；`lib/core/open_file.dart` 映射该码为中性文案「无法打开文件（应用配置异常，请反馈）」。原 `OPEN_FAIL` 也改为用户可读提示「请重试或改用其他应用打开」，原始 `code`/`message` 走 `debugPrint`。
+  - **教训**：排查「FileProvider 找不到根」时，**先 `adb shell run-as <pkg> ls` 确认落盘目录的真实父子关系**，再决定改 XML 还是改落盘目录；本项目已有 `lib/office/local_storage.dart`、`settings/appearance_page.dart`、`qxfacx_pdf_preview_page.dart` 三处仍用 `getApplicationDocumentsDirectory()`，其中 `appearance_page` 的自定义背景图若需外部分享会命中同一坑（已由 `root-path` 兜底）。
 - **兼容与清理**：各 Bingo 服务输出**沿用既有 UI 模型**（`Course`/`Score`/`ScoreResult`/`ErkeTranscript` 等），因此绝大多数页面代码零改动；`ScoreService` 保留原类名与构造签名以兼容成绩页既有调用。删除死代码 `AuthService._lastCaptchaChallenge`/`setCaptchaChallenge`（改为从异常直取）与 `BingoAuthService.DualLoginResult`（已被 `LoginResult` 取代）。`dart analyze lib` **0 error**（余 45 项为项目既有的 info/warning 级提示）。
 
 ## [Unreleased - 上一批]
