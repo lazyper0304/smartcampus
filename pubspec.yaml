@@ -42,7 +42,7 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
   http: ^1.3.0
   encrypt: ^5.0.3
   html: ^0.15.5
@@ -53,12 +53,21 @@ dependencies:
   # 临时文件路径
   path_provider: ^2.1.0
   # 液态玻璃 UI 风格
-  # 2026-09-01 用户要求升级 0.29.2 → 1.2.3（0.x→1.x 大版本）。
-  # 历史风险：0.29.8 的 FragmentProgram shader 加载曾在 Windows Impeller(D3D12) 白屏；
-  # 1.2.3 按用户要求升级，Windows 运行时白屏风险待真机/Windows 构建验证
-  # （本沙箱仅能编译 Android + 静态分析，无法验证 Windows 运行时）。
-  # 精确锁定 1.2.3 防自动浮动。pubspec.lock 提交 git 双保险。
-  liquid_glass_widgets: 1.2.3
+  # 历史沿革：0.29.2 →（2026-09-01 用户要求）1.2.3 →（2026-10-09 用户要求）1.11.0。
+  # 1.11.0 跨 9 个版本，实测对本项目**零破坏**：
+  #   - `dart analyze lib` 0 error + 45 项既有基线；
+  #   - Android debug 构建通过；
+  #   - 逐项核对 1.11.0 包源码，`wrap(child:, brightnessResolver:)`、
+  #     `GlassStatusBarStyle.auto`、`LiquidGlassSettings(...)`、
+  #     `GlassScaffold`/`GlassListTile`/`GlassTabBar.bottom` 签名与现有调用一致。
+  # 1.11.0 要求 Flutter ≥ 3.41.0（本机 3.47.2，满足）。
+  # ⚠️ 历史风险仍需留意：0.29.8 的 FragmentProgram shader 加载曾在
+  # Windows Impeller(D3D12) 白屏。1.11.0 新增 GlassMenu/GlassVerticalBar/
+  # GlassAppBar.pinned 与 GPU progressive blur（ImageFilter.shader），
+  # **shader 运行时加载，编译通过 ≠ 渲染正常**：升级后须真机（Android）
+  # 与 Windows 双端各验证一次导航栏玻璃与背景气泡。
+  # 保持精确锁定（无 ^）防自动浮动，pubspec.lock 提交 git 双保险。
+  liquid_glass_widgets: 1.11.0
   # 动态流体气泡背景
   fluid_background: ^1.0.5
   # 图片缓存
@@ -106,9 +115,12 @@ flutter_launcher_icons:
 dependency_overrides:
   # 2026-09-01 用户要求升级 1.0.0 → 1.0.3。
   # 原回归：jni 1.0.1 的 android/build.gradle 调用 kotlin {} DSL，与 Kotlin Gradle Plugin 2.3.20 不兼容
-  # （报 "Could not find method kotlin()"）。1.0.3 是否已修复待 Android 编译验证；若仍报该错，
-  # 需升级 settings.gradle.kts 的 Kotlin Gradle Plugin 或回退本 override。
-  jni: 1.0.3
+  # （报 "Could not find method kotlin()"）。1.0.3 已验证可编译（Android debug 构建通过）。
+  # 2026-10-09 用户要求更新全部依赖 → 1.0.3 → 1.1.0：
+  # 1.1.0 需 Flutter SDK ≥ 3.22 / AGP 8.x（本项目 targetSdk 36、AGP 9.0.1，满足）。
+  # ⚠️ `jni` 是 liquid_glass_widgets 带入的传递依赖，只能靠 dependency_overrides 提升；
+  # 若 Android 构建报 kotlin {} DSL 相关错误，退回 1.0.3。
+  jni: 1.1.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

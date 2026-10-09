@@ -4,6 +4,10 @@
 .pub/
 build/
 *.iml
+
+# 真机调试临时目录（⚠️ 含从设备导出的 smartcampus_data.json，
+# 内有 CAS cookie / Bingo token / VPN 密码等真实凭据，绝不能提交）
+.tmp_backup/
 *.lock
 !pubspec.lock
 .flutter-plugins
