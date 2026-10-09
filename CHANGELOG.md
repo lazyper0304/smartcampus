@@ -1,6 +1,43 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.3.3] - 2026-10-09
+
+### 🎨 全局沉浸式：状态栏与导航栏自动隐藏
+
+- 启动前设置 `SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky)`，**状态栏 + 导航栏全隐藏**，内容占满整屏；下拉手势可临时唤出系统栏。
+- **⚠️ 连带陷阱**：沉浸式下 `MediaQuery.paddingOf(context).top/bottom` **恒为 0**（`viewPadding` 仍有效），会导致全项目 70+ 处 `AppBar(primary: true)` 顶部留白全部失效、`SafeArea` 同样失效、6 处底部按钮贴边或被手势条遮挡。
+- **解法（1 处全局兜底 + 6 处定点修复）**：
+  - 全局兜底：`MaterialApp.builder` 最外层用 `MediaQuery.copyWith(padding: mq.padding.copyWith(top: mq.viewPadding.top))` 包住 child，一次性让所有 `AppBar` / `SafeArea` 恢复顶部避让。**只还原 top，不动 bottom** —— 底部已由 `GlassScaffold.bottomBar` + `SafeArea` 处理，再补会双份留白；
+  - 新增 `responsive.dart: systemBottomInset(context)`（直读 FlutterView 物理手势区，与既有 `denseBottomBarPadding` 同一规避思路）；
+  - 定点修复 6 处失效的底部留白：`welcome_page.dart`（启动首屏，风险最高）、`bohrium_page.dart`、`webview_xuegong_page.dart`、`wspj_answer_page.dart`、`calendar_page.dart` 底部下载栏、`qxfacx_pdf_preview_page.dart` 导出条；
+  - `ecard_page.dart` 顶部留白由 `paddingOf.top` 改 `viewPaddingOf.top`；
+  - `simple_page.dart` 的 `edgeToEdge` 参数原本会设 `SystemUiMode.edgeToEdge`（会让状态栏**重新可见**、破坏沉浸式），改为重申 `immersiveSticky`。
+- **沉浸式通用规律**：避让刘海/挖孔用 `viewPaddingOf`（**不能用 `paddingOf`**）；避让手势条用 `systemBottomInset()`；`SafeArea` 在沉浸式下等于失效。
+
+### ✨ 新增「校园一卡通」（智能卡）模块
+
+- 参考实现 `E:/project/YibinApp/Flutter/lib/features/apps/ecard/`（约 2300 行），**按本项目技术栈重写**，非直接复制 —— 两个工程依赖完全不兼容（详见下方适配）。
+- **功能**：首页服务分类新增「校园一卡通」入口（需登录），含
+  - **钱包卡面**：卡面图 + **四边主色采样彩色光晕**（纯 `ImageFilter.blur` + 渐变实现，无 Shader、无动画）；
+  - **余额面板**：余额、今日/本月消费、后端同步中状态、充值入口（引导至微信公众号）、卡片信息入口；
+  - **交易流水**：分页预取加载、「购热水支出」按**同终端 5 分钟窗口合并**、点行进详情；
+  - **交易详情**：单条/合并双模态（合并组显示合计金额、笔数、时间区间，明细可逐条下钻）；
+  - **卡片信息页**：卡片信息 / 账户（今日·本月消费·余额·更新时间）/ **卡面管理**（缩略图切换，服务端下发）。
+- **数据源**：经 Bingo 后端代理 `/ecard/overview`、`/ecard`（分页）、`/ecard/card-faces/*`（目录 / 选择 / 消费推送 / 图片下载）。
+- **技术栈适配**（参考工程 → 本项目）：
+  | 参考工程 | 本项目 |
+  |---|---|
+  | Riverpod `StateNotifier` | `ChangeNotifier` + `ListenableBuilder` |
+  | dio + `DioException` | 既有 `BingoClient`（自动注入 Bearer + 401 单飞刷新） |
+  | Hive `HiveJsonStore` | 既有 `LocalStorage`（JSON 文件） |
+  | `AppPageScaffold` / `AppInsetGroup` | 既有 `SimplePage` / `IosCard` |
+  | `easy_localization` 的 `.tr()` | 硬编码中文常量 |
+  | Lucide 图标 | Material `Icons.*` |
+  | `flutter_lucide` / `hive` / `dio` / `flutter_riverpod` / `easy_localization` | **不引入**，避免与项目现有 HTTP 栈并存导致 Cookie 与 token 各自为政 |
+- **卡面本地缓存**：文件名 `face_{id}_{md5前8位}.png`，md5 变化即换名天然失效；`autoApply` 推送卡面立即消费并强制重下。
+- **落盘目录合规**：卡面缓存用 `getApplicationSupportDirectory()`（= `getFilesDir()`），**不用** `getApplicationDocumentsDirectory()` —— 后者 Android 上落到 `app_flutter/`，是 `files/` 的兄弟目录，`FileProvider` 任何标签都覆盖不到（同办公网附件那次修复，保持全项目规范一致）。
+- 资源：新增 `assets/images/ecard/default_card_face.webp`（116 KB，已在 `pubspec.yaml` 逐条声明，本项目不用目录通配）。
+- `dart analyze lib` → **0 error + 45 项既有**（ecard 模块零提示）。
 
 ### ✨ 课表支持冲突课程显示（同一时刻多门课）
 
@@ -126,10 +163,7 @@
   - **教训**：排查「FileProvider 找不到根」时，**先 `adb shell run-as <pkg> ls` 确认落盘目录的真实父子关系**，再决定改 XML 还是改落盘目录；本项目已有 `lib/office/local_storage.dart`、`settings/appearance_page.dart`、`qxfacx_pdf_preview_page.dart` 三处仍用 `getApplicationDocumentsDirectory()`，其中 `appearance_page` 的自定义背景图若需外部分享会命中同一坑（已由 `root-path` 兜底）。
 - **兼容与清理**：各 Bingo 服务输出**沿用既有 UI 模型**（`Course`/`Score`/`ScoreResult`/`ErkeTranscript` 等），因此绝大多数页面代码零改动；`ScoreService` 保留原类名与构造签名以兼容成绩页既有调用。删除死代码 `AuthService._lastCaptchaChallenge`/`setCaptchaChallenge`（改为从异常直取）与 `BingoAuthService.DualLoginResult`（已被 `LoginResult` 取代）。`dart analyze lib` **0 error**（余 45 项为项目既有的 info/warning 级提示）。
 
-## [Unreleased - 上一批]
-
 ### ✨ 网上评教：进入原生答题页面并提交
-
 - **新增原生答题页**（`lib/wspj/wspj_answer_page.dart` + `wspj_answer_sheet.dart`）：问卷列表卡片点击由「查看说明」弹窗改为直接进入答题页（`pushPageForResult<bool>`，提交成功后回列表自动刷新）。页面含问卷信息卡（**课程名 · 教师名** / 学期 / 总分 / 题量统计 + 问卷说明折叠）、**实时作答进度条**（已答/总数 + 缺失提示）、按题型渲染的题目卡、底部固定提交栏。问卷说明弹窗（`_showQuestionnaireDetail`）已删除，功能收进答题页顶部折叠区。
 - **题型完整支持 3 类**（`WspjQuestion.zblxdm`）：`01` 单选（选项卡片，答案取 `DADM`，为空退化用 `DAPX`）、`02` 主观题（多行输入 + 实时「n / 最少字数」计数，`BZ` 实测 20 字，不足时计数转橙红且不算已作答）、`03` 分值题（`0..FZ` 数字输入 + 快捷分值按钮，快捷档按 `FZ` 动态生成）。题目卡角标展示指标分类（`ZBFLDM_DISPLAY`，如「教学态度」）+ 题型 + 满分。
 - **交互护栏**：提交前校验未作答题（含主观题字数不足），未完成时弹窗列出缺失题目并**自动滚动定位**到第一道未答；提交走二次确认弹窗（显示题数/已答数）；提交中按钮禁用防重复提交；成功后 `pop(true)` 回列表并自动刷新状态。
