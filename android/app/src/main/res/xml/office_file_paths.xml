@@ -8,4 +8,16 @@
     <external-cache-path
         name="office_ext_cache"
         path="." />
+
+    <!-- ⚠️ 办公网附件落盘目录是 getApplicationDocumentsDirectory()/office_attachments，
+         Android 上即内部存储 app_flutter/office_attachments（**不是**缓存目录）。
+         缺这条声明会让 FileProvider.getUriForFile() 抛
+         IllegalArgumentException("Failed to find configured root")，
+         被 MainActivity.openFile catch 成 OPEN_FAIL → 界面提示「无法打开文件」。 -->
+    <files-path
+        name="office_files"
+        path="." />
+    <external-files-path
+        name="office_ext_files"
+        path="." />
 </paths>

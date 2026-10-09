@@ -44,10 +44,15 @@ Future<void> openFileWithSystem(BuildContext context, String path) async {
     final msg = switch (e.code) {
       'NO_APP' => '未找到可打开该文件的应用（建议安装 WPS）',
       'NO_FILE' => '文件不存在或已失效',
+      // FileProvider 配置缺失（office_file_paths.xml 未声明落盘根目录）等
+      // 配置类问题对用户无意义，只给可操作提示，细节进日志
+      'OPEN_FAIL' => '无法打开文件，请重试或改用其他应用打开',
       _ => '无法打开文件：${e.message ?? e.code}',
     };
+    debugPrint('[openFile] code=${e.code} message=${e.message}');
     if (context.mounted) _toast(context, msg);
   } catch (e) {
+    debugPrint('[openFile] unexpected: $e');
     if (context.mounted) _toast(context, '无法打开文件：$e');
   }
 }

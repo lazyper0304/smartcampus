@@ -1,5 +1,75 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 🔧 接口层重构：五大模块切换至 Bingo 后端代理 + 双下放登录
+
+> 目标：课表 / 成绩 / 评教 / 办公网 / 第二课堂由直连学校各站点（ehall / jwwspj / off.yibinu / erke）改为经 Bingo 后端（`https://new.bingo.yaooa.cn/api/v1`）代理，登录改为**双下放**（一次登录同时下发 Bingo Bearer token 与 CAS 凭证），实现「一次登录，全部接口可用」。其余模块与 UI 一律不变。
+
+- **新增 Bingo 接口层基础设施**（`lib/core/bingo/`）：
+  - `bingo_config.dart` — baseUrl、超时、token/缓存 key、业务码与 `uri()` 拼接的**唯一来源**。⚠️ `FLUTTER_SERVER_API.md` 中记录的 `v2.bingo.yaooa.cn` **已过时**，现网为 `new.bingo.yaooa.cn`。
+  - `bingo_client.dart` — 基于 `dart:io` `HttpClient`（项目无 dio 依赖）：自动注入 `Authorization: Bearer`、`code!=0` 统一抛 `BingoException`、**401 单飞刷新**（并发请求共享同一次 `/auth/refresh`，成功后重放原请求，失败清会话并回调 `onSessionExpired`）、二进制两跳下载（`download` 不跟跳取 302 / `downloadDirect` 单独请求预签名 URL）。
+- **双下放登录**（`lib/auth/`）：
+  - 新增 `bingo_auth_service.dart`：LDAP 同步登录三段式（`captcha-status` →（需要时）`captcha` → `POST /auth/login`），落地 `access_token`/`refresh_token`/`user`。
+  - `AuthService.login()` 改为**两路并发、互不阻断**：Bingo 侧与 CAS 侧同时发起，Bingo 成功即视为登录成功（五个目标模块全部可用），CAS 失败仅降级提示不阻断主流程，后续 `ensureFreshSession` 仍会用已存凭据补齐 CAS 会话；`autoRelogin` 也同步补 Bingo 侧续期。
+  - `LoginResult` 扩展 `bingoSuccess` / `casSuccess` / `challenge` 三字段。
+  - **退出登录**（设置页）新增 `BingoAuthService.logout()`，否则退出后代理接口仍可用。
+  - `main.dart` 启动时 `BingoClient.warmUp()` 预热 token，冷启动首个业务请求即可携带 Bearer。
+- **课表**（`lib/course/bingo_course_service.dart`）：改用 `/semester/info` + `/course/semester/{semester}` + `/course/refresh` + `/course/sync-status`。Bingo 后端已聚合理论课与实验课（`schedule_type` 区分），**一次请求即得整学期课表**，删除 ehall `xskcb.do` 与 scjx2 实验课两路直连；`CourseFetchPage` 由「两步串行」收敛为「一步取全量 + 实验课汇报」。输出仍为既有 UI 模型 `Course`，课表页 / 首页「今日课程」/ 桌面组件的快照 key `kCourseSnapshotKey` 与结构**均未改动**。首页 `home_dashboard` 直接走 Bingo。
+- **成绩**（`lib/grade/`）：改用 `GET /grade`，删除 ehall `xscjcx.do` 直连与角色选择/学生信息两次预热请求。`Score` 新增 `Score.fromBingoJson`（后端双字段兼容教务原字段 `XNXQDM`/`KCM`/`ZCJ`/`XFJD` 与标准字段）、`teacher`/`courseCode`/`scoreText` 三字段；学生信息改从登录下发的 `user` 读取。新增 `/grade/ranking` 排名模型。
+- **评教**（`lib/wspj/bingo_evaluation_service.dart`）：改用 `/evaluation`、`/evaluation/questions?questionnaire_code=`、`/evaluation/submit`。⚠️ **原 CHANGELOG 记录的「提交端点未确认、提交不可逆」问题就此消解**——端点名与字段名都是服务端实现细节、跨校跨版本会变，现由 Bingo 后端封装为稳定语义化契约（`question_code`/`question_type`/`teacher_code`/`class_id`），客户端不再自行猜测；提交报文 `answers` + `submissions` 结构与字段（`WJDM`/`BPR`/`ZBDM`/`DA`/`ZGDA`/`BZ` 主观题最少字数 20/`ZF` 汇总）已完整实现并对齐参考工程。题目按 `03` 分值 / `02` 主观分类，内置自动填充与「是否全部作答」判定。
+  - **新增转换层 `wspj_bingo_mapper.dart`**：Bingo 是「题目 × 教师」二维模型（分值满分 `score` 按教师下发），UI 是「问卷 → 扁平行列表」一维模型，故把 (题目 × 教师) **展开成独立题目行**，行内 `FZ` 取该教师满分；`ZBDM` 因教师维度参与必须唯一，拼为 `题目_教师_教学班`，原始 `question_code` 另存到 `WspjQuestion.wid`。`WspjPaper` 新增 `taskId`（提交回传 `task_id`）与 `source`（原始二维问卷，**提交报文必须由它生成**——UI 侧 `rows` 已归并，反解不出完整集合）。
+  - **选择题（`01`）**：Bingo 不返回选项数组，客户端按 5 档合成 `★` 星级行（`DADM` 1..5），答案走 `scores` 通道并统一写入 `DA`（与服务端「`DA` 承载客观题答案」的语义一致）；`evalAllScoreQuestionsDone` 一并纳入完成度判定。
+  - **同问卷多教师收敛**：`fetchPaper(code, teacherCode:)` 按教师工号二次匹配定位 `task_id`，并用 `scopedToTeacher()` 裁掉其他教师维度（不同教师满分可能不同，混入会串档）。
+  - **`wspj_service.dart` 全文重写为委托层**（原 652 行 jwwspj 直连实现**已删除**），签名保持不变（`fetchPaper(questionnaire:)`、`submitPaper(paper:, sheet:)`、`fetchConfig()`、`fetchTeacherBriefs(list)` 等），评教页面**零改动**。`fetchConfig()` 改由任务数据合成 `PJXNXQ`/`SFSY`/`PJJSSJ`，`fetchTeacherBriefs()` 直接用列表已有的教师/课程名组装（Bingo `/evaluation` 已直返，直连时最麻烦的「二次预取」环节消失）。
+- **办公网**（`lib/office/bingo_office_service.dart`）：改用 `/notices`、`/notices/{id}`、`/notices/attachments/{id}/download`，删除 `off.yibinu.edu.cn` 的 ASP + GBK 全套爬取逻辑（编码处理、分页偏移、`showdoc.asp` PDF 二进制流、整页扫描附件等易错点一并消除）。附件**两跳下载是必须的**：第一跳不跟跳只取 302 `Location`，第二跳不带 `Authorization`/`Content-Type` 请求预签名 OSS 地址（跟跳会把 Bearer 带到 OSS 导致 400）。文件名解析优先 RFC 5987 `filename*`，回退 `filename`，再回退扩展名/MIME 推断，并清洗路径分隔符与控制字符。
+  - **栏目由服务端驱动**：首页 Tab 从硬编码 4 个 `b_id` 改为读 `/notices` 的 `categories`（`sup_doc`/`party`/`admin`/`teaching` 与原「上级文件/党委系统/行政系统/教学教辅」一一对应），拉取失败回退 `OfficeService.defaultColumns`；列表页参数由 `bId: int` 改为 `category: String`。
+  - **预览页改走附件 ID**：`OfficeFilePreviewPage` 由 `url:` 直连下载改为 `attachment:`，复用服务层两跳下载；**删除魔数嗅探逻辑**（老站 `.asp` 链接扩展名不可信才需嗅探，Bingo 服务端已按真实文件名落盘），约 62 行死代码一并清理。
+- **第二课堂**（`lib/second_classroom/`）：改用 `/erke/summary`（`data` 为**数组**）与 `/erke/activities`（`data.items`）。删除 `erke.yibinu.edu.cn` 独立账号密码登录（该站**仅校园内网可访问**且需用户第二次输入凭据）、`ErkeAuthExpiredException` 与独立登录页 `erke_login_page.dart`；宫格入口由 `ErkeLoginPage` 直连 `ErkePage`，未登录时走全局登录守卫。`ErkeReportItem.fromBingoJson`/`ErkeTranscriptItem.fromBingoJson` 完成字段语义映射（`category`→分类、`activity_name`→活动名、`credit`→学分）。
+- **✨ 登录页图形验证码**：Bingo LDAP 登录可能下发验证码挑战，原先仅透传 message、用户无法完成登录。现已打通全链路——
+  - `BingoException` 新增 `captcha` 字段与 `needCaptcha` 判定；`BingoClient` 在抛错时用 `_pickCaptcha()` 从响应 `data` 提取挑战载荷（同时兼容「顶层即验证码对象」与「包一层 `captcha`」两种形态）；
+  - `LoginResult` 失败时透传 `challenge`（此前被 `LoginResult.failed()` 丢弃）；
+  - 登录页新增验证码输入框：学号输入 **600ms 防抖**调 `/auth/login/captcha-status`，需要时才拉图；**登录失败且后端下发挑战时自动渲染输入框**，图片点击可刷新，兼容 `data:image/png;base64,...` 与裸 base64 两种下发形态。预检/拉图失败均不阻断登录（真正提交时后端仍会返回挑战）。
+- **✨ 成绩排名**：成绩查询页支持排名显示。此前 `/grade/ranking` 已在服务层就绪但 UI 零引用，本次补齐展示层——
+  - **模型补字段**：`Score` 新增 `rank` / `rankTotal`（取 Bingo `/grade` items 的 `rank`、`rank_total`，`rank_total` 为 0 表示该课程未参与排名），配套 `_pickInt()` 容错解析。
+  - **新增排名页 `grade_ranking_page.dart`**（从成绩页 AppBar「排名」图标进入，`SimplePage` 二级页）：自带学期选择器（bottom sheet，仅一个学期时隐藏），默认取最新学期；内容含① **班级排名主卡**（52px 大数字名次 + `/总数` + 「前 N%」+ 学期绩点）② **专业 / 学院排名**双指标卡③ **课程类别均分对比**（本人均分 vs 同类均分双进度条 + 差值着色）④ **课程级排名列表**（教师名 + 「12/58」徽章）。带 `_reqGen` 请求代号防切学期竞态串档；服务端 `warning` 原样透传为提示卡；三档与分类皆空时显示「该学期暂无排名数据」占位。
+  - **新增 `grade_rank_style.dart`**：排名纯计算/配色层（`rankTopPercentText`、`rankHighlightColor` 四档青→绿→橙→红按名次占比 10%/30%/60% 分界、`isRankValid`、`semestersOf`、`rankedScoresOf`、学期标签格式化），与 UI 解耦便于复用。
+  - **成绩列表行内排名徽章**：有排名的课程在课程名下追加紧凑徽章（「12/58」+ 前百分比，配色同主卡），表格列宽不变。
+  - **每学期总成绩（平均绩点）排名**：成绩页按学期并发拉 `/grade/ranking`，每个学期卡片头部右侧显示「班级 3/58」徽章 + 前百分比（配色与主卡同一套四档），加载中显示细环占位。成绩页把这批数据作为 `prefetched` 缓存传给排名页，排名页切学期直接命中缓存不再重复请求；只有「刷新 / 下拉刷新 / 错误重试」才 `force: true` 绕过缓存打网络。单个学期排名请求失败只留空，不影响其余学期与成绩展示。
+- **🎯 课表支持切换学期**：此前学期下拉框**只有「选择学期」一个选项、实际无法切换** —— Bingo 重构时把原ehall `fetchSemesters()`（真实学期列表）换成了 `currentSemesterCode()`（单个当前学期码），`CourseFetchPage` 便把 `semesters` 硬编码成只含当前学期一项，UI 链路（`_buildSemesterSelector` / `_switchSemester`）其实一直存在但没有可选项。
+  - **学期列表改为本地推导**：Bingo 后端未提供学期列表端点（`/semester/info` 只回当前学期与周次），沿用参考工程 `buildCourseSemesterList()` 的同一算法 —— 由当前学期码按 `YYYY-YYYY-N` 规则往前推 8 个（含当前）。新增 `BingoCourseService.buildSemesterList()` / `fetchSemesterList()`。
+  - **🐛 切走后无法切回（列表基准错误）**：切换学期时若以**目标学期**为基准推导列表，列表会整体前移（如从 `2025-2026-2` 切到 `2024-2025-1`，列表变成 `[2024-2025-1 … 2020-2021-2]`），**刚离开的当前学期被挤出列表**，下拉框里找不到、无法切回。现基准恒为**真实当前学期**（`currentSemesterCode()`），与用户选中项无关，列表在整个切换过程中保持稳定。快照补全逻辑 `_completeSemesters()` 同步修正为以列表中 `isActive` 项为基准（原以 `_selectedSemester` 为基准，切到历史学期后保存的快照会再次把当前学期挤出列表），并加保险：切换后若新列表不含切走前的学期则强制补全，绝不让用户被困住。
+  - **旧快照迁移**：本地长期缓存里Bingo 重构前写入的快照只存了 1 项学期，课表页新增 `_completeSemesters()` 在恢复快照时补全（项数 <8 即按真实当前学期推导），老用户不清缓存也能切学期。
+  - **空课表不再困住用户**：切到没有课程的学期（推导线含尚未修读的学期，属正常）时，页面保留学期选择器并提示「该学期没有你的课程」，否则下拉框会随内容一起消失、无法切回。
+  - 顺带抽出顶层 `formatSemesterLabel()`（`course.dart`）统一学期中文名拼接，课表/成绩排名/调课三处共用，消除原先各拼各的。
+- **🎨 移除「第二课堂」「办公网」的校园网标识**：两模块已改由 Bingo 后端代理（后端读库/转发），App 侧不再受内网可达性限制，入口卡右上角的「校园网」角标已属过时信息，予以移除。
+  - `lib/home/app_data.dart`：「第二课堂」「办公网」两条 `AppEntry` 删除 `badge: OfficeCampusCornerBadge()`。
+  - **删除 `lib/office/office_widgets.dart` 整个文件**（85 行）：`OfficeCampusCornerBadge` 与 `OfficeCampusBadge` 两个组件移除引用后**零引用**，一并清理，不留死代码。页面内无其他「需连接校园内网」类提示文案。
+- **🐛 办公网附件「用其他应用打开」报无法打开文件**：Android 侧 `FileProvider.getUriForFile()` 抛 `IllegalArgumentException("Failed to find configured root")`，被 `MainActivity.openFile` catch 成 `OPEN_FAIL`，界面显示「无法打开文件」。
+  - **根因**：`BingoOfficeService.getAttachmentDirectory()` 用的是 `getApplicationDocumentsDirectory()`（Android 上为内部存储 `app_flutter/`），而 `res/xml/office_file_paths.xml` **只声明了 `cache-path` / `external-cache-path`，漏了 `files-path`** —— 落盘根目录未声明，`FileProvider` 必然抛异常。
+  - **修复**：`office_file_paths.xml` 补 `<files-path>` 与 `<external-files-path>`（均 `path="."`），覆盖办公网附件与 `qxfacx` PDF 预览两个落盘位置。
+  - **顺带提升诊断可见度**：`lib/core/open_file.dart` 对 `OPEN_FAIL` 改为用户可读提示「请重试或改用其他应用打开」，原始 `code`/`message` 走 `debugPrint` —— 原先直接抛 `Failed to find configured root...` 给用户毫无意义，且掩盖了真实原因。
+- **兼容与清理**：各 Bingo 服务输出**沿用既有 UI 模型**（`Course`/`Score`/`ScoreResult`/`ErkeTranscript` 等），因此绝大多数页面代码零改动；`ScoreService` 保留原类名与构造签名以兼容成绩页既有调用。删除死代码 `AuthService._lastCaptchaChallenge`/`setCaptchaChallenge`（改为从异常直取）与 `BingoAuthService.DualLoginResult`（已被 `LoginResult` 取代）。`dart analyze lib` **0 error**（余 45 项为项目既有的 info/warning 级提示）。
+
+## [Unreleased - 上一批]
+
+### ✨ 网上评教：进入原生答题页面并提交
+
+- **新增原生答题页**（`lib/wspj/wspj_answer_page.dart` + `wspj_answer_sheet.dart`）：问卷列表卡片点击由「查看说明」弹窗改为直接进入答题页（`pushPageForResult<bool>`，提交成功后回列表自动刷新）。页面含问卷信息卡（**课程名 · 教师名** / 学期 / 总分 / 题量统计 + 问卷说明折叠）、**实时作答进度条**（已答/总数 + 缺失提示）、按题型渲染的题目卡、底部固定提交栏。问卷说明弹窗（`_showQuestionnaireDetail`）已删除，功能收进答题页顶部折叠区。
+- **题型完整支持 3 类**（`WspjQuestion.zblxdm`）：`01` 单选（选项卡片，答案取 `DADM`，为空退化用 `DAPX`）、`02` 主观题（多行输入 + 实时「n / 最少字数」计数，`BZ` 实测 20 字，不足时计数转橙红且不算已作答）、`03` 分值题（`0..FZ` 数字输入 + 快捷分值按钮，快捷档按 `FZ` 动态生成）。题目卡角标展示指标分类（`ZBFLDM_DISPLAY`，如「教学态度」）+ 题型 + 满分。
+- **交互护栏**：提交前校验未作答题（含主观题字数不足），未完成时弹窗列出缺失题目并**自动滚动定位**到第一道未答；提交走二次确认弹窗（显示题数/已答数）；提交中按钮禁用防重复提交；成功后 `pop(true)` 回列表并自动刷新状态。
+- **取题接口收敛为单一 `cxwjzbxq.do`**：⚠️ 按 2026-10-09 直连探测实证重写，原「`cxwjzb.do` 取题目 + `cxwjzbxq.do` 取选项」的双接口方案**作废**——
+  - `cxwjzb.do` 传空 `WJDM` 返回的是**指标库全集**（999 行 / 175 个问卷 / 144 个指标），必须客户端按 `WJDM` 过滤，不是取题主源；
+  - `cxwjzbxq.do` **只需 `WJDM + JXBID` 两个参数**即返回本班全部题目行，且**题目与选项一体**（选择题每个选项各占一行，用 `ZBDM` 归并）；选项字段是 `DASM`（选项文字）+ `DAPX`（档位）；
+  - 三个接口加 `querySetting` 过滤 `ZBDM` 均返回 0 行 → 放弃服务端过滤；
+  - 前端模板（`txwjIndexPage.html` / `zb*CardTpl.html`）在 13 种路径前缀下**全部 miss**，无法从前端 JS 反推提交报文，改由服务端错误消息反推。
+- **⚠️ 字段模型全面按实测重写**（初版照搬西交 `wisedu/XJTUToolBox` 的 `wspjyyapp` 实现被证伪）：宜宾 jwwspj 为**较早分支**，字段名是服务端数据库列名，实测为——题干 `ZBSM`（**非** `ZBMC`）、题型 `ZBLXDM`（**非** `TXDM`）、选项文字 `DASM`（**非** `DAFXMC`）、`FZ` 为 JSON number（`10.0`，需 `_fmtNum` 转整数字符串）、`BZ` 为主观题**最少字数**（非必答标记）、`ZBPX` 为排序号。另确认 `cxxspjwjlb.do` **不返回**课程名/教师名/`PCDM`/`BPR`/`PGNR`，故删除模型中 9 个臆测字段，`displayTitle` 退回问卷名，课程与教师信息改由 `cxwjzbxq.do` 的 `KCM`/`BPRXM` 在答题页补齐。
+- **已评问卷可回看/修改**：新增 `fetchResults()`（`cxpgjg.do`）+ `WspjResult` 模型，答题页检测到问卷已评（`SFPG=1`）时自动拉取历史答案回填，并在进度卡下方提示「已回填 N 题答案，可修改后重新提交」。`_load()` 重载时先释放旧答卷控制器，避免泄漏。
+- **服务层**（`wspj_service.dart`）：`fetchPaper()`（`cxwjzbxq.do`，本模块唯一取题数据源，含行数/题数 debugPrint）、`fetchResults()`（`cxpgjg.do`）、`submitPaper()`（`pj.do`）。`_parseRows` 拆为「异步壳（含 403 自动重登重试）+ 同步核 `_rowsOf`（供返回值类型不同的 `fetchPaper` 复用）」。沿用既有 302/403 自动重登范式。
+- **提交报文校准状态**：答案字段 `DA`（分值题数值 / 选题选项值）与 `ZGDA`（主观题文本）**已实测确认**（`cxpgjg.do` 结果表仅此两列承载作答内容）。⚠️ **但提交端点路径仍未确认**：直连实测 `modules/pj/pj.do` 返回 **403 网关 HTML**，而同应用 `modules/pj/cxwjzb.do`（存在）+ 错参数返回 200 + `code≠0`，垃圾文件名同样 403 → 该网关用 **403 而非 404** 表示「端点不存在」，据此判定该路径下 `pj.do` 不可用。已扫 15 种前缀 × 12 模块名 × 12 文件名 = 672 组合 0 命中；补扫 `emappagelog/config/**`、`funauthapp/api/jwwspj/**` 得到的 15 个「命中」经垃圾文件名基线验证为**通配路由假阳性**（catch-all，非真实端点）。前端模板 13 种路径前缀全 404，无法从前端 JS 反推。**提交不可逆，端点确认前不要在真机点提交**；提交前会 `debugPrint('Wspj.submit body=...')` 供与网页端 F12 比对。
+- **🐛 修复提交失败时的无限重登循环**：`submitPaper()` 原先写 `if (await _tryAutoRelogin()) return submitPaper(...)` **无重试次数上限**。由于本应用网关对**不存在的 `.do` 也返回 403**（而非 404），当提交端点路径不对时，每次 403 都会触发一次完整 CAS 密码登录，形成死循环——真机 logcat 观测到 3 分钟内重复登录 10+ 次，并把每次 `ensureSession()` 全跑一遍。已改为 `retryCount < 1` 硬上限（与本模块其余接口一致），超限后直接抛出可读错误并说明「最可能是提交端点未确认」，避免反复登录与误导性提示。
+- `dart analyze lib/wspj/` **No issues found**。
+
 ## [1.3.2] - 2026-09-20
 
 ### 🎨 UI 重构：白底界面 + 彩色淡彩图标 + 取消界面毛玻璃 + 欢迎首屏轮播
@@ -19,6 +89,8 @@
 - **首页卡片图标全部彩色**：`HomeCardMeta` 新增 `color` 字段（首页卡片配色唯一来源，`lib/home/home_cards.dart`：今日课程=蓝、校园新闻=橙、倒计时=红、摸鱼日历=金、电费=琥珀，与设置页对应行同色）+ `homeCardColorOf(id)` 取值助手。`countdown_card` / `moyu_calendar_card` / `dianfei_card`（原先三张卡头部图标都取墨色）与 `home_dashboard` 的今日课程/校园新闻卡片统一改为**同款淡彩图标**（15% 淡底 + 原色图形），与宫格/设置页风格一致。`dart analyze lib test` 0 error / 0 warning，`flutter test` 19/19 通过。
 
 - **清除课表「回到本周」「当天高亮」残留的主题色**：`lib/course/course_grid.dart` 中 6 处 `colorScheme.primary / primaryContainer`（当天列头背景与描边、当天列头「周X」与日期文字、课表格子当天高亮、"回到本周"胶囊底与文字）改为**中性墨色**——新增 `_todayFill/_todayBorder/_todayInk` 助手（浅色=近黑、深色=近白，仅用不透明度区分层次，无色相），与白底界面材质一致。顺带清理全项目其余主题色残留：`calendar_page`（学年标识方块 + 标题区底色）、`core/input_adaptation`（`Clickable` 聚焦高亮）、`vpn_page`（不支持平台图标）、`vrmap_page`（选中勾选）——统一改用中性 `colorScheme.onSurface`。校验：`grep` 全项目 `colorScheme.primary*` 仅剩注释 1 处；`dart analyze lib test` 0 error / 0 warning，`flutter test` 19/19 通过。
+
+### ✨ 新增
 
 ## [1.3.1] - 2026-09-09
 

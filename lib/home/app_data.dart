@@ -14,7 +14,6 @@ import '../jiaocai/jiaocai_page.dart';
 import '../news/news_list_page.dart';
 import '../news/column_list_page.dart';
 import '../office/office_home_page.dart';
-import '../office/office_widgets.dart';
 import '../news/webview_page.dart';
 import '../xuegong/zhsz_page.dart';
 import '../dianfei/dianfei_page.dart';
@@ -27,7 +26,7 @@ import '../safety/safety_page.dart';
 import '../vrmap/vrmap_page.dart';
 import '../race/race_page.dart';
 import '../srtp/srtp_page.dart';
-import '../second_classroom/erke_login_page.dart';
+import '../second_classroom/erke_page.dart';
 import '../kxjas/kxjas_page.dart';
 import '../bohrium/bohrium_page.dart';
 import '../kccx/kccx_page.dart';
@@ -102,9 +101,8 @@ final List<AppEntry> allApps = [
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => SrtpPage(client: c)),
   AppEntry(icon: Icons.assignment_ind_rounded, name: '第二课堂', category: AppCategory.jiaowu,
-    badge: const OfficeCampusCornerBadge(),
     requiresLogin: true,
-    pageBuilder: (ctx, c, uid) => const ErkeLoginPage()),
+    pageBuilder: (ctx, c, uid) => const ErkePage()),
   AppEntry(icon: Icons.meeting_room_rounded, name: '空闲教室', category: AppCategory.jiaowu,
     requiresLogin: true,
     pageBuilder: (ctx, c, uid) => KxjasPage(client: c)),
@@ -138,7 +136,6 @@ final List<AppEntry> allApps = [
   AppEntry(icon: Icons.map_rounded, name: 'VR地图', category: AppCategory.service,
     pageBuilder: (ctx, c, uid) => const VrmapPage()),
   AppEntry(icon: Icons.business_center_rounded, name: '办公网', category: AppCategory.service,
-    badge: const OfficeCampusCornerBadge(),
     pageBuilder: (ctx, c, uid) => const OfficeHomePage()),
   AppEntry(icon: Icons.mail_rounded, name: '邮件系统', category: AppCategory.service,
     requiresLogin: true,

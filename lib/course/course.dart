@@ -411,6 +411,18 @@ class UnarrangedCourse {
   }
 }
 
+/// 学期代码格式化：`2025-2026-2` → `2025-2026学年 第2学期`
+///
+/// 课表学期选择器、调课页、成绩排名页共用（Bingo 不返回学期中文名，
+/// 各处原本各自拼字符串，易出现不一致）。
+String formatSemesterLabel(String semester) {
+  final parts = semester.split('-');
+  if (parts.length == 3) {
+    return '${parts[0]}-${parts[1]}学年 第${parts[2]}学期';
+  }
+  return semester;
+}
+
 /// 学期信息
 class SemesterInfo {
   final String wid;

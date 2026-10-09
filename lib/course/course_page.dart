@@ -10,6 +10,7 @@ import '../core/responsive.dart';
 import '../core/local_storage.dart';
 import 'course.dart';
 import 'course_service.dart';
+import 'bingo_course_service.dart';
 import 'course_fetch_page.dart';
 import 'course_grid.dart';
 import 'course_config.dart';
@@ -382,6 +383,44 @@ class _CourseTablePageState extends State<CourseTablePage> {
     }
   }
 
+  /// 补全学期列表：项数不足时按**真实当前学期**往前推 8 个。
+  ///
+  /// Bingo 重构前的旧快照只存了「当前学期」一项，直接渲染会让下拉框退化成
+  /// 单选、无法切学期；中间态快照（如只存了当前 + 选中两项）同理。
+  /// 补全后无论旧快照还是新快照，切换能力都一致。
+  ///
+  /// ⚠️ 基准取「列表里 `isActive` 的那一项」（即真实当前学期），
+  /// **不能取 `_selectedSemester`** —— 后者是用户当前选中的学期，可能是历史学期；
+  /// 拿它当基准会把真实当前学期挤出列表，用户离开某个学期后就再也切不回去。
+  List<SemesterInfo> _completeSemesters(List<SemesterInfo> cached) {
+    if (cached.length >= 8) return cached;
+
+    // 真实当前学期：优先列表中标记 isActive 的项
+    final active = cached.where((e) => e.isActive).toList();
+    var base = active.isNotEmpty ? active.first.dm : '';
+
+    // 旧快照可能连 isActive 都没标对，退而用不含选中项的那一项（非空即可）
+    if (base.isEmpty && cached.isNotEmpty) {
+      final selected = _selectedSemester;
+      base = cached.firstWhere(
+        (e) => e.dm != selected,
+        orElse: () => cached.first,
+      ).dm;
+    }
+    if (base.isEmpty) return cached;
+
+    return BingoCourseService.buildSemesterList(base)
+        .map((dm) => SemesterInfo(
+              wid: '',
+              dm: dm,
+              mc: formatSemesterLabel(dm),
+              xndm: '',
+              xqdm: '',
+              isActive: dm == base,
+            ))
+        .toList();
+  }
+
   /// 进入页面：优先使用本地长期缓存（获取一次长期存储），无缓存才网络获取。
   Future<void> _loadInitial() async {
     final raw = await LocalStorage.getString(_snapshotKey);
@@ -407,7 +446,6 @@ class _CourseTablePageState extends State<CourseTablePage> {
         if (!mounted) return;
         setState(() {
           _courses = courses;
-          _semesters = semesters;
           _currentWeek = week;
           _todayWeek = week;
           _maxWeek = (s['maxWeek'] as num?)?.toInt() ?? 1;
@@ -415,6 +453,8 @@ class _CourseTablePageState extends State<CourseTablePage> {
               DateTime.tryParse(s['firstMonday']?.toString() ?? '') ??
                   DateTime.now();
           _selectedSemester = s['selectedSemester']?.toString();
+          // ⚠️ 必须在 _selectedSemester 赋值之后：补全逻辑以它为推导基准
+          _semesters = _completeSemesters(semesters);
           _updatedAt = s['updatedAt']?.toString();
           _isLoading = false;
         });
@@ -554,7 +594,17 @@ class _CourseTablePageState extends State<CourseTablePage> {
       setState(() => _selectedSemester = previous);
       return;
     }
-    await _applyFetchResult(result, startAtWeek1: true);
+
+    // 保险：新学期列表若不含「切走前的那个学期」，说明列表推导基准异常
+    // （历史上曾用目标学期当基准，导致当前学期被挤出列表而无法切回）。
+    // 此时补全列表而不是让用户被困在无法切回的状态。
+    final previousList =
+        result.semesters.map((e) => e.dm).contains(previous ?? '');
+    final applied = (previous != null && previous.isNotEmpty && !previousList)
+        ? result.withSemesters(_completeSemesters(result.semesters))
+        : result;
+
+    await _applyFetchResult(applied, startAtWeek1: true);
   }
 
   // ==================== BUILD ====================
@@ -664,8 +714,32 @@ class _CourseTablePageState extends State<CourseTablePage> {
     }
 
     if (_courses == null || _courses!.isEmpty) {
-      return const Center(
-        child: Text('暂无课程数据', style: TextStyle(fontSize: 16)),
+      // 空课表也要保留学期选择器，否则切到无课学期后无法切回。
+      // 学期列表由当前学期往前推导，正常必有可切回的学期。
+      return Column(
+        children: [
+          if (_semesters.length > 1) _buildSemesterSelector(),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy_rounded,
+                      size: 48, color: textHint(context)),
+                  const SizedBox(height: 14),
+                  Text(
+                    _selectedSemester == null
+                        ? '暂无课程数据'
+                        : '${formatSemesterLabel(_selectedSemester!)}\n该学期没有你的课程',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 14, height: 1.5, color: textHint(context)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       );
     }
 

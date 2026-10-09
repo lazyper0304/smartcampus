@@ -4,8 +4,12 @@ import 'package:smooth_dropdown/smooth_dropdown.dart';
 
 import '../core/http_client.dart';
 import '../core/data_cache.dart';
+import '../core/navigation.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
+import 'bingo_score_service.dart';
+import 'grade_rank_style.dart';
+import 'grade_ranking_page.dart';
 import 'score.dart';
 import 'score_service.dart';
 import '../main.dart';
@@ -28,6 +32,18 @@ class _ScorePageState extends State<ScorePage> {
   bool _isLoading = true;
   String? _error;
 
+  /// 学期代码 → 该学期成绩排名（`/grade/ranking`）。
+  ///
+  /// 成绩页需要**每个学期各自的平均绩点排名**，故按学期逐个查询后存此表，
+  /// 学期卡片头部直接取用；同时作为排名页的预取缓存传入，避免二次请求。
+  final Map<String, BingoGradeRanking> _rankings = {};
+
+  /// 排名是否在加载（学期卡片显示占位而非「无排名」）
+  bool _rankingsLoading = false;
+
+  /// 排名请求代号：刷新竞态保护，丢弃过期响应
+  int _rankReqGen = 0;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +63,8 @@ class _ScorePageState extends State<ScorePage> {
         _result = result;
         _isLoading = false;
       });
+      // 成绩拿到后再拉各学期排名（不阻塞成绩展示）
+      _loadRankings(semestersOf(result.scores));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -54,6 +72,28 @@ class _ScorePageState extends State<ScorePage> {
         _isLoading = false;
       });
     }
+  }
+
+  /// 按学期并发拉取排名。单个学期失败只留空，不影响其余学期与成绩页。
+  Future<void> _loadRankings(List<String> semesters) async {
+    final gen = ++_rankReqGen;
+    if (semesters.isEmpty) return;
+    setState(() => _rankingsLoading = true);
+    final entries = await Future.wait(semesters.map((sem) async {
+      try {
+        final r = await ScoreService().fetchRanking(semester: sem);
+        return MapEntry(sem, r);
+      } catch (_) {
+        return MapEntry(sem, const BingoGradeRanking());
+      }
+    }));
+    if (!mounted || gen != _rankReqGen) return;
+    setState(() {
+      for (final e in entries) {
+        _rankings[e.key] = e.value;
+      }
+      _rankingsLoading = false;
+    });
   }
 
   @override
@@ -65,11 +105,29 @@ class _ScorePageState extends State<ScorePage> {
           title: const Text('成绩查询'),
           centerTitle: true,
           actions: [
+            IconButton(
+              icon: const Icon(Icons.leaderboard_rounded),
+              tooltip: '成绩排名',
+              onPressed: () {
+                final scores = _result?.scores;
+                if (scores == null || scores.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('暂无成绩数据，无法查询排名')),
+                  );
+                  return;
+                }
+                pushPage(
+                  context,
+                  GradeRankingPage(scores: scores, prefetched: _rankings),
+                );
+              },
+            ),
             if (!_isLoading)
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () {
                   DataCache().invalidateAll();
+                  _rankings.clear();
                   _loadScores();
                 },
               ),
@@ -205,6 +263,10 @@ class _ScorePageState extends State<ScorePage> {
     final semesterName =
         scores.isNotEmpty ? scores.first.semesterDisplay : semester;
 
+    // 该学期平均绩点的班级排名（`/grade/ranking` 随学期查询）
+    final rankInfo = _rankings[semester]?.classRank;
+    final hasRank = isRankValid(rankInfo);
+
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Row(
@@ -241,6 +303,18 @@ class _ScorePageState extends State<ScorePage> {
               ],
             ),
           ),
+          // 学期平均绩点排名徽章
+          if (hasRank)
+            _termRankBadge(rankInfo!)
+          else if (_rankingsLoading)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: textHint(context),
+              ),
+            ),
         ],
       ),
     );
@@ -284,6 +358,7 @@ class _ScorePageState extends State<ScorePage> {
   }
 
   Widget _buildScoreRow(Score score, int index) {
+    final hasRank = score.rank > 0 && score.rankTotal > 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -292,13 +367,106 @@ class _ScorePageState extends State<ScorePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _cellText(score.courseName, 3.5),
+          Expanded(
+            flex: 35,
+            child: hasRank
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(score.courseName,
+                          style: const TextStyle(fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1),
+                      const SizedBox(height: 3),
+                      _courseRankBadge(score),
+                    ],
+                  )
+                : Text(score.courseName,
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis),
+          ),
           _cellText(score.category, 1.2),
           _cellText(score.credit.toStringAsFixed(1), 0.8),
           _scoreText(score.score, score.grade, 0.8),
           _cellText(score.gpa.toStringAsFixed(2), 0.8),
         ],
       ),
+    );
+  }
+
+  /// 学期平均绩点排名徽章（「班级 3/58」+ 前百分比）
+  ///
+  /// 与课程级徽章同一套配色（[rankHighlightColor] 四档），
+  /// 但此处语义是「学期总评绩点在班级的位次」，故前缀「班级」以示区分。
+  Widget _termRankBadge(BingoRankInfo info) {
+    final dark = isDark(context);
+    final accent = rankHighlightColor(info, isDark: dark);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: dark ? 0.22 : 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('班级',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: accent.withValues(alpha: 0.85))),
+              const SizedBox(width: 4),
+              Text('${info.rank}/${info.total}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(rankTopPercentText(info),
+            style: TextStyle(fontSize: 10, color: textHint(context))),
+      ],
+    );
+  }
+
+  /// 课程级排名徽章（「12/58」+ 前百分比），配色按名次占比四档
+  Widget _courseRankBadge(Score score) {
+    final info = BingoRankInfo(rank: score.rank, total: score.rankTotal);
+    final accent =
+        rankHighlightColor(info, isDark: isDark(context));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: isDark(context) ? 0.22 : 0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text('${score.rank}/${score.rankTotal}',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accent,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              )),
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(rankTopPercentText(info),
+              style: TextStyle(fontSize: 10, color: textHint(context)),
+              overflow: TextOverflow.ellipsis),
+        ),
+      ],
     );
   }
 
