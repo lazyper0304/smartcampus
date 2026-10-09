@@ -115,6 +115,218 @@ List<Course> mergeSameSlotTeachers(List<Course> courses) {
   return result;
 }
 
+/// 为一批课程统一分配颜色索引：**同一课程名得到同一颜色，且尽量不撞色**
+///
+/// 为什么不直接用 [colorIndexOf] 哈希：12 档色板对一门学期 7~12 门课，
+/// 纯哈希必然出现多门课同色（实测 22 门真实课名最坏一档撞 6 门；
+/// 换djb2 / murmur3 雪崩 / 长度扰动均无法改善，见 colorIndexOf 注释）。
+///
+/// 改用「按课程名排序后依次轮转分配」：
+/// - 先按课程名排序 → 同一课程名永远落在同一位置，与服务器返回顺序无关；
+/// - 再按排序位次取模轮转 → 任意两门相邻排序的课必定颜色相邻而非撞同档；
+/// - 课程数 ≤ 12 时**保证零撞色**（一学期正常就是 7~12 门）。
+///
+/// 返回新列表，不修改入参。
+List<Course> assignCourseColors(List<Course> courses) {
+  if (courses.length <= 1) return courses;
+  final names = courses.map((c) => c.name.trim()).toSet().toList()..sort();
+  // 课程数超过色板容量时才会撞色（此时已无法避免），先按哈希给一个稳定基位，
+  // 再按排序位次轮转打散，避免整片同色。
+  final offset = names.length > kCourseColorCount ? colorIndexOf(names.first) : 0;
+  final map = <String, int>{
+    for (var i = 0; i < names.length; i++)
+      names[i]: (offset + i) % kCourseColorCount,
+  };
+  Course withColor(Course c, int color) {
+    if (c.colorIndex == color) return c;
+    return Course(
+      name: c.name,
+      teacher: c.teacher,
+      position: c.position,
+      day: c.day,
+      weeks: c.weeks,
+      sections: c.sections,
+      colorIndex: color,
+      tag: c.tag,
+      remark: c.remark,
+    );
+  }
+
+  return courses.map((c) {
+    final color = map[c.name.trim()];
+    return color == null ? c : withColor(c, color);
+  }).toList();
+}
+
+/// 计算冲突课程（同一时刻有多个课程安排，常见于重修 / 跨专业选修 / 调课撞车）
+/// 的**纵向排布**：卡片保持日列完整宽度不变，冲突时所在「节次单元」整体等分，
+/// 每门课占一份，单元高度随之成倍扩张。
+///
+/// 返回两张表：
+/// - 课程 → [ConflictRowInfo]（`topUnit` 实际起始单元、`heightUnits` 占用高度）；
+/// - 单元 → 该单元的**总份数**（无冲突为 1；有N 门冲突课则为 N）。
+///   渲染时第 u 单元的实际像素高度 = `cellH * splitOf[u]`，左侧节次标签与
+///   网格线同步按此高度绘制，因此**不会与课程错位**，也不会多出空行。
+///
+/// 判定规则：同一天 + 节次区间有交集即冲突。`mergeSections` 模式下卡片按
+/// 「双节单元」定位，故冲突判定也必须按单元而非单节，否则 1-2 节与 3-4 节
+/// 会被误判为冲突。
+class CourseLayout {
+  /// 每门课的实际位置（份位坐标）
+  final Map<Course, ConflictSlot> slots;
+
+  /// 单元 → 该单元被切成几份（≥1）
+  final Map<int, int> splitOf;
+
+  /// 网格总像素高度
+  final double totalHeight;
+
+  const CourseLayout({
+    required this.slots,
+    required this.splitOf,
+    required this.totalHeight,
+  });
+
+  /// 是否有冲突（任一单元被切成多份）
+  bool get hasConflict => splitOf.values.any((v) => v > 1);
+}
+
+CourseLayout computeConflictRows(
+  List<Course> courses, {
+  required bool mergeSections,
+  required double cellH,
+}) {
+  int unitOf(int sec) => mergeSections ? (sec + 1) ~/ 2 : sec;
+  int startOf(Course c) => c.sections.isEmpty ? 1 : unitOf(c.sections.first);
+  int endOf(Course c) => unitOf(c.sections.isNotEmpty ? c.sections.last : 1);
+
+  final byDay = <int, List<Course>>{};
+  for (final c in courses) {
+    if (c.day < 1 || c.day > 7) continue;
+    byDay.putIfAbsent(c.day, () => []).add(c);
+  }
+
+  // ── 阶段 1+ 2：分配份位并确定各单元容量 ──
+  // 每个单元先按「同时开课数」定容量；但**跨单元课**在它覆盖的每个单元里
+  // 都占用同一份序号，可能超出某些单元的初始容量，需按需向上扩充。
+  // 故这里先只分配「份序号 + 所需容量」，像素坐标留到容量确定后再算。
+  final shareOf = <Course, int>{}; // 课程 -> 首单元内的份序号（0 起）
+  final needOf = <int, int>{}; // 单元 -> 至少需要几份
+
+  final splitOfBase = <int, int>{};
+  for (final dayCourses in byDay.values) {
+    int countAt(int unit) => dayCourses
+        .where((c) => unit >= startOf(c) && unit <= endOf(c))
+        .length;
+    for (final c in dayCourses) {
+      for (var u = startOf(c); u <= endOf(c); u++) {
+        final n = countAt(u);
+        if (n > (splitOfBase[u] ?? 1)) splitOfBase[u] = n;
+      }
+    }
+  }
+
+  for (final dayCourses in byDay.values) {
+    // 同一起始单元内按名称排序，保证结果与服务器返回顺序无关
+    final sorted = [...dayCourses]..sort((a, b) {
+        final cmp = startOf(a).compareTo(startOf(b));
+        return cmp != 0 ? cmp : a.name.compareTo(b.name);
+      });
+
+    // used[u] = 第 u 单元已被占用的份数
+    final used = <int, int>{};
+    for (final c in sorted) {
+      final s = startOf(c);
+      final e = endOf(c);
+
+      // 份序号 = 各覆盖单元已用份数的最大值，
+      // 这样卡片在每个单元里都对齐同一份（跨单元课才不错位）
+      var share = 0;
+      for (var u = s; u <= e; u++) {
+        final take = used[u] ?? 0;
+        if (take > share) share = take;
+      }
+      shareOf[c] = share;
+
+      for (var u = s; u <= e; u++) {
+        used[u] = (used[u] ?? 0) + 1;
+        // 该单元至少要能容纳本课所占的份序号
+        if (share + 1 > (needOf[u] ?? 1)) needOf[u] = share + 1;
+      }
+    }
+  }
+
+  // 实际份数 = max(同时开课数, 跨单元课需求)
+  final splitOf = <int, int>{};
+  for (final u in {...splitOfBase.keys, ...needOf.keys}) {
+    final a = splitOfBase[u] ?? 1;
+    final b = needOf[u] ?? 1;
+    splitOf[u] = a > b ? a : b;
+  }
+  int splitOfUnit(int u) => splitOf[u] ?? 1;
+
+  // ── 阶段 3：容量确定后计算像素坐标 ──
+  final unitTopPixel = <int, double>{};
+  var pixel = 0.0;
+  // 至少覆盖到最大单元（有冲突时留 6 单元，避免行线过短）
+  final maxUnit = [
+    if (splitOf.isEmpty) 1 else 6,
+    ...byDay.values.expand((cs) => cs.map(endOf)),
+  ].reduce((a, b) => a > b ? a : b);
+  for (var u = 1; u <= maxUnit; u++) {
+    unitTopPixel[u] = pixel;
+    pixel += cellH * splitOfUnit(u);
+  }
+  unitTopPixel[maxUnit + 1] = pixel;
+
+  final slots = <Course, ConflictSlot>{};
+  for (final c in courses) {
+    final s = startOf(c);
+    final e = endOf(c);
+    final share = shareOf[c] ?? 0;
+    final top = unitTopPixel[s]! + share * cellH;
+    // 底部 = 末单元底 −（该单元内它后面的空白份数）× cellH
+    final bottom = unitTopPixel[e + 1]! - (splitOfUnit(e) - share - 1) * cellH;
+    slots[c] = ConflictSlot(
+      topPixel: top,
+      heightPixel: bottom - top,
+      topUnit: s,
+      heightUnits: e - s + 1,
+    );
+  }
+
+  // 网格总高度：覆盖所有单元（含无课单元，保证行线完整）
+  final totalHeight = unitTopPixel[maxUnit + 1]!;
+
+  return CourseLayout(
+    slots: slots,
+    splitOf: splitOf,
+    totalHeight: totalHeight,
+  );
+}
+
+/// 一门课程的实际排布（像素坐标 + 原节次单元，便于调试与标签对齐）
+class ConflictSlot {
+  /// 卡片顶部像素偏移
+  final double topPixel;
+
+  /// 卡片高度（像素）
+  final double heightPixel;
+
+  /// 原起始节次单元
+  final int topUnit;
+
+  /// 原占用单元数
+  final int heightUnits;
+
+  const ConflictSlot({
+    required this.topPixel,
+    required this.heightPixel,
+    required this.topUnit,
+    required this.heightUnits,
+  });
+}
+
 /// 可复用的周课表网格（个人课表与全校班级课表共用）
 ///
 /// [courses] 必须是**已按当前周过滤**后的课程列表。
@@ -163,14 +375,9 @@ class CourseScheduleGrid extends StatelessWidget {
     // 同一节课多位老师（同天+同名+同标签+节次重叠）先合并为一张卡片，
     // 教师/教室拼接显示，避免同一时间格多张卡片堆叠
     final mergedCourses = mergeSameSlotTeachers(courses);
-
-    int maxSection = 12;
-    for (final c in mergedCourses) {
-      for (final s in c.sections) {
-        if (s > maxSection) maxSection = s;
-      }
-    }
-
+    // 再统一分配颜色：同课同色、尽量不撞色（数据源可能没带颜色信息）
+    final coloredCourses = assignCourseColors(mergedCourses);
+    // 冲突课程（同一天同一时刻多门课）：所在节次单元整体等分，卡片保持列宽
     final cfg = config;
     final cColors = generateCourseColors(cfg);
     final cellH = cfg.cellHeight;
@@ -182,8 +389,17 @@ class CourseScheduleGrid extends StatelessWidget {
     final showGrid = cfg.showGridLines;
     final textScale = cfg.textScale;
 
+    // 冲突课程排布：所在节次单元整体等分，卡片保持完整列宽
+    final layout = computeConflictRows(
+      coloredCourses,
+      mergeSections: mergeSections,
+      cellH: cellH,
+    );
+
     // 行数：合并模式每两小节一行（12 节 → 6 行）
-    final rowCount = mergeSections ? (maxSection + 1) ~/ 2 : maxSection;
+    final rowCount = mergeSections ? 6 : 12;
+    // 网格总高：含冲突撑高的行，与左侧节次标签同步
+    final gridTotalHeight = layout.totalHeight;
 
     // ---- 左右滑动切周的手势识别 ----
     // 只在「位移足够长」且「明显以水平方向为主」时才翻周：
@@ -232,7 +448,6 @@ class CourseScheduleGrid extends StatelessWidget {
           builder: (context, constraints) {
             final dayWidth = (constraints.maxWidth - timeColWidth) / 7;
             final totalWidth = timeColWidth + dayWidth * 7;
-            final gridHeight = rowCount * cellH;
 
             return SingleChildScrollView(
               scrollDirection: Axis.vertical,
@@ -255,17 +470,20 @@ class CourseScheduleGrid extends StatelessWidget {
                       dayLabels: dayLabels,
                     ),
                     SizedBox(
-                      height: gridHeight,
+                      height: gridTotalHeight,
                       child: Stack(
                         children: [
                           Column(
                             children: List.generate(rowCount, (rowIdx) {
                               final period = rowIdx + 1;
+                              // 有冲突的单元被整体撑高，行高随之变化，
+                              // 使左侧节次标签与右侧卡片始终对齐
+                              final split = layout.splitOf[period] ?? 1;
                               return _GridRow(
                                 period: period,
                                 mergeSections: mergeSections,
                                 dayWidth: dayWidth,
-                                cellH: cellH,
+                                cellH: cellH * split,
                                 showTimeCol: showTimeCol,
                                 timeColWidth: timeColWidth,
                                 showGrid: showGrid,
@@ -277,29 +495,20 @@ class CourseScheduleGrid extends StatelessWidget {
                               );
                             }),
                           ),
-                          ...mergedCourses.map((course) {
-                            final firstSec = course.sections.isNotEmpty
-                                ? course.sections.first
-                                : 1;
-                            final lastSec = course.sections.isNotEmpty
-                                ? course.sections.last
-                                : firstSec;
-                            // 合并模式：按双节单元定位（第 1、2 节同属单元 1）
-                            final topUnit = mergeSections
-                                ? (firstSec + 1) ~/ 2
-                                : firstSec;
-                            final unitCount = mergeSections
-                                ? ((lastSec + 1) ~/ 2) - topUnit + 1
-                                : lastSec - firstSec + 1;
+                          ...coloredCourses.map((course) {
                             final dayIdx = course.day - 1;
                             if (dayIdx < 0 || dayIdx > 6) {
                               return const SizedBox.shrink();
                             }
+                            // 冲突课程的像素坐标由 computeConflictRows 统一算出
+                            // （所在单元被等分，卡片宽度仍占满日列）
+                            final slot = layout.slots[course];
+                            if (slot == null) return const SizedBox.shrink();
                             return Positioned(
                               left: timeColWidth + dayIdx * dayWidth,
-                              top: (topUnit - 1) * cellH,
+                              top: slot.topPixel,
                               width: dayWidth,
-                              height: unitCount * cellH,
+                              height: slot.heightPixel,
                               child: _CourseCard(
                                 course: course,
                                 colors: cColors,

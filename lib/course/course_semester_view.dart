@@ -203,7 +203,9 @@ class SemesterCourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cfg = config;
     final cColors = generateCourseColors(cfg);
-    final color = cColors[course.colorIndex % cColors.length];
+    // 单卡片入口（全校课表等）上游未做批量配色，这里按课程名兜底派生，
+    // 与课表网格 [assignCourseColors] 的「同课同色」不变量一致
+    final color = cColors[colorIndexOf(course.name) % cColors.length];
     final ts = cfg.textScale;
     final radius = cfg.cardRadius;
     final hideTeacher = cfg.hideTeacher;

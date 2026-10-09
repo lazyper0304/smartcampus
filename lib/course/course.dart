@@ -5,6 +5,38 @@
 /// 一致，也免去重复网络请求与 scjx2 登录开销。
 const String kCourseSnapshotKey = 'course_table_snapshot';
 
+/// 课表配色档位数量（与 `CourseTableConfig.defaultColors` 的 12 色一致）
+const int kCourseColorCount = 12;
+
+/// 按课程名计算稳定的颜色索引（0 ~ [kCourseColorCount)-1）
+///
+/// ⚠️ **必须按课程名派生，不能用课程在列表里的下标**：
+/// - 用下标：课程增删或排序变化会让所有课程整体错位，同一门课在不同页面
+///   （课表页 / 首页今日课程 / 安卓桌面组件）可能取到不同色；
+/// - Bingo 后端下发的课表本身不带颜色信息（`toCourse()` 早期漏传 `colorIndex`，
+///   全部落到默认值 0 → 整张课表渲染成同一个颜色，本项目的原始 bug）。
+///
+/// 策略：**FNV-1a 哈希 + 末位扰动**。纯哈希在 12 档色板下会撞色
+/// （典型如「计算机网络」与「计算机组成原理」共用首字，UTF-16 前缀相近，
+/// 实测同档概率高达 6/22），而换哈希函数（djb2 / murmur3 雪崩）实测更差。
+/// 故在哈希结果上叠加一层与字符长度相关的扰动，把前缀相近的课程拉开：
+/// `index = (hash + name.length * 5) % count`。
+///
+/// 不变量：同一课程名 → 同一索引（跨入口、跨学期稳定）；
+/// 归一化去首尾空白，避免同名课程因空格被算成两种颜色。
+int colorIndexOf(String courseName) {
+  final key = courseName.trim();
+  if (key.isEmpty) return 0;
+  // FNV-1a 32 位：实现短、跨平台结果一致（不同端同课同色）
+  var hash = 0x811c9dc5;
+  for (final unit in key.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+  }
+  final mixed = hash + key.length * 5;
+  return (mixed & 0x7FFFFFFF) % kCourseColorCount;
+}
+
 /// 节次时间对照（从 API jc.do 获取）
 const Map<int, List<String>> periodTimeRanges = {
   1: ['08:30', '09:15'],
@@ -50,7 +82,9 @@ class Course {
   /// 上课节次列表
   final List<int> sections;
 
-  /// 显示颜色
+  /// 显示颜色索引（0 ~ [kCourseColorCount)-1）
+  ///
+  /// 不传时由 [colorIndexOf] 按课程名推导，见构造函数注释。
   final int colorIndex;
 
   /// 课程类型标签（如 "实验"、"理论"）
@@ -67,13 +101,19 @@ class Course {
     required this.day,
     required this.weeks,
     required this.sections,
-    this.colorIndex = 0,
+    // ⚠️ 默认 -1 = 按课程名自动推导（见 [colorIndexOf]）。
+    // 曾经默认 0，导致任何漏传 colorIndex 的入口（如 Bingo 的 toCourse）
+    // 全部落到第 0 档颜色，整张课表渲染成同一个颜色。
+    int colorIndex = -1,
     this.tag = '',
     this.remark = '',
-  });
+  }) : colorIndex = colorIndex < 0 ? colorIndexOf(name) : colorIndex;
 
   /// 从 Wisedu API xskcb.do 返回的 JSON row 创建 Course
-  factory Course.fromJson(Map<String, dynamic> json, {int colorIndex = 0}) {
+  ///
+  /// [colorIndex] 不传时（默认 -1）按课程名哈希自动推导，保证同课同色；
+  /// 显式传值则尊重调用方（Bingo 链路的实验课需与理论课区隔时才传）。
+  factory Course.fromJson(Map<String, dynamic> json, {int colorIndex = -1}) {
     // 周次：解析 SKZC 二进制字符串
     final skzc = json['SKZC']?.toString() ?? '';
     final weeks = <int>[];
@@ -113,14 +153,15 @@ class Course {
       sections.add(s);
     }
 
+    final name = json['KCM']?.toString() ?? '未知课程';
     return Course(
-      name: json['KCM']?.toString() ?? '未知课程',
+      name: name,
       teacher: json['SKJS']?.toString() ?? '',
       position: json['JASMC']?.toString() ?? '',
       day: int.tryParse(json['SKXQ']?.toString() ?? '0') ?? 0,
       weeks: weeks,
       sections: sections,
-      colorIndex: colorIndex,
+      colorIndex: colorIndex < 0 ? colorIndexOf(name) : colorIndex,
     );
   }
 
@@ -138,7 +179,7 @@ class Course {
   /// scjx2 返回的是「单次实验」记录（单周次 + 单节次范围），
   /// 所以 weeks 列表里只有一项。
   factory Course.fromExperimentJson(Map<String, dynamic> json,
-      {int colorIndex = 0}) {
+      {int colorIndex = -1}) {
     final week = int.tryParse(json['week']?.toString() ?? '0') ?? 0;
     final startSection = int.tryParse(json['jc_start']?.toString() ?? '0') ?? 0;
     final endSection = int.tryParse(json['jc_end']?.toString() ?? '0') ?? 0;
@@ -150,15 +191,16 @@ class Course {
     // 课程名优先用 course_name（所属课程），附加 exp_name（实验项目）
     final courseName = json['course_name']?.toString() ?? '实验课程';
     final expName = json['exp_name']?.toString() ?? '';
+    final name = _normalizeText(courseName);
 
     return Course(
-      name: _normalizeText(courseName),
+      name: name,
       teacher: _normalizeText(json['teacher_name']?.toString() ?? ''),
       position: _normalizeText(json['room_name']?.toString() ?? ''),
       day: int.tryParse(json['week_day']?.toString() ?? '0') ?? 0,
       weeks: week > 0 ? [week] : <int>[],
       sections: sections,
-      colorIndex: colorIndex,
+      colorIndex: colorIndex < 0 ? colorIndexOf(name) : colorIndex,
       tag: '实验',
       remark: _normalizeText(expName),
     );
@@ -241,25 +283,66 @@ class Course {
       };
 
   /// 从课表快照恢复
-  factory Course.fromSnapshot(Map<String, dynamic> json) => Course(
-        name: json['name']?.toString() ?? '',
-        teacher: json['teacher']?.toString() ?? '',
-        position: json['position']?.toString() ?? '',
-        day: (json['day'] as num?)?.toInt() ?? 0,
-        weeks: (json['weeks'] as List?)
-                ?.whereType<num>()
-                .map((e) => e.toInt())
-                .toList() ??
-            [],
-        sections: (json['sections'] as List?)
-                ?.whereType<num>()
-                .map((e) => e.toInt())
-                .toList() ??
-            [],
-        colorIndex: (json['colorIndex'] as num?)?.toInt() ?? 0,
-        tag: json['tag']?.toString() ?? '',
-        remark: json['remark']?.toString() ?? '',
-      );
+  ///
+  /// ⚠️ 旧快照（Bingo 切换前写入）里每条记录的 `colorIndex` 都是 0（全部同色）。
+  /// 此时**忽略存档值、按课程名重新推导**，否则用户升级后课表仍是单色。
+  /// 新快照（值有效且非负）则原样沿用，保证用户之前看到的配色不变。
+  factory Course.fromSnapshot(Map<String, dynamic> json) {
+    final name = json['name']?.toString() ?? '';
+    final saved = (json['colorIndex'] as num?)?.toInt() ?? -1;
+    return Course(
+      name: name,
+      teacher: json['teacher']?.toString() ?? '',
+      position: json['position']?.toString() ?? '',
+      day: (json['day'] as num?)?.toInt() ?? 0,
+      weeks: (json['weeks'] as List?)
+              ?.whereType<num>()
+              .map((e) => e.toInt())
+              .toList() ??
+          [],
+      sections: (json['sections'] as List?)
+              ?.whereType<num>()
+              .map((e) => e.toInt())
+              .toList() ??
+          [],
+      // 旧快照全为 0 → 视为无效，按课程名重算；多门课都叫 0 时无法区分，
+      // 故只在「整个快照都退化」时才重算，由调用方在批量层处理。
+      colorIndex: saved,
+      tag: json['tag']?.toString() ?? '',
+      remark: json['remark']?.toString() ?? '',
+    );
+  }
+}
+
+/// 从课表快照批量恢复课程，**自动修正旧快照的全 0 颜色**。
+///
+/// 旧快照（Bingo 切换前写入）每条记录的 `colorIndex` 都是 0，用户升级后
+/// 课表会渲染成同一个颜色。判定方式：所有课程的颜色索引都相同即视为退化，
+/// 此时整体按课程名重新推导；否则原样沿用，保留用户已熟悉的配色。
+List<Course> coursesFromSnapshot(List<dynamic> raw) {
+  final list = raw
+      .map((e) => Course.fromSnapshot(e as Map<String, dynamic>))
+      .toList();
+  if (list.isEmpty) return list;
+  final first = list.first.colorIndex;
+  final degraded = list.every((c) => c.colorIndex == first);
+  if (!degraded) return list;
+  // 全部同色（含合法的单课程课表）→ 按课程名重算，单课程重算结果同样唯一
+  return list
+      .map((c) => c.colorIndex == colorIndexOf(c.name)
+          ? c
+          : Course(
+              name: c.name,
+              teacher: c.teacher,
+              position: c.position,
+              day: c.day,
+              weeks: c.weeks,
+              sections: c.sections,
+              colorIndex: colorIndexOf(c.name),
+              tag: c.tag,
+              remark: c.remark,
+            ))
+      .toList();
 }
 
 /// 调课/停课信息

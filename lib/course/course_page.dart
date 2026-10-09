@@ -436,9 +436,7 @@ class _CourseTablePageState extends State<CourseTablePage> {
     if (snap != null) {
       final s = snap;
       try {
-        final courses = (s['courses'] as List)
-            .map((e) => Course.fromSnapshot(e as Map<String, dynamic>))
-            .toList();
+        final courses = coursesFromSnapshot(s['courses'] as List);
         final semesters = (s['semesters'] as List)
             .map((e) => SemesterInfo.fromSnapshot(e as Map<String, dynamic>))
             .toList();

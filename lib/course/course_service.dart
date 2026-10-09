@@ -218,9 +218,7 @@ class CourseService {
       final semester = json['selectedSemester']?.toString() ?? '';
       if (semester.isNotEmpty && semester != _calcXnxqdm()) return null;
 
-      final courses = (json['courses'] as List? ?? const [])
-          .map((e) => Course.fromSnapshot(e as Map<String, dynamic>))
-          .toList();
+      final courses = coursesFromSnapshot(json['courses'] as List? ?? const []);
       if (courses.isEmpty) return null;
 
       return _CourseSnapshot(
@@ -571,11 +569,10 @@ class CourseService {
       }
 
       final courses = <Course>[];
-      for (int i = 0; i < result.length; i++) {
-        courses.add(Course.fromExperimentJson(
-          result[i] as Map<String, dynamic>,
-          colorIndex: i,
-        ));
+      for (final row in result) {
+        // 不传 colorIndex → 由 Course 按课程名推导，同课同色且跨学期稳定
+        courses.add(
+            Course.fromExperimentJson(row as Map<String, dynamic>));
       }
       DataCache().set(cacheKey, courses);
       return ExperimentFetchOutcome(courses, loggedIn: true);
@@ -766,9 +763,9 @@ class CourseService {
     final rows = module['rows'];
     if (rows is! List) return [];
     final courses = <Course>[];
-    for (int i = 0; i < rows.length; i++) {
-      courses.add(Course.fromJson(rows[i] as Map<String, dynamic>,
-          colorIndex: i));
+    for (final row in rows) {
+      // 不传 colorIndex → 由 Course 按课程名推导，同课同色且跨学期稳定
+      courses.add(Course.fromJson(row as Map<String, dynamic>));
     }
     DataCache().set(cacheKey, courses);
     return courses;
@@ -978,10 +975,9 @@ class CourseService {
         final rows = module['rows'];
         if (rows is List && rows.isNotEmpty) {
           final courses = <Course>[];
-          for (int i = 0; i < rows.length; i++) {
-            courses.add(Course.fromJson(
-                rows[i] as Map<String, dynamic>,
-                colorIndex: i));
+          for (final row in rows) {
+            // 不传 colorIndex → 由 Course 按课程名推导，同课同色且跨学期稳定
+            courses.add(Course.fromJson(row as Map<String, dynamic>));
           }
           return courses;
         }

@@ -409,6 +409,9 @@ class BingoCourseItem {
     for (var s = startPeriod; s <= endPeriod && s > 0; s++) {
       sections.add(s);
     }
+    // ⚠️ 同一课程必须稳定取到同一颜色：按课程名做哈希，不用列表下标
+    // （下标会因课程增删/排序而整体错位，同一门课每学期换色）。
+    final colorIndex = colorIndexOf(courseName);
     // 实验课的独立时段（如「下午1」）不占主网格节次，用 label 承载
     final label = periodLabel.trim();
     if (isExperiment && label.isNotEmpty) {
@@ -419,6 +422,7 @@ class BingoCourseItem {
         day: dayOfWeek,
         weeks: weeks,
         sections: const [],
+        colorIndex: colorIndex,
         tag: '实验',
         remark: _normalize(expName.isNotEmpty ? expName : label),
       );
@@ -430,6 +434,7 @@ class BingoCourseItem {
       day: dayOfWeek,
       weeks: weeks,
       sections: sections,
+      colorIndex: colorIndex,
       tag: isExperiment ? '实验' : '',
       remark: _normalize(expName),
     );
