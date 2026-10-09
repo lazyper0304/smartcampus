@@ -1,6 +1,18 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.3.4] - 2026-10-10
+
+### ✨ 新增「点餐码」模块（对齐 BingoApp `order_qrcode`）
+
+- **入口**：服务分类新增「点餐码」（餐饮橙，需登录），代码落地 `lib/order_qrcode/`（model / service / controller / page 分离，与一卡通模块同构）。
+- **数据层**：经 Bingo 代理 `/order-qrcode/*`（与参考工程**同一个后端**，`new.bingo.yaooa.cn/api/v1` 已核对一致），覆盖 `list / campuses / categories / my / check / submit / {id}/reviews / {id}/my-review / reviews/{id}/like` 全套接口；沿用既有 `BingoClient`（自动注入 Bearer + 401 单飞刷新），**不引入 dio**。
+- **列表页**：搜索（350ms 防抖）+ 分类横向选择器（选中放大加粗 + 指示条）+ 校区筛选（标题栏 chip，弹 `CupertinoActionSheet`）+ 下拉刷新；未选校区时按校区分组并显示每组条数。
+- **详情页**：`qr_flutter` 渲染二维码（白底 220px 卡）+ 平均评分/评价数 + 商家信息（上传者头像 / 校区 / 位置 / 说明）+ 评价列表（**我的评价置顶**、星级、点赞、审核中/未通过提示）+ 写/编辑评价（1~5 星 + 200 字）。
+- **上传页**：扫码（`mobile_scanner`）→ 服务端查重 → 表单（校区必选 / 店名必填 / 分类 / 位置 / 说明）→ 提交（提交前二次查重，重复给出已收录店铺名或审核中提示）。
+- **我的上传**：我提交过的记录；`approved` 进详情看二维码，其余进「上传详情」看审核状态与驳回原因。
+- **新增依赖**：`qr_flutter ^4.1.0`（二维码渲染，纯 Dart）、`mobile_scanner ^7.4.2`（扫码）。同步补 `AndroidManifest` 的 `CAMERA` 权限（`uses-feature ... required=false`，无相机设备仍可手动输入）与 iOS `NSCameraUsageDescription`。
+- **刻意精简**：① 不做 GPS 自动定位校区（参考工程依赖定位，本项目不引入定位依赖）→ 改手动选择；② 评价不支持上传图片（Bingo 媒体上传链路未接入）；③ 列表项/表单行一律裸 `Container` + `GestureDetector(opaque)`，不用 `IosCard`/`Clickable`（其在 `ListView` 松散约束下收缩，会导致点不动 + `RenderBox was not laid out`，见评教那次修复）。
+- ⚠️ **`mobile_scanner` 只有 android / ios / macos / web 实现**：Windows/Linux 无原生实现，故用 `supportsQrScan` 判定，桌面端只暴露「填写二维码内容」，不会进扫码页抛 `MissingPluginException`。
 
 ### 🎯 网上评教：一键填写比例固定 95%，移除档位切换
 
