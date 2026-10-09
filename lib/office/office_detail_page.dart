@@ -121,7 +121,7 @@ class OfficeDetailPage extends StatelessWidget {
           // 统一走文件预览页：PDF 应用内渲染，其他格式提供系统打开兜底
           pushPage(
             context,
-            OfficeFilePreviewPage(url: a.url, name: a.name),
+            OfficeFilePreviewPage(attachment: a, name: a.name),
           );
         },
         child: Padding(
@@ -132,11 +132,23 @@ class OfficeDetailPage extends StatelessWidget {
                   size: 18, color: accentColorNotifier.value),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  a.name,
-                  style: const TextStyle(fontSize: 14, height: 1.4),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      a.name,
+                      style: const TextStyle(fontSize: 14, height: 1.4),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (a.displaySize.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        a.displaySize,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 8),

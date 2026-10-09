@@ -22,6 +22,14 @@ class ErkeProfile {
     this.avatar,
   });
 
+  const ErkeProfile.empty()
+      : unitName = '',
+        classNo = '',
+        nickName = '',
+        username = '',
+        score = null,
+        avatar = null;
+
   factory ErkeProfile.fromJson(Map<String, dynamic> j) => ErkeProfile(
         unitName: j['unitName']?.toString() ?? '',
         classNo: j['classNo']?.toString() ?? '',
@@ -43,6 +51,25 @@ class ErkeReportItem {
         name: j['name']?.toString() ?? '',
         value: j['value']?.toString() ?? '0',
       );
+
+  /// 从 Bingo `/erke/summary` 条目创建：`{ category, total_credit, count }`
+  factory ErkeReportItem.fromBingoJson(Map<String, dynamic> j) {
+    final credit = j['total_credit'];
+    return ErkeReportItem(
+      name: j['category']?.toString() ?? '',
+      value: credit == null
+          ? '0'
+          : (credit is num
+              ? _trimNumber(credit.toDouble())
+              : credit.toString()),
+    );
+  }
+
+  /// 学分去尾零（4.0 → 4，4.5 → 4.5）
+  static String _trimNumber(double v) {
+    if (v == v.roundToDouble()) return v.round().toString();
+    return v.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+  }
 
   double get valueDouble => double.tryParse(value) ?? 0;
 }
@@ -76,6 +103,48 @@ class ErkeTranscriptItem {
         grade: j['grade']?.toString(),
         createTime: j['createTime']?.toString(),
       );
+
+  /// 从 Bingo `/erke/activities` 条目创建：
+  /// `{ activity_name, category, status, start_time, end_time, location, credit }`
+  ///
+  /// 后端字段与第二课堂原字段语义映射：
+  /// `category`→itemType（分类）、`activity_name`→itemName（活动名）、
+  /// `start_time`/`end_time`→itemTime（学期/时间）、`credit`→score（学分）。
+  factory ErkeTranscriptItem.fromBingoJson(Map<String, dynamic> j) {
+    final credit = j['credit'];
+    final status = j['status']?.toString() ?? '';
+    return ErkeTranscriptItem(
+      id: int.tryParse(j['id']?.toString() ?? '') ?? 0,
+      itemType: j['category']?.toString() ?? '',
+      itemName: j['activity_name']?.toString() ?? '',
+      itemTime: _joinTime(
+        j['start_time']?.toString() ?? '',
+        j['end_time']?.toString() ?? '',
+      ),
+      score: credit == null
+          ? '0'
+          : (credit is num
+              ? _fmt(credit.toDouble())
+              : credit.toString()),
+      grade: status.isEmpty ? null : status,
+      createTime: j['location']?.toString(),
+    );
+  }
+
+  static String _joinTime(String start, String end) {
+    if (start.isEmpty) return end;
+    if (end.isEmpty) return start;
+    // 仅取日期部分（若含时间则截断到日）
+    final s = start.length > 10 ? start.substring(0, 10) : start;
+    final e = end.length > 10 ? end.substring(0, 10) : end;
+    if (s == e) return s;
+    return '$s ~ $e';
+  }
+
+  static String _fmt(double v) {
+    if (v == v.roundToDouble()) return v.round().toString();
+    return v.toString();
+  }
 }
 
 /// 第二课堂成绩单（一次查询的完整结果）

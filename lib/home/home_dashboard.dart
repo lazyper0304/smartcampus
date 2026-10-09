@@ -8,7 +8,7 @@ import '../core/guest_mode.dart';
 import '../core/guest_guard.dart';
 import '../course/course.dart';
 import '../course/course_grid.dart' show tagBadgeColor;
-import '../course/course_service.dart';
+import '../course/bingo_course_service.dart';
 import '../course/course_page.dart';
 import '../news/news.dart';
 import '../news/news_service.dart';
@@ -87,15 +87,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
       return;
     }
     try {
-      // 复用主 client 的 cookie。
-      // fetchTodayCourses 统一给出「理论课 + 实验课」的今日课程与当前教学周次：
-      // 优先读课表页快照（含实验课），无快照才实时获取并合并 scjx2 实验课表，
-      // 因此首页与课表页展示的今日课程保持一致。
-      final service = CourseService(
-        client: widget.client,
-        userId: widget.userId,
-      );
-      final today = await service.fetchTodayCourses();
+      // 走 Bingo 后端 `/semester/info` + `/course/semester/{sem}`：
+      // 后端已聚合理论课与实验课，一次请求得整学期课表，本地按周过滤。
+      // 数据源与课表页一致，首页与课表页展示的今日课程保持一致。
+      final today =
+          await BingoCourseService.instance.fetchTodayCourses();
       if (!mounted) return;
 
       setState(() {

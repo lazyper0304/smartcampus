@@ -20,6 +20,16 @@ class Score {
   /// 学分绩点
   final double gpa;
 
+  /// 任课教师（Bingo 侧提供，ehall 旧接口无此字段）
+  final String teacher;
+
+  /// 课程代码
+  final String courseCode;
+
+  /// 该课程内的名次（Bingo `/grade` 下发，`rank_total` 为 0 表示未排名）
+  final int rank;
+  final int rankTotal;
+
   const Score({
     required this.semester,
     required this.courseName,
@@ -28,6 +38,11 @@ class Score {
     required this.credit,
     required this.score,
     required this.gpa,
+    this.teacher = '',
+    this.courseCode = '',
+    this.scoreText = '',
+    this.rank = 0,
+    this.rankTotal = 0,
   });
 
   factory Score.fromJson(Map<String, dynamic> json) {
@@ -40,6 +55,71 @@ class Score {
       score: (json['ZCJ'] as num?)?.toInt() ?? 0,
       gpa: (json['XFJD'] as num?)?.toDouble() ?? 0.0,
     );
+  }
+
+  /// 从 Bingo `/grade` 返回的条目创建
+  ///
+  /// 后端已做双字段兼容（教务原字段 `XNXQDM`/`KCM`/`KCDM`/`XF`/`ZCJ`/`JD`
+  /// 与标准字段 `semester`/`course_name`/`course_code`/`credit`/`score`/`grade_point`），
+  /// 此处优先取标准字段，回退教务原字段。
+  ///
+  /// ⚠️ `score` 是**字符串**（可能是「优秀」「85」等非数字），
+  /// 故 [score] 只取可解析的整数部分，[scoreText] 保留原始展示文本。
+  factory Score.fromBingoJson(Map<String, dynamic> json) {
+    final rawScore = _pick(json, 'kscj', 'score') ?? '';
+    final numScore = (json['score_num'] as num?)?.toDouble() ??
+        (json['kscj'] as num?)?.toDouble() ??
+        double.tryParse(rawScore.trim()) ??
+        0;
+
+    return Score(
+      semester: _pick(json, 'xnxq', 'semester') ?? '',
+      courseName: _pick(json, 'kcmc', 'course_name') ?? '未知',
+      courseCode: _pick(json, 'kcdm', 'course_code') ?? '',
+      category: _pick(json, 'course_type', 'kcsxdm') ?? '',
+      status: json['exam_type']?.toString() ?? '',
+      credit: _pickNum(json, 'xf', 'credit'),
+      score: numScore.round(),
+      gpa: _pickNum(json, 'jd', 'grade_point'),
+      teacher: json['teacher']?.toString() ?? '',
+      scoreText: rawScore.trim(),
+      rank: _pickInt(json, 'rank'),
+      rankTotal: _pickInt(json, 'rank_total'),
+    );
+  }
+
+  static String? _pick(Map<String, dynamic> j, String primary, String fallback) {
+    final a = j[primary];
+    if (a != null && '$a'.trim().isNotEmpty) return '$a'.trim();
+    final b = j[fallback];
+    if (b != null && '$b'.trim().isNotEmpty) return '$b'.trim();
+    return null;
+  }
+
+  static double _pickNum(Map<String, dynamic> j, String primary, String fallback) {
+    if (j[primary] is num) return (j[primary] as num).toDouble();
+    final v = double.tryParse('${j[primary]}');
+    if (v != null) return v;
+    if (j[fallback] is num) return (j[fallback] as num).toDouble();
+    return double.tryParse('${j[fallback]}') ?? 0;
+  }
+
+  static int _pickInt(Map<String, dynamic> j, String key) {
+    final v = j[key];
+    if (v is num) return v.toInt();
+    return int.tryParse('$v') ?? 0;
+  }
+
+  /// 成绩原始展示文本（可能是「优秀」「85」或空）
+  final String scoreText;
+
+  /// 课程名 + 教师（列表副标题）
+  String get subtitle {
+    if (teacher.isEmpty && courseCode.isEmpty) return semesterDisplay;
+    final parts = <String>[];
+    if (teacher.isNotEmpty) parts.add(teacher);
+    if (courseCode.isNotEmpty) parts.add(courseCode);
+    return parts.join(' · ');
   }
 
   String get semesterDisplay {

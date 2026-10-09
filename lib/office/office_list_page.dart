@@ -9,19 +9,22 @@ import 'office_file_preview_page.dart';
 import 'office_models.dart';
 import 'office_service.dart';
 
-/// 办公网单栏目列表（支持分页：offset 每页 +20）
+/// 办公网单栏目列表（分页：offset 每页 +20）
 class OfficeListPage extends StatefulWidget {
-  final int? bId; // 搜索模式下为 null
-  final String? searchKeyword; // 非空表示搜索模式
+  /// Bingo 栏目 key（`sup_doc` / `party` / `admin` / `teaching`）；搜索模式为 null
+  final String? category;
+
+  /// 非空表示搜索模式
+  final String? searchKeyword;
   final String title;
 
   const OfficeListPage({
     super.key,
-    this.bId,
+    this.category,
     this.searchKeyword,
     required this.title,
-  }) : assert(bId != null || searchKeyword != null,
-            'bId 与 searchKeyword 必须二选一');
+  }) : assert(category != null || searchKeyword != null,
+            'category 与 searchKeyword 必须二选一');
 
   @override
   State<OfficeListPage> createState() => _OfficeListPageState();
@@ -74,7 +77,8 @@ class _OfficeListPageState extends State<OfficeListPage> {
     try {
       final result = widget.searchKeyword != null
           ? await OfficeService().search(widget.searchKeyword!, offset: 0)
-          : await OfficeService().fetchColumn(widget.bId!, offset: 0);
+          : await OfficeService()
+              .fetchColumnByCategory(widget.category!, offset: 0);
       if (!mounted) return;
       setState(() {
         _items.addAll(result.items);
@@ -97,7 +101,8 @@ class _OfficeListPageState extends State<OfficeListPage> {
     try {
       final result = widget.searchKeyword != null
           ? await OfficeService().search(widget.searchKeyword!, offset: _nextOffset!)
-          : await OfficeService().fetchColumn(widget.bId!, offset: _nextOffset!);
+          : await OfficeService()
+              .fetchColumnByCategory(widget.category!, offset: _nextOffset!);
       if (!mounted) return;
       setState(() {
         _items.addAll(result.items);
@@ -245,17 +250,24 @@ class _OfficeListPageState extends State<OfficeListPage> {
                               style: TextStyle(
                                   fontSize: 11, color: Colors.grey[400])),
                           const Spacer(),
-                          if (item.isFile)
+                          if (item.hasAttachment)
                             Padding(
                               padding: const EdgeInsets.only(right: 6),
-                              child: Icon(Icons.picture_as_pdf_rounded,
-                                  size: 16,
-                                  color: accentColorNotifier.value),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.attach_file_rounded,
+                                      size: 14, color: Colors.grey[400]),
+                                  const SizedBox(width: 2),
+                                  Text('${item.attachmentCount}',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[400])),
+                                ],
+                              ),
                             ),
                           Icon(
-                            item.isFile
-                                ? Icons.open_in_new_rounded
-                                : Icons.chevron_right_rounded,
+                            Icons.chevron_right_rounded,
                             size: 18,
                             color: Colors.grey[300],
                           ),
@@ -273,30 +285,22 @@ class _OfficeListPageState extends State<OfficeListPage> {
   }
 
   Future<void> _open(OfficeItem item) async {
-    // showdoc.asp 为直接返回的 PDF 文件流 → 走统一文件预览页
-    if (item.isFile) {
-      pushPage(
-        context,
-        OfficeFilePreviewPage(url: item.url, name: item.title),
-      );
-      return;
-    }
-
-    // detail.asp 文章 → 原生解析后展示
+    // Bingo 通知一律进详情页；正文为空且仅带一个附件的公文，
+    // 由详情页内部直接跳附件预览（少一次点击）。
     showGlassLoadingDialog(context, message: '加载中...');
     try {
-      final detail = await OfficeService().fetchDetail(item.url);
+      final detail = await OfficeService().fetchDetailById(item.id);
       if (!mounted) return;
       Navigator.of(context).pop();
 
-      // 公文类条目（正文为空、仅带一个 showdoc.asp「[阅读附件]」）直接进 PDF
-      // 预览：这类文章本质就是文件，站点也只在标题区放一个附件链接，
-      // 多一次「详情页 → 附件」点击纯属多余（2026-09-18 按预期调整）。
+      // 公文类条目（正文为空、仅带一个附件）本质就是文件，直接进预览
       if (detail.paragraphs.isEmpty && detail.attachments.length == 1) {
-        final a = detail.attachments.first;
         pushPage(
           context,
-          OfficeFilePreviewPage(url: a.url, name: a.name),
+          OfficeFilePreviewPage(
+            attachment: detail.attachments.first,
+            name: detail.attachments.first.name,
+          ),
         );
         return;
       }

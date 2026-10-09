@@ -4,6 +4,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../core/simple_page.dart';
 import '../core/theme_utils.dart';
 import '../main.dart';
+import 'bingo_course_service.dart';
 import 'course.dart';
 import 'course_service.dart';
 
@@ -25,6 +26,15 @@ class CourseFetchResult {
 
   /// 普通课程 + 实验教学合并后的完整课表
   List<Course> get merged => [...regular, ...experiments];
+
+  /// 复制并替换学期列表（用于课表页补全异常列表，保持本类不可变）
+  CourseFetchResult withSemesters(List<SemesterInfo> next) => CourseFetchResult(
+        regular: regular,
+        experiments: experiments,
+        weekInfo: weekInfo,
+        semesters: next,
+        activeSemester: activeSemester,
+      );
 }
 
 /// 课表获取过渡界面
@@ -80,22 +90,66 @@ class _CourseFetchPageState extends State<CourseFetchPage> {
       _regularError = null;
     });
 
-    // ---- ① 普通课表：学期解析 → 课表（并行取当前周，失败降级）----
-    String? activeSemester;
-    List<SemesterInfo> semesters = [];
+    // Bingo 后端 `/course/semester/{sem}` 已聚合理论课与实验课
+    // （`schedule_type` 区分），一次请求即得整学期课表：
+    // ① 课表主数据（失败即终止，可重试）
+    // ② 当前教学周（永不抛，失败降级为第 1 周）
+    final bingo = BingoCourseService.instance;
     List<Course> regular = [];
+    List<Course> experiments = [];
+    List<SemesterInfo> semesters = [];
     CurrentWeekInfo weekInfo =
         CurrentWeekInfo(week: 1, firstMonday: DateTime.now());
+    String? activeSemester = widget.xnxqdm;
+
     try {
-      final resolved = await widget.service.resolveCurrentSemester();
-      semesters = resolved.semesters;
-      // 切换学期模式用指定学期；首次获取/手动刷新用解析出的当前学期
-      activeSemester = widget.xnxqdm ?? resolved.activeXnxqdm;
-      final regularF = widget.service.fetchCourses(xnxqdm: activeSemester);
-      final weekInfoF = _weekSafe(activeSemester,
-          forceRefresh: widget.forceRefreshData); // 永不抛：当前周失败不致命
-      regular = await regularF; // 普通课表失败 → 进入 catch
-      weekInfo = await weekInfoF;
+      // 学期：指定学期优先，否则取当前学期
+      final resolvedSemester = (widget.xnxqdm?.isNotEmpty ?? false)
+          ? widget.xnxqdm!
+          : await bingo.currentSemesterCode();
+      activeSemester = resolvedSemester;
+
+      // 学期列表（Bingo 无学期列表端点，由当前学期往前推 8 个，
+      // 推导算法与参考工程 buildCourseSemesterList 一致）。
+      //
+      // ⚠️ 基准必须恒为**真实当前学期**，不能用 widget.xnxqdm（目标学期）：
+      // 那样切到历史学期后列表会变成「从历史学期往前推」，把当前学期挤出
+      // 列表，导致下拉框里找不到刚离开的学期、无法切回。
+      // 这里始终重新解析当前学期（走内存缓存，成本可忽略）。
+      final currentSemester = await bingo.currentSemesterCode();
+      final listBase =
+          currentSemester.isNotEmpty ? currentSemester : resolvedSemester;
+      semesters = BingoCourseService.buildSemesterList(listBase)
+          .map((dm) => SemesterInfo(
+                wid: '',
+                dm: dm,
+                mc: formatSemesterLabel(dm),
+                xndm: '',
+                xqdm: '',
+                isActive: dm == listBase,
+              ))
+          .toList();
+
+      final result = await bingo.fetchSemesterCourses(
+        semester: resolvedSemester,
+        forceRefresh: widget.forceRefreshData,
+      );
+
+      // 按 schedule_type 拆分：实验课带 tag='实验'，普通课不带。
+      // 保持既有 CourseFetchResult 的 regular / experiments 结构，
+      // 课表页与快照逻辑无需改动。
+      for (final item in result.items) {
+        if (item.isCustom) continue;
+        final course = item.toCourse(semester: resolvedSemester);
+        if (course.tag == '实验') {
+          experiments.add(course);
+        } else {
+          regular.add(course);
+        }
+      }
+
+      weekInfo = await _weekSafe(forceRefresh: widget.forceRefreshData);
+
       if (!mounted) return;
       setState(() {
         _regular = _StepStatus.success;
@@ -107,68 +161,34 @@ class _CourseFetchPageState extends State<CourseFetchPage> {
         _regular = _StepStatus.failed;
         _regularError = e.toString().replaceFirst('Exception: ', '');
       });
-      return; // 普通课表失败：终止，不再获取实验课表
+      return; // 课表获取失败：终止
     }
 
-    // ---- ② 实验课表（未登录时先预热：scjx2 自动登录，race 同款）----
-    setState(() => _experiments = _StepStatus.running);
-    ExperimentFetchOutcome exp;
-    if (await _ensureTeachLogin()) {
-      exp = await widget.service.fetchExperimentsWithStatus(
-          xnxqdm: activeSemester, forceRefresh: widget.forceRefreshData);
-    } else {
-      exp = const ExperimentFetchOutcome([], loggedIn: false);
-    }
+    // 实验课已随主数据一并返回，此处仅汇报结果
     if (!mounted) return;
-    if (exp.error != null) {
-      setState(() {
-        _experiments = _StepStatus.failed;
-        _expDetail = exp.error!.replaceFirst('Exception: ', '');
-      });
-    } else if (!exp.loggedIn) {
-      setState(() {
-        _experiments = _StepStatus.skipped;
-        _expDetail = 'scjx2 自动登录失败（实验教学），已跳过';
-      });
-    } else {
-      setState(() {
-        _experiments = _StepStatus.success;
-        _expDetail = '${exp.courses.length} 个实验';
-      });
-    }
+    setState(() {
+      _experiments = _StepStatus.success;
+      _expDetail = '${experiments.length} 个实验';
+    });
 
     final result = CourseFetchResult(
       regular: regular,
-      experiments: exp.courses,
+      experiments: experiments,
       weekInfo: weekInfo,
       semesters: semesters,
       activeSemester: activeSemester,
     );
 
-    // 停留展示两步结果：有跳过/失败时多留时间阅读，然后自动返回
-    final needReading =
-        _experiments == _StepStatus.failed || _experiments == _StepStatus.skipped;
-    await Future.delayed(
-        Duration(milliseconds: needReading ? 1600 : 700));
+    // 短暂停留展示结果后自动返回
+    await Future.delayed(const Duration(milliseconds: 700));
     if (mounted) Navigator.of(context).pop(result);
   }
 
-  /// 实验课表预热：teach 模块未登录时走 scjx2 引导自动登录
-  /// （race 学科竞赛同款 Headless WebView SSO；已登录则立即返回）。
-  /// 登录耗时较长（WebView SSO 全链路），期间步骤行显示登录中提示。
-  Future<bool> _ensureTeachLogin() async {
-    if (await widget.service.isTeachLoggedIn()) return true;
-    if (!mounted) return false;
-    setState(() => _expDetail = 'scjx2 未登录，正在自动登录…');
-    return widget.service.ensureTeachLogin();
-  }
-
   /// 当前周获取兜底：失败降级为第 1 周（学期起始日以今天占位）
-  Future<CurrentWeekInfo> _weekSafe(String? xnxqdm,
-      {bool forceRefresh = false}) async {
+  Future<CurrentWeekInfo> _weekSafe({bool forceRefresh = false}) async {
     try {
-      return await widget.service
-          .fetchCurrentWeek(xnxqdm: xnxqdm, forceRefresh: forceRefresh);
+      return await BingoCourseService.instance
+          .fetchCurrentWeek(forceRefresh: forceRefresh);
     } catch (_) {
       return CurrentWeekInfo(week: 1, firstMonday: DateTime.now());
     }
@@ -211,7 +231,7 @@ class _CourseFetchPageState extends State<CourseFetchPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  failed ? '普通课表未能获取，实验课表已终止' : '先获取普通课表，再获取实验课表',
+                  failed ? '课表未能获取，请重试' : '正在同步课表与实验教学',
                   style: TextStyle(
                       fontSize: 12, color: textSecondary(context)),
                 ),

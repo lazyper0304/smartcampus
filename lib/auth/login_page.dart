@@ -1,7 +1,11 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../core/bingo/bingo_client.dart';
 import '../core/guest_mode.dart';
 import '../core/ios_kit.dart';
 import '../core/local_storage.dart';
@@ -27,10 +31,18 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _captchaController = TextEditingController();
   final _authService = AuthService();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  /// 图形验证码挑战载荷（Bingo `/auth/login` 下发）。
+  /// 为 null 表示当前不需要验证码，登录卡片不显示该输入框。
+  LoginCaptchaChallenge? _captcha;
+
+  /// 学号输入防抖定时器：连输时不打 `/captcha-status`
+  Timer? _captchaDebounce;
 
   /// 默认勾选"记住密码"：凭据总是会保存用于会话自动续期，
   /// 该标志仅决定下次打开登录页时是否自动填充账号密码。
@@ -44,9 +56,107 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _captchaDebounce?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
+    _captchaController.dispose();
     super.dispose();
+  }
+
+  // ==================== 图形验证码 ====================
+
+  /// 学号变化后防抖查询是否需要验证码
+  void _onUsernameChanged(String value) {
+    _captchaDebounce?.cancel();
+    final id = value.trim();
+    if (id.isEmpty) {
+      if (_captcha != null) {
+        setState(() {
+          _captcha = null;
+          _captchaController.clear();
+        });
+      }
+      return;
+    }
+    _captchaDebounce = Timer(const Duration(milliseconds: 600), () {
+      _queryCaptcha(id);
+    });
+  }
+
+  Future<void> _queryCaptcha(String schoolId) async {
+    try {
+      final status = await _authService.queryCaptchaStatus(schoolId);
+      if (!mounted) return;
+      // 后端判定无需验证码时 captcha_required=false
+      if (status.captchaRequired) {
+        await _refreshCaptcha(schoolId);
+      } else if (_captcha != null) {
+        setState(() {
+          _captcha = null;
+          _captchaController.clear();
+        });
+      }
+    } catch (_) {
+      // 预检失败不阻断登录：真正提交时后端仍会返回挑战
+    }
+  }
+
+  /// 拉取/刷新验证码图片
+  Future<void> _refreshCaptcha([String? schoolId]) async {
+    final id = schoolId ?? _usernameController.text.trim();
+    if (id.isEmpty) return;
+    try {
+      final c = await _authService.fetchCaptcha(id);
+      if (!mounted) return;
+      setState(() {
+        _captcha = c;
+        _captchaController.clear();
+      });
+    } catch (_) {
+      // 图片拉取失败保持原状，用户仍可直接提交由后端判定
+    }
+  }
+
+  /// 渲染验证码图片（支持 data URI 与裸 base64 两种形态）
+  Widget _buildCaptchaRow() {
+    final c = _captcha;
+    if (c == null) return const SizedBox.shrink();
+    final uri = _captchaImageUri(c.captchaImage);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _captchaController,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _handleLogin(),
+              decoration: const InputDecoration(
+                labelText: '验证码',
+                prefixIcon: Icon(Icons.verified_outlined),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? '请输入验证码' : null,
+            ),
+          ),
+          const SizedBox(width: 10),
+          _CaptchaImage(
+            uri: uri,
+            onRefresh: () => _refreshCaptcha(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 兼容 `data:image/png;base64,...` 与裸 base64 两种下发形态
+  static String? _captchaImageUri(String? raw) {
+    final s = raw?.trim() ?? '';
+    if (s.isEmpty) return null;
+    if (s.startsWith('data:')) return s;
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    return 'data:image/png;base64,$s';
   }
 
   Future<void> _loadSavedCredentials() async {
@@ -77,10 +187,20 @@ class _LoginPageState extends State<LoginPage> {
     final result = await _authService.login(
       username: _usernameController.text.trim(),
       password: _passwordController.text,
+      captchaId: _captcha?.captchaId,
+      captchaCode: _captchaController.text.trim(),
     );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
+
+    // 登录失败但后端下发了验证码挑战 → 渲染验证码输入框让用户重填
+    if (!result.success && result.challenge != null) {
+      setState(() {
+        _captcha = result.challenge;
+        _captchaController.clear();
+      });
+    }
 
     if (result.success) {
       // 保存登录凭据和会话 Cookie
@@ -208,6 +328,7 @@ class _LoginPageState extends State<LoginPage> {
               controller: _usernameController,
               keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
+              onChanged: _onUsernameChanged,
               decoration: const InputDecoration(
                 labelText: '学号/工号',
                 prefixIcon: Icon(Icons.person_outline_rounded),
@@ -238,6 +359,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               validator: (v) => (v == null || v.isEmpty) ? '请输入密码' : null,
             ),
+            _buildCaptchaRow(),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -382,5 +504,56 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+}
+
+/// 验证码图片（点击可刷新）
+class _CaptchaImage extends StatelessWidget {
+  final String? uri;
+  final VoidCallback onRefresh;
+
+  const _CaptchaImage({required this.uri, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '点击刷新验证码',
+      child: InkWell(
+        onTap: onRefresh,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 116,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          clipBehavior: Clip.antiAlias,
+          alignment: Alignment.center,
+          child: uri == null
+              ? const Icon(Icons.refresh_rounded,
+                  size: 20, color: Colors.grey)
+              : Image.memory(
+                  _decodeBase64Image(uri!),
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const Icon(Icons.refresh_rounded,
+                      size: 20, color: Colors.grey),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// 从 data URI / 裸 base64 取出图片字节；网络 URL 返回空（此时不渲染图片）
+  static Uint8List _decodeBase64Image(String src) {
+    final comma = src.indexOf(',');
+    final payload = comma >= 0 && src.startsWith('data:') ? src.substring(comma + 1) : src;
+    try {
+      return base64Decode(payload);
+    } catch (_) {
+      return Uint8List(0);
+    }
   }
 }

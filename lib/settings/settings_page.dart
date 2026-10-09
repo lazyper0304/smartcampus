@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/login_page.dart';
+import '../auth/bingo_auth_service.dart';
 import '../core/beginner_mode.dart';
 import '../core/guest_mode.dart';
 import '../core/theme_utils.dart';
@@ -566,6 +567,9 @@ class _SettingsPageState extends State<SettingsPage> {
     await GuestMode.exit();
     await BeginnerMode.exit();
     await StudentInfoManager.clearCache();
+    // 双下放：CAS 侧 cookie 与 Bingo 侧 token 都要清，
+    // 否则「退出登录」后课表/成绩/评教等代理接口仍可用。
+    await BingoAuthService.instance.logout();
     await LocalStorage.remove('username');
     await LocalStorage.remove('password');
     await LocalStorage.remove('saved_username');

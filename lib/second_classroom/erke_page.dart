@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:smooth_dropdown/smooth_dropdown.dart';
 
-import '../core/local_storage.dart';
+import '../core/bingo/bingo_client.dart';
+import '../core/glass_action_button.dart';
+import '../core/navigation.dart';
 import '../core/simple_page.dart';
 import '../core/smooth_styles.dart';
 import '../core/theme_utils.dart';
-import '../core/navigation.dart';
-import '../core/glass_action_button.dart';
+import '../auth/login_page.dart';
 import '../main.dart';
-import 'erke_login_page.dart';
 import 'erke_models.dart';
 import 'erke_service.dart';
 
 /// 第二课堂主页。
 ///
-/// 与「智慧校园 / CAS」相互独立：使用 erke 自己的账号密码登录，
-/// 登录态以 token 形式持久化在本地。无 token 时引导去独立登录页。
+/// 数据源为 Bingo 后端 `/erke/*`，复用双下放登录下发的 Bearer凭证，
+/// 因此不再需要 erke 独立的账号密码登录（该站仅校园内网可访问）。
 class ErkePage extends StatefulWidget {
   const ErkePage({super.key});
 
@@ -42,9 +42,10 @@ class _ErkePageState extends State<ErkePage> {
       _error = null;
       _data = null;
     });
-    final token = await LocalStorage.getString('erke_token');
-    final username = await LocalStorage.getString('erke_username');
-    if (token == null || token.isEmpty || username == null || username.isEmpty) {
+
+    // 数据源为 Bingo 后端，复用双下放登录的凭证；
+    // 未登录时走全局登录守卫（与其它模块一致），不再有独立登录页。
+    if (!BingoClient.isLoggedIn) {
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -52,22 +53,20 @@ class _ErkePageState extends State<ErkePage> {
       });
       return;
     }
+
     try {
-      final data = await ErkeService.fetchTranscript(username, token);
+      final data = await ErkeService.instance.fetchTranscript();
       if (!mounted) return;
       setState(() {
         _data = data;
         _loading = false;
         _needsLogin = false;
       });
-    } on ErkeAuthExpiredException {
-      // token 失效：清理后重新登录
-      await LocalStorage.remove('erke_token');
-      await LocalStorage.remove('erke_username');
+    } on BingoException catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _needsLogin = true;
+        _error = e.message;
       });
     } catch (e) {
       if (!mounted) return;
@@ -78,9 +77,9 @@ class _ErkePageState extends State<ErkePage> {
     }
   }
 
-  Future<void> _openLogin() async {
-    // token 失效时的兜底：直接替换到登录页（不堆叠中间页）；统一 iOS 右滑转场
-    replacePage(context, const ErkeLoginPage());
+  /// 未登录时引导至全局登录页（与其它模块一致的统一登录入口）
+  void _openLogin() {
+    replacePage(context, const LoginPage());
   }
 
   @override
@@ -94,16 +93,9 @@ class _ErkePageState extends State<ErkePage> {
           actions: [
             if (!_loading && !_needsLogin)
               IconButton(
-                icon: const Icon(Icons.logout_rounded),
-                tooltip: '退出登录',
-                onPressed: () async {
-                  // 仅清除登录态（token）；若此前勾选过「记住密码」，
-                  // 账号密码仍保留在本地，下次进入登录页会自动预填
-                  await LocalStorage.remove('erke_token');
-                  if (!context.mounted) return;
-                  // 统一 iOS 右滑转场
-                  replacePage(context, const ErkeLoginPage());
-                },
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: '刷新',
+                onPressed: _init,
               ),
           ],
         ),

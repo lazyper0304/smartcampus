@@ -1,38 +1,41 @@
-import 'dart:async';
 import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart' show FitPolicy;
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart'
     show GlassStatusBarStyle;
-import 'package:path_provider/path_provider.dart';
 
 import '../core/open_file.dart';
 import '../core/platform_pdf_view.dart';
 import '../core/simple_page.dart';
 import '../main.dart';
-import '../vpn/vpn_service.dart';
+import 'office_models.dart';
+import 'office_service.dart';
 
 /// 办公网文件预览页
 ///
-/// 老 ASP 站点的附件链接（showdoc.asp / filedown 类脚本）URL 以 .asp 结尾，
-/// 扩展名不可信：下载后按文件头魔数嗅探真实类型并纠正扩展名。
-///  - PDF（含 showdoc.asp 直接返回的二进制流）：先下载到本地临时目录，
-///    再用 [PlatformPdfView] 在应用内渲染，支持翻页/缩放。
-///  - DOCX / XLSX / PPT / ZIP 等：展示文件信息与「下载并用其他应用打开」
-///    兜底入口（如 WPS）；嗅探到 HTML 报错页（校外网络 / 链接失效）直接报错。
+/// 数据源已切到 Bingo 后端：附件不再有稳定的直链，而是走**两跳下载**——
+/// `/notices/attachments/{id}/download` 先返回 302 的预签名 OSS 地址，
+/// 再单独请求该地址取字节流（第二跳绝不能带 `Authorization`，否则 OSS 400）。
+/// 全部封装在 [BingoOfficeService.downloadAttachment] 内。
 ///
-/// 所有列表文件项（showdoc.asp）与详情页附件共用本页作为统一预览入口，
-/// 满足「所有文件都可以点击预览」的需求。
+/// 交互形态沿用原设计：
+///  - PDF：下载后用 [PlatformPdfView] 应用内渲染，支持翻页/缩放；
+///  - DOCX / XLSX / PPT / ZIP 等：展示文件信息与「下载并用其他应用打开」
+///    兜底入口（如 WPS）。
 class OfficeFilePreviewPage extends StatefulWidget {
-  final String url;
+  /// 附件（提供下载所需的 ID 与兜底文件名）
+  final OfficeAttachment? attachment;
+
+  /// 仅文件名（当 [attachment] 为 null 时用于类型判定/展示）
   final String name;
 
   const OfficeFilePreviewPage({
     super.key,
-    required this.url,
+    this.attachment,
     required this.name,
-  });
+  }) : assert(attachment != null,
+            '请通过 attachment 传入附件（Bingo 端无直链可用）');
 
   @override
   State<OfficeFilePreviewPage> createState() => _OfficeFilePreviewPageState();
@@ -50,27 +53,18 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
   @override
   void initState() {
     super.initState();
-    _ext = _extensionOf(widget.url);
-    // showdoc.asp 始终返回 PDF 二进制流；其余按扩展名判定
-    _isPdf = widget.url.toLowerCase().contains('showdoc.asp') ||
-        _ext == 'pdf';
+    _ext = _extensionOf(widget.name);
+    // PDF 进入即自动下载并在应用内渲染；其余格式等用户点按钮
+    _isPdf = _ext == 'pdf';
     if (_isPdf) {
-      // PDF 进入即自动下载并在应用内渲染
       _download(inApp: true);
     }
   }
 
-  String _extensionOf(String url) {
-    String lastSeg;
-    try {
-      final uri = Uri.parse(url);
-      lastSeg =
-          uri.pathSegments.isNotEmpty ? uri.pathSegments.last : '';
-    } catch (_) {
-      lastSeg = url;
-    }
-    final dot = lastSeg.lastIndexOf('.');
-    return dot >= 0 ? lastSeg.substring(dot + 1).toLowerCase() : '';
+  static String _extensionOf(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot < 0 || dot == name.length - 1) return '';
+    return name.substring(dot + 1).toLowerCase();
   }
 
   String _typeLabel() {
@@ -119,6 +113,9 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
     }
   }
 
+  /// 下载附件（Bingo 两跳）到本地，然后按扩展名决定去留
+  ///
+  /// [inApp] = true 表示应用内渲染（PDF），否则下载完直接交给系统打开。
   Future<void> _download({required bool inApp}) async {
     if (_downloading) return;
     setState(() {
@@ -126,80 +123,26 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
       _error = null;
       _progress = null;
     });
-    File? partFile;
     try {
-      final dir = await getTemporaryDirectory();
-      final base = 'office_${DateTime.now().microsecondsSinceEpoch}';
-      partFile = File('${dir.path}/$base.part');
+      final a = widget.attachment!;
+      final path =
+          await OfficeService().downloadAttachment(a);
 
-      final client = VpnService.createVpnAwareHttpClient();
-      try {
-        final req = await client.getUrl(Uri.parse(widget.url));
-        req.headers.set(
-          'User-Agent',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        );
-        // 老 ASP 站可能校验 Referer 防盗链，统一带上站内来源
-        req.headers.set('Referer', 'http://off.yibinu.edu.cn/');
-        final resp =
-            await req.close().timeout(const Duration(seconds: 30));
-        if (resp.statusCode != 200) {
-          throw Exception('服务器返回状态 ${resp.statusCode}，'
-              '该文件可能需校内网络访问或链接已失效');
-        }
-        final total = resp.contentLength;
-        var received = 0;
-        final sink = partFile.openWrite();
-        await for (final chunk in resp) {
-          sink.add(chunk);
-          received += chunk.length;
-          if (total > 0 && mounted) {
-            setState(() => _progress = received / total);
-          }
-        }
-        await sink.flush();
-        await sink.close();
-      } finally {
-        client.close(force: true);
-      }
-
-      final size = await partFile.length();
+      final file = File(path);
+      final size = await file.length();
       if (size == 0) {
         throw Exception('下载的内容为空文件（链接可能已失效）');
       }
 
-      // 魔数嗅探：附件链接以 .asp 结尾，URL 扩展名不可信，按内容头字节纠正
-      final head = <int>[];
-      await for (final chunk in partFile.openRead(0, 4096)) {
-        head.addAll(chunk);
-      }
-      final fallbackExt = _ext.isEmpty ? (_isPdf ? 'pdf' : '') : _ext;
-      final sniffed = _sniffExtension(head, fallback: fallbackExt);
-      if (sniffed == 'html') {
-        throw Exception('下载的内容是网页报错页'
-            '（可能需校内网络访问权限，或链接已失效）');
-      }
-      // .asp 脚本链接在嗅探不出已知魔数时也不允许落成 .asp：
-      // showdoc.asp 的文档化行为是直接返回 PDF 流 → 兜底 pdf；其余脚本兜底 bin
-      final resolvedFallback = fallbackExt == 'asp'
-          ? (widget.url.toLowerCase().contains('showdoc.asp') ? 'pdf' : 'bin')
-          : fallbackExt;
-      final finalExt = sniffed.isNotEmpty
-          ? sniffed
-          : (resolvedFallback.isEmpty ? 'bin' : resolvedFallback);
-
-      final file = File('${dir.path}/$base.$finalExt');
-      await partFile.rename(file.path);
-      partFile = null;
-
       if (!mounted) return;
+      // 服务端已按真实文件名落盘，扩展名直接取落盘结果
+      final finalExt = _extensionOf(file.path);
       setState(() {
         _localPath = file.path;
         _downloading = false;
-        _ext = finalExt;
-        // 应用内渲染仅当内容确为 PDF；嗅探出其他类型时退回「系统打开」模式
-        _isPdf = finalExt == 'pdf';
+        _ext = finalExt.isEmpty ? _ext : finalExt;
+        // 应用内渲染仅当内容确为 PDF
+        _isPdf = _ext == 'pdf';
         _progress = null;
       });
 
@@ -207,12 +150,6 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
         await _openFileWithSystem(file.path);
       }
     } catch (e) {
-      // 清理半成品，避免残留 .part 垃圾文件
-      try {
-        if (partFile != null && await partFile.exists()) {
-          await partFile.delete();
-        }
-      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _downloading = false;
@@ -221,68 +158,6 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
     }
   }
 
-  /// 魔数嗅探真实文件类型。
-  /// 返回小写扩展名；'html' 表示内容为网页报错页；'' 表示未知（维持 fallback）。
-  String _sniffExtension(List<int> head, {required String fallback}) {
-    // 跳过 UTF-8 BOM 与前置空白后取首个有效字节
-    var i = 0;
-    if (head.length >= 3 &&
-        head[0] == 0xEF &&
-        head[1] == 0xBB &&
-        head[2] == 0xBF) {
-      i = 3;
-    }
-    while (i < head.length &&
-        (head[i] == 0x20 ||
-            head[i] == 0x0D ||
-            head[i] == 0x0A ||
-            head[i] == 0x09)) {
-      i++;
-    }
-
-    bool startsWith(List<int> magic) {
-      if (head.length - i < magic.length) return false;
-      for (var k = 0; k < magic.length; k++) {
-        if (head[i + k] != magic[k]) return false;
-      }
-      return true;
-    }
-
-    // '<' 开头 → HTML 报错页（txt 本就是文本类型，放行）
-    if (i < head.length && head[i] == 0x3C) {
-      return fallback == 'txt' ? 'txt' : 'html';
-    }
-    if (startsWith([0x25, 0x50, 0x44, 0x46])) return 'pdf'; // %PDF
-    if (startsWith([0x50, 0x4B])) {
-      // PK → ZIP 容器：优先按附件名细分 docx/xlsx/pptx，否则按内容特征猜测
-      final nameExt = _extensionOf(widget.name);
-      if (nameExt == 'docx' ||
-          nameExt == 'xlsx' ||
-          nameExt == 'pptx' ||
-          nameExt == 'zip') {
-        return nameExt;
-      }
-      final s = String.fromCharCodes(head);
-      if (s.contains('word/')) return 'docx';
-      if (s.contains('xl/')) return 'xlsx';
-      if (s.contains('ppt/')) return 'pptx';
-      return 'zip';
-    }
-    if (startsWith([0xD0, 0xCF, 0x11, 0xE0])) {
-      // OLE2 复合文档（doc/xls/ppt）：按附件名细分，默认 doc
-      final nameExt = _extensionOf(widget.name);
-      if (nameExt == 'doc' || nameExt == 'xls' || nameExt == 'ppt') {
-        return nameExt;
-      }
-      return 'doc';
-    }
-    if (startsWith([0x52, 0x61, 0x72, 0x21])) return 'rar'; // Rar!
-    // 兜底：头 1KB 内任一位置出现 %PDF（服务器可能在 PDF 前附加了杂字节）
-    if (String.fromCharCodes(head.take(1024)).contains('%PDF')) {
-      return 'pdf';
-    }
-    return fallback;
-  }
 
   /// 通过系统默认应用打开本地文件（平台分发见 core/open_file.dart：
   /// Android 走 FileProvider content://，桌面端走 file:// + ShellExecute）
@@ -437,10 +312,12 @@ class _OfficeFilePreviewPageState extends State<OfficeFilePreviewPage> {
                       style:
                           TextStyle(fontSize: 12, color: Colors.grey[400])),
                   const SizedBox(height: 4),
-                  Text(widget.url,
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    '学校通知（办公网）· 附件 #${widget.attachment!.id}',
+                    style: const TextStyle(fontSize: 12),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),

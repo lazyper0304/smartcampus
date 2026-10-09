@@ -11,6 +11,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 // splash/startup_flow.dart，由 welcome/welcome_gate.dart 在欢迎首屏
 // 展示期间后台执行，故此处不再需要 auth / home / simple_page 等导入。
 import 'core/crash_log.dart';
+import 'core/bingo/bingo_client.dart';
 import 'core/glass_style.dart';
 import 'core/http_client.dart';
 import 'core/input_adaptation.dart';
@@ -40,6 +41,10 @@ void main() {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await CrashLog.init();
+
+    // 双下放登录：预热 Bingo 侧 access_token（课表/成绩/评教/办公网/第二课堂
+    // 共用该凭证），使冷启动后首个业务请求即可携带 Bearer，不必等登录页。
+    await BingoClient.warmUp();
 
     // ⚠️ 2026-08-20：LiquidGlassWidgets.initialize() 内部用
     // FragmentProgram.fromAsset 预编译多个玻璃 shader——在 Windows

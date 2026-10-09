@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../core/http_client.dart';
 import '../core/theme_utils.dart';
 import '../core/simple_page.dart';
+import '../core/navigation.dart';
 import '../core/ios_kit.dart';
 import '../core/glass_filter_chip.dart';
 import '../core/glass_action_button.dart';
 import '../main.dart';
 import 'wspj.dart';
+import 'wspj_answer_page.dart';
 import 'wspj_service.dart';
 
 /// 网上评教页面
@@ -37,6 +39,12 @@ class _WspjPageState extends State<WspjPage> {
   bool _isLoading = true;
   String? _error;
   bool _refreshing = false;
+
+  /// 教师摘要是否仍在补齐（列表接口不含教师名，需二次请求 `cxwjzbxq.do`）
+  bool _briefsLoading = false;
+
+  /// 问卷按教师分组后的结果（保持首次出现顺序）
+  List<_TeacherGroup> _groups = [];
 
   @override
   void initState() {
@@ -80,6 +88,7 @@ class _WspjPageState extends State<WspjPage> {
         _isLoading = false;
         _refreshing = false;
       });
+      await _loadTeacherBriefs(questionnaires);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -96,6 +105,7 @@ class _WspjPageState extends State<WspjPage> {
     setState(() {
       _xnxqdm = dm;
       _questionnaires = [];
+      _groups = [];
       _isLoading = true;
     });
     try {
@@ -108,6 +118,7 @@ class _WspjPageState extends State<WspjPage> {
         _questionnaires = questionnaires;
         _isLoading = false;
       });
+      await _loadTeacherBriefs(questionnaires);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -115,6 +126,55 @@ class _WspjPageState extends State<WspjPage> {
         _isLoading = false;
       });
     }
+  }
+
+  /// 补齐每份问卷的教师/课程信息并重建分组
+  ///
+  /// `cxxspjwjlb.do` **不返回**教师姓名与课程名（实测），而「按老师分组」
+  /// 必须有这两个字段，故这里串行预取一次 `cxwjzbxq.do`。
+  /// 失败时保留未补齐的问卷（组名显示「待确认教师」），不阻塞列表。
+  Future<void> _loadTeacherBriefs(List<WspjQuestionnaire> list) async {
+    if (list.isEmpty) {
+      if (mounted) setState(() => _groups = const []);
+      return;
+    }
+    if (mounted) setState(() => _briefsLoading = true);
+    final briefs = await _service.fetchTeacherBriefs(list);
+    if (!mounted) return;
+    final enriched = <WspjQuestionnaire>[];
+    for (final q in list) {
+      final b = briefs[q.cacheKey];
+      enriched.add(b == null
+          ? q
+          : q.withTeacher(bpr: b.bpr, bprxm: b.bprxm, kcm: b.kcm));
+    }
+    setState(() {
+      _questionnaires = enriched;
+      _groups = _groupByTeacher(enriched);
+      _briefsLoading = false;
+    });
+  }
+
+  /// 按教师分组（保持问卷原始顺序）
+  static List<_TeacherGroup> _groupByTeacher(List<WspjQuestionnaire> list) {
+    final order = <String>[];
+    final buckets = <String, List<WspjQuestionnaire>>{};
+    for (final q in list) {
+      final k = q.groupKey;
+      buckets.putIfAbsent(k, () {
+        order.add(k);
+        return <WspjQuestionnaire>[];
+      }).add(q);
+    }
+    return [
+      for (final k in order)
+        _TeacherGroup(
+          key: k,
+          name: buckets[k]!.first.teacherLabel,
+          code: buckets[k]!.first.bpr,
+          items: buckets[k]!,
+        ),
+    ];
   }
 
   /// 从系统参数列表取指定代码的参数值
@@ -319,14 +379,32 @@ class _WspjPageState extends State<WspjPage> {
   // ==================== 问卷列表 ====================
 
   Widget _buildSectionTitle() {
+    final pending = _questionnaires.where((q) => !q.isDone).length;
     return Row(
       children: [
         const Expanded(
           child: Text('学生评教问卷',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
         ),
-        Text('共 ${_questionnaires.length} 份',
-            style: TextStyle(fontSize: 12, color: textHint(context))),
+        if (_briefsLoading)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: textHint(context),
+              ),
+            ),
+          ),
+        Text(
+          _briefsLoading
+              ? '共 ${_questionnaires.length} 份'
+              : '${_groups.length} 位老师 · ${_questionnaires.length} 份'
+              '${pending > 0 ? ' · 待评 $pending' : ' · 已全部完成'}',
+          style: TextStyle(fontSize: 12, color: textHint(context)),
+        ),
       ],
     );
   }
@@ -372,7 +450,81 @@ class _WspjPageState extends State<WspjPage> {
         ),
       ];
     }
-    return [for (final q in _questionnaires) _buildQuestionnaireCard(q)];
+
+    // 按老师分组：组头（教师姓名 + 份数/进度）→ 组内问卷卡片
+    return [
+      for (int gi = 0; gi < _groups.length; gi++) ...[
+        if (gi > 0) const SizedBox(height: 14),
+        _buildTeacherHeader(_groups[gi]),
+        const SizedBox(height: 8),
+        for (final q in _groups[gi].items) _buildQuestionnaireCard(q),
+      ],
+    ];
+  }
+
+  /// 教师分组头：头像首字 + 姓名 + 「N 份 · 待评 M」
+  Widget _buildTeacherHeader(_TeacherGroup g) {
+    final pending = g.items.where((q) => !q.isDone).length;
+    final done = g.items.length - pending;
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, top: 4, bottom: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accentColorNotifier.value.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              g.name.characters.first,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: accentColorNotifier.value,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(g.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.w700)),
+                if (g.code.isNotEmpty)
+                  Text('工号 ${g.code}',
+                      style: TextStyle(
+                          fontSize: 11, color: textHint(context))),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: (pending == 0 ? accentColorNotifier.value : const Color(0xFFC2410C))
+                  .withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              pending == 0 ? '已完成 $done/${g.items.length}' : '待评 $pending/${g.items.length}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: pending == 0
+                    ? accentColorNotifier.value
+                    : const Color(0xFFC2410C),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildQuestionnaireCard(WspjQuestionnaire q) {
@@ -383,7 +535,7 @@ class _WspjPageState extends State<WspjPage> {
       padding: const EdgeInsets.only(bottom: 10),
       child: IosCard(
         padding: const EdgeInsets.all(14),
-        onTap: () => _showQuestionnaireDetail(q),
+        onTap: () => _openAnswerPage(q),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -391,7 +543,7 @@ class _WspjPageState extends State<WspjPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(q.wjmc,
+                  child: Text(q.displayTitle,
                       style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.bold),
                       maxLines: 2,
@@ -413,43 +565,81 @@ class _WspjPageState extends State<WspjPage> {
                 ),
               ],
             ),
+            if (q.wjmc.isNotEmpty && q.wjmc != q.displayTitle) ...[
+              const SizedBox(height: 4),
+              Text(q.wjmc,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: textSecondary(context))),
+            ],
+    if (q.bprxm.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.person_outline_rounded,
+                      size: 13, color: textHint(context)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(q.bprxm,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12.5, color: textSecondary(context))),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                _tag('${q.zfz} 分'),
+                if (q.zfz.isNotEmpty) _tag('${q.zfz} 分'),
                 if (q.pglxDisplay.isNotEmpty) _tag(q.pglxDisplay),
                 if (q.pglbDisplay.isNotEmpty && q.pglbDisplay != q.pglxDisplay)
                   _tag(q.pglbDisplay),
               ],
             ),
-            if (q.wjsm.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(q.wjsm,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: textSecondary(context))),
-            ],
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
                   child: Text(q.xnxqDisplay.isEmpty ? q.xnxqdm : q.xnxqDisplay,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style:
                           TextStyle(fontSize: 12, color: textHint(context))),
                 ),
-                Text('查看说明',
+                Text(done ? '查看 / 修改' : '去评教',
                     style: TextStyle(
                         fontSize: 12,
                         color: accentColorNotifier.value,
                         fontWeight: FontWeight.w500)),
+                const SizedBox(width: 2),
+                Icon(Icons.chevron_right_rounded,
+                    size: 16, color: accentColorNotifier.value),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 进入原生答题页；提交成功后回列表刷新状态
+  Future<void> _openAnswerPage(WspjQuestionnaire q) async {
+    final changed = await pushPageForResult<bool>(
+      context,
+      WspjAnswerPage(
+        client: widget.client,
+        questionnaire: q,
+        userId: widget.userId,
+      ),
+    );
+    if (changed == true && mounted) {
+      setState(() => _refreshing = true);
+      await _loadAll();
+    }
   }
 
   Widget _tag(String text) {
@@ -466,77 +656,29 @@ class _WspjPageState extends State<WspjPage> {
               fontWeight: FontWeight.w600)),
     );
   }
+}
 
-  // ==================== 问卷说明弹窗 ====================
+/// 教师分组（同一老师的多份问卷）
+///
+/// 分组键见 [WspjQuestionnaire.groupKey]：优先教师工号 `BPR`，
+/// 缺失时退回教学班 `JXBID`（此时每份问卷自成一组，不会被错误合并）。
+class _TeacherGroup {
+  /// 分组键（教师工号或 `jxbid:xxx`）
+  final String key;
 
-  void _showQuestionnaireDetail(WspjQuestionnaire q) {
-    final done = q.isDone;
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: glassDialog(
-          context: ctx,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(q.wjmc,
-                          style: const TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w700)),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close_rounded,
-                          color: textSecondary(ctx)),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _tag('${q.zfz} 分'),
-                    _tag(done ? '已完成' : '待评教'),
-                    if (q.pglxDisplay.isNotEmpty) _tag(q.pglxDisplay),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (q.wjsm.isNotEmpty)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(ctx).size.height * 0.4,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Text(q.wjsm,
-                          style: TextStyle(
-                              fontSize: 13,
-                              height: 1.6,
-                              color: textPrimary(ctx))),
-                    ),
-                  )
-                else
-                  Text('该问卷暂无说明',
-                      style: TextStyle(
-                          fontSize: 13, color: textHint(ctx))),
-                const SizedBox(height: 16),
-                GlassActionButton(
-                  label: done ? '好的' : '知道了',
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  secondary: true,
-                  fullWidth: true,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  /// 教师姓名（缺省显示「待确认教师」）
+  final String name;
+
+  /// 教师工号（可能为空）
+  final String code;
+
+  /// 该教师名下的问卷
+  final List<WspjQuestionnaire> items;
+
+  const _TeacherGroup({
+    required this.key,
+    required this.name,
+    required this.code,
+    required this.items,
+  });
 }
